@@ -61,6 +61,12 @@ The hoarding node system consists of six main components:
 ```mermaid
 graph TD
     %% Network Input
+
+    %% Data Access Subgraph
+    subgraph Access ["🔍 Data Access Layer"]
+        E[HTTP Analytics API<br/>- REST endpoints<br/>- Data export]
+    end
+
     A[Cardano Network Peers]
 
     %% Data Collection Subgraph
@@ -78,8 +84,8 @@ graph TD
 
     %% Data Processing Subgraph
     subgraph Processing ["⚙️ Data Processing Layer"]
-        D[Background Workers<br/>- Classification<br/>- Eviction<br/>- Archive<br/>- Cleanup]
-        E[HTTP Analytics API<br/>- REST endpoints<br/>- Data export]
+        D1[Classification Worker<br/>- Validate blocks/txs<br/>- Detect violations<br/>- Mark for eviction]
+        D2[Eviction Worker<br/>- Archive data<br/>- Delete marked data<br/>- Cleanup]
     end
 
     %% External Components
@@ -98,27 +104,31 @@ graph TD
 
     R <-->|read/write data| C
 
-    R -->|get unprocessed data| D
+    R -->|get unprocessed data| D1
+    D1 -->|write classifications| R
+    R -->|get marked data| D2
+    D2 -->|delete/archive| R
     R -->|analytics queries| E
 
     E -->|HTTP| F
 
-    %% Validation Connections
-    B1 <-.->|validation queries| G
-    B2 <-.->|validation queries| G
-    BN <-.->|validation queries| G
+    %% Validation and Network Connections
+    D1 <-.->|validation queries<br/>Node-to-Client| G
+    G -.->|relay blocks/txs<br/>Node-to-Node| A
 
     %% Enhanced Styling
     classDef collectionClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef storageClass fill:#f1f8e9,stroke:#388e3c,stroke-width:2px
     classDef processingClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef accessClass fill:#fff9c4,stroke:#f57f17,stroke-width:2px
     classDef externalClass fill:#fff3e0,stroke:#f57c00,stroke-width:2px
     classDef consumerClass fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     classDef networkClass fill:#f9fbe7,stroke:#689f38,stroke-width:2px
 
     class B1,B2,BN collectionClass
     class R,C storageClass
-    class D,E processingClass
+    class D1,D2 processingClass
+    class E accessClass
     class G externalClass
     class F consumerClass
     class A networkClass
@@ -128,79 +138,121 @@ graph TD
 
 #### 1. Hoarding Processes
 
-**Purpose**: Lightweight processes that establish Node-to-Node protocol connections with Cardano peers.
+##### Purpose
 
-**Configuration**:
+Lightweight processes that establish Node-to-Node protocol connections with Cardano peers.
+
+##### Configuration
 - `N = ⌈total_known_peers / max_connections_per_process⌉`
 - Each process maintains long-lived connections to assigned peers
 - Default `max_connections_per_process = 20`
 
-**Behavior**:
-- **Message forwarding**: Act as transparent relay to at least one further node to avoid being seen as adversarial
+##### Behavior
 - **Data collection**: Store all received ChainSync, BlockFetch, and TxSubmission messages via Repository Service APIs
-- **Peer discovery**: Bootstrap from known relays, use peer sharing for expansion
+- **Observation only**: Hoarding processes are passive observers; they do not forward blocks or transactions (the separate full Cardano node handles network relaying duties)
+- **Peer discovery and coverage expansion**:
+  - Bootstrap from known relays (initial seed peers)
+  - Use Peer Sharing Protocol to discover additional peers during operation
+  - Store all discovered peers in database (PEERS table) for persistent tracking
+  - Periodically spawn new hoarding processes connecting to previously undiscovered peers
+  - Iterative expansion: new processes discover more peers, expanding network coverage over time
+  - This strategy maximizes visibility into different network segments and increases chances of observing invalid data
 - **Connection management**:
   - No redistribution when peers drop (to avoid reorganization overhead)
-  - Dynamic addition of newly discovered peers
+  - Dynamic addition of newly discovered peers to database
   - Graceful handling of connection failures
 
-**Protocol-Specific Data Collection**:
+##### Protocol-Specific Data Collection
 
-**ChainSync Protocol**:
+###### ChainSync Protocol
 - **Block Headers**: Collect all announced block headers regardless of validation status
 - **Chain Updates**: Record `RollForward` and `RollBackward` messages with timestamps
 - **Intersection Points**: Track where different peers' chain views diverge
 - **Tip Updates**: Monitor how chain tip announcements propagate across peers
 - **Rollback Events**: Capture chain reorganizations with depth and timing information
 
-**BlockFetch Protocol**:
+###### BlockFetch Protocol
 - **Block Requests**: Log which blocks are requested from which peers
 - **Block Responses**: Store complete block bodies including failed/timed-out requests
 - **Fetch Failures**: Record blocks that couldn't be retrieved (network errors, peer disconnections)
 - **Streaming Behavior**: Track batched block fetch patterns and peer responsiveness
 - **Block Validation**: Correlate fetched blocks with subsequent validation results
 
-**TxSubmission Protocol**:
+###### TxSubmission Protocol
 - **Transaction Announcements**: Capture all transaction IDs announced by peers
 - **Transaction Bodies**: Store full transaction content when available
 - **Mempool Rejections**: Record transactions rejected with rejection reasons
 - **Propagation Patterns**: Track how transactions spread through the network
 - **Duplicate Submissions**: Identify transactions submitted by multiple peers
 
-**Peer Sharing Protocol** (if implemented):
+###### Peer Sharing Protocol (if implemented)
 - **Peer Advertisements**: Collect peer address announcements
 - **Network Topology**: Build connectivity graphs from peer sharing data
 - **Relay Preferences**: Track which peers are recommended as relays
 - **Geographic Distribution**: Analyze peer distribution patterns
 
-**Open Considerations**:
+##### Storage Bounds
 
-**Data Deduplication at Collection Level**:
+To prevent unbounded storage consumption from adversarial behavior, hoarding processes enforce limits on data collection:
+
+**Equivocation Protection**:
+- **Problem**: An adversarial pool that wins slot leadership could produce unlimited blocks for a single slot (equivocation attack)
+- **Solution**: Limit storage per `(slot_number, pool_id)` pair
+- **Default**: `max_blocks_per_slot_pool = 10`
+- **Rationale**:
+  - First 2 equivocating blocks prove the protocol violation
+  - Storing up to 10 provides redundancy and pattern analysis capability
+  - Beyond 10, additional equivocations provide diminishing research value
+  - This bounds storage even if an adversarial pool produces thousands of blocks per slot
+
+**Implementation**: When a hoarding process receives a block for a `(slot, pool)` combination that already has the maximum number of stored blocks, it should:
+1. Log the attempt for metrics (to track attack magnitude)
+2. Optionally update a counter for that slot/pool combination
+3. Discard the block without storing
+
+##### Open Considerations
+
+###### Data Deduplication at Collection Level
 - Should hoarding processes perform immediate hash-based deduplication before calling Repository Service APIs to reduce storage load?
 - How should batching be implemented to balance memory usage vs. Repository Service call efficiency?
 - What memory bounds and backpressure mechanisms are needed for queued data awaiting storage?
 
-**Security and DoS Prevention**:
+###### Security and DoS Prevention
 - What rate limiting mechanisms should be applied per-peer and globally to prevent resource exhaustion?
 - How should the system detect and handle peers sending malformed or excessive data?
 - What resource bounds (memory, CPU, disk I/O) should be enforced per hoarding process?
 - Should there be reputation scoring to automatically disconnect problematic peers?
 
-**Network Citizenship and Stealth Operation**:
+###### Network Citizenship and Stealth Operation
 - What forwarding rules ensure hoarding nodes contribute positively to network health?
 - How can connection patterns and timing be randomized to avoid detection as monitoring infrastructure?
 - What protocol compliance checks are needed to maintain compatibility with regular nodes?
 - Should there be graceful degradation when peers start rejecting connections?
 
-**Configuration and Performance**:
+###### Configuration and Performance
 - What parameters should be tunable (connection counts, timeouts, batch sizes, retention policies)?
 - How should the system monitor its own health and performance impact on the network?
 - What logging and metrics are needed for operational visibility without compromising stealth?
 - How should the system scale with network growth and increasing peer counts?
 
+###### Peer Opt-out Mechanism
+- How can stake pool operators opt-out of being monitored by hoarding nodes if they choose to?
+- Should this be configuration-based (denylist file), or does it need a more dynamic mechanism (API, database)?
+- Configuration files require service restarts and lack flexibility - is there a better approach?
+- Is there a way for peers to signal opt-out preference in-protocol, or must it remain out-of-band?
+- What are the ethical and community governance considerations around respecting opt-out requests?
+- Should there be a standardized opt-out registry or does each hoarding node operator handle this independently?
+- **Note**: Any opt-out mechanism could be abused by adversarial participants to avoid monitoring and hide protocol violations. This creates a fundamental tension between respecting operator preferences and ensuring comprehensive security monitoring.
+
 #### 2. Shared Database
 
 **Purpose**: Centralized storage for all collected data with deduplication and correlation capabilities.
+
+**Terminology**: The schema tracks two distinct types of identities:
+- **Stake Pool (`pool_id`)**: A registered entity that produces blocks when it wins slot leadership. The pool signs blocks with its keys. Multiple blocks from the same pool for the same slot indicate equivocation.
+- **Network Node / Peer (`peer_id`)**: A server running cardano-node that relays blocks and transactions through the network. A single stake pool typically operates multiple nodes (block producer + relays).
+
+The distinction: pools **produce** blocks, peers **relay** blocks. The same block may be relayed by many peers but was produced by exactly one pool.
 
 **Schema Requirements**:
 
@@ -209,6 +261,7 @@ erDiagram
     BLOCKS {
         string block_hash PK
         int slot_number
+        string pool_id
         blob block_data
         string validation_status
         string validation_reason
@@ -219,9 +272,8 @@ erDiagram
     BLOCK_SOURCES {
         int id PK
         string block_hash FK
-        string received_from
-        timestamp received_at
         string peer_id
+        timestamp received_at
     }
 
     TRANSACTIONS {
@@ -236,9 +288,17 @@ erDiagram
     TRANSACTION_SOURCES {
         int id PK
         string tx_hash FK
-        string received_from
-        timestamp received_at
         string peer_id
+        timestamp received_at
+    }
+
+    PEERS {
+        string peer_id PK
+        string address
+        int port
+        timestamp first_discovered
+        timestamp last_seen
+        string discovered_via
     }
 
     BLOCKS ||--o{ BLOCK_SOURCES : "references"
@@ -252,6 +312,24 @@ erDiagram
 - **Timing Preservation**: Maintain `received_at` timestamp for each peer source
 - **Propagation Analysis**: Enable analysis of how content propagates through the network
 - **Peer Behavior**: Track which peers send duplicate content and timing patterns
+
+**Connection State Management**:
+- **Runtime tracking**: Connection state (which peers are currently connected) is maintained in-memory by each hoarding process, not in the database
+- **Rationale**: Avoids stale state from crashed processes, eliminates constant database updates on connect/disconnect, prevents race conditions
+- **Process spawning**: When spawning new hoarding processes, query the PEERS table and filter out peers that existing processes report as connected (via runtime coordination/reporting mechanism)
+
+**Future Extension - Connection History**:
+The system could be extended with a `CONNECTIONS` table for historical connection analysis:
+```
+CONNECTIONS {
+    int id PK
+    string peer_id FK
+    timestamp connected_at
+    timestamp disconnected_at (nullable)
+    string disconnection_reason
+}
+```
+This would enable analysis of peer reliability, connection duration patterns, and network topology changes over time. However, this is not required for operational peer selection.
 
 #### 3. Repository Service
 
@@ -310,12 +388,17 @@ exportViolations :: ExportFormat -> FilterCriteria -> IO ExportResult
 
 #### 4. Full Cardano Node Integration
 
-**Purpose**: Provide validation services and maintain canonical chain state for comparison.
+**Purpose**: Provide validation services to background workers and handle network relaying duties for the hoarding system.
+
+**Responsibilities**:
+- **Network Relay**: Connects to Cardano network and relays valid blocks/transactions (maintains network citizenship)
+- **Validation Service**: Provides Node-to-Client queries for background workers to classify collected data
+- **Canonical Chain State**: Maintains full ledger state to identify which blocks are on the canonical chain
 
 **Configuration**:
-- Standard cardano-node with restricted connectivity
-- Only connects to hoarding processes (acts as isolated validator)
+- Standard cardano-node with normal network connectivity
 - Maintains full ledger state for validation queries
+- Background workers connect via Node-to-Client protocol for classification tasks
 
 **Node-to-Client Protocol Extensions** (proposed):
 ```haskell
@@ -617,11 +700,11 @@ background_workers:
 #### Violation Detection Algorithms
 
 **Equivocation Detection**:
-1. **Data Indexing**: Maintain an index of blocks by (slot_number, leader_id)
-2. **Conflict Detection**: For each new block, check if another block exists for the same slot+leader combination
-3. **Signature Verification**: Validate that both blocks are properly signed by the claimed leader
+1. **Data Indexing**: Maintain an index of blocks by (slot_number, pool_id)
+2. **Conflict Detection**: For each new block, check if another block exists for the same slot+pool combination
+3. **Signature Verification**: Validate that both blocks are properly signed by the claimed pool
 4. **Evidence Collection**: Store both conflicting blocks with metadata about detection time and source peers
-5. **Pattern Analysis**: Track repeated equivocations from the same leader for reputation scoring
+5. **Pattern Analysis**: Track repeated equivocations from the same pool for reputation scoring
 
 **Orphan Analysis**:
 1. **Chain Tracking**: Maintain a representation of the canonical chain tip as reported by the full node
@@ -646,12 +729,15 @@ background_workers:
 
 ### Network Health Safeguards
 
-To prevent hoarding nodes from being perceived as adversarial:
+To ensure the hoarding system doesn't negatively impact network health:
 
-1. **Message Forwarding**: Always forward received messages to maintain relay behavior
-2. **Rate Limiting**: Implement connection and request rate limits
+1. **Separation of Concerns**:
+   - Hoarding processes act as passive observers (do not forward messages)
+   - Full Cardano node handles all network relaying duties
+   - This maintains normal network citizenship without compromising data collection
+2. **Rate Limiting**: Implement connection and request rate limits to avoid overwhelming peers
 3. **Graceful Degradation**: Reduce activity if peers start rejecting connections
-4. **Transparent Operation**: Behave identically to normal relay nodes except for logging
+4. **Transparent Observation**: Hoarding processes behave like normal peers (request blocks, stay synchronized) but don't relay data
 
 ## Rationale
 
@@ -671,6 +757,36 @@ To prevent hoarding nodes from being perceived as adversarial:
 - **Choice**: Dedicated cardano-node for validation
 - **Rationale**: Leverages existing validation logic, ensures consistency with network consensus
 - **Alternative**: Reimplementing validation (rejected due to maintenance burden and accuracy concerns)
+
+**Store-All-Then-Filter vs Selective Storage**:
+- **Choice**: Store all received blocks/transactions, then classify and evict via background workers
+- **Rationale**:
+  - Simpler collection logic - hoarding processes don't need validation queries or canonical chain state
+  - No dependency on full node availability during collection (higher reliability)
+  - Enables post-hoc analysis of data that might be classified differently as criteria evolve
+  - Separates concerns: collection is fast and stateless, classification can be slower and stateful
+- **Storage Trade-off**: Increased storage costs are temporary - only until background workers classify and evict canonical/routine data. The additional storage is proportional to the processing lag (e.g., if classification runs every 10 minutes, roughly 10 minutes of canonical blocks are stored temporarily).
+- **Alternative**: Only store non-canonical data (as proposed in original proposal) - rejected due to increased complexity and tight coupling.
+- **Note**: This differs from the original proposal which suggested storing only non-canonical data by default.
+
+**Outbound-Only vs Bidirectional Connections**:
+- **Choice**: Hoarding processes only make outbound connections (do not accept inbound)
+- **Rationale**:
+  - Node-to-Node protocol connections are bidirectional regardless of who initiated the TCP connection - peers can push both blocks and transactions over connections we initiate
+  - Broad peer discovery via peer sharing provides sufficient network coverage, including connections to potentially malicious/buggy nodes that send invalid data
+  - Simpler deployment: no port forwarding, public IP requirements, or inbound connection handling
+  - Lower attack surface: cannot be targeted with inbound connection spam
+- **Alternative**: Accept inbound connections (as mentioned in original proposal) - deemed unnecessary since outbound connections are sufficient for comprehensive monitoring.
+
+**No Validation in Hoarding Processes**:
+- **Choice**: Hoarding processes perform no validation; all classification and validation is offloaded to background workers querying the full node
+- **Rationale**:
+  - Keeps hoarding processes lightweight, stateless, and focused on reliable data collection
+  - Validation requires access to full ledger state, stake distribution, and protocol parameters—complexity better suited to background workers
+  - Hoarding processes don't make forwarding decisions (full node handles relaying), so real-time validation provides no benefit
+  - Batch validation by background workers is sufficient; real-time violation detection is not required
+  - Separation of concerns: fast collection vs. slower, stateful classification
+- **Alternative**: Progressive validation where hoarding processes eventually perform header or full block validation (as suggested in original proposal)—rejected as it adds complexity without meaningful benefit given the passive observer architecture.
 
 ### Trade-offs
 
@@ -701,7 +817,7 @@ To prevent hoarding nodes from being perceived as adversarial:
 - Simple storage backend (PostgreSQL)
 - Basic Repository Service with core data ingestion APIs
 - Manual peer configuration
-- Proof-of-concept validation
+- Full node integration for validation (via background workers, not hoarding processes)
 
 **Phase 2: Enhanced Collection**
 - Full protocol coverage (ChainSync, BlockFetch, TxSubmission)
