@@ -1,5 +1,6 @@
 module Hoard.TestHelpers.Database
-  ( withTestDatabase,
+  ( TestConfig (..),
+    withTestDatabase,
     cleanDatabase,
   )
 where
@@ -15,16 +16,22 @@ import Hasql.Decoders qualified as Decoders
 import Hasql.Pool qualified as Pool
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))
-import Hoard.Types.DBConfig (DBConfig (..), DBPools, acquireDatabasePools)
+import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), acquireDatabasePools)
 import System.Exit (ExitCode (..))
 import System.Process (readProcessWithExitCode)
+
+-- | Test configuration including database pools and schema name
+data TestConfig = TestConfig
+  { pools :: DBPools,
+    schemaName :: Text
+  }
 
 -- | Run an action with a temporary PostgreSQL database that has migrations applied.
 -- The database is automatically cleaned up after the action completes.
 --
 -- This creates the database ONCE for the entire test suite - you should clean
 -- tables between individual tests using 'cleanDatabase'.
-withTestDatabase :: (DBPools -> IO a) -> IO a
+withTestDatabase :: (TestConfig -> IO a) -> IO a
 withTestDatabase action = do
   dbName <- generateUniqueDatabaseName
 
@@ -61,7 +68,12 @@ withTestDatabase action = do
               }
 
       pools <- acquireDatabasePools readerConfig writerConfig
-      action pools
+      let testConfig =
+            TestConfig
+              { pools = pools,
+                schemaName = "hoard"
+              }
+      action testConfig
 
 -- | Set up a test database: create it and run migrations
 setupDatabase :: DBConfig -> Text -> IO ()
@@ -71,6 +83,9 @@ setupDatabase adminConfig dbName = do
 
   -- Run sqitch migrations
   runSqitchMigrations dbName
+
+  -- Grant TRUNCATE privileges to hoard_writer for test cleanup
+  grantTruncatePrivileges adminConfig dbName
 
 -- | Create a database using psql
 createDatabase :: DBConfig -> Text -> IO ()
@@ -119,6 +134,25 @@ runSqitchMigrations dbName = do
           <> "\nstderr: "
           <> stderr
 
+-- | Grant TRUNCATE privileges to hoard_writer for test cleanup
+-- This is only needed in test databases for the cleanDatabase function
+grantTruncatePrivileges :: DBConfig -> Text -> IO ()
+grantTruncatePrivileges config dbName = do
+  let connStr = makeConnectionString (config {databaseName = dbName})
+      grantSql = "GRANT TRUNCATE ON ALL TABLES IN SCHEMA hoard TO hoard_writer"
+      args = [cs connStr, "-c", grantSql]
+  (exitCode, stdout, stderr) <- readProcessWithExitCode "psql" args ""
+  case exitCode of
+    ExitSuccess -> pure ()
+    ExitFailure code ->
+      error $
+        "Failed to grant TRUNCATE privileges: "
+          <> show code
+          <> "\nstdout: "
+          <> stdout
+          <> "\nstderr: "
+          <> stderr
+
 -- | Create a PostgreSQL connection string for psql from DBConfig
 -- Uses the host as a socket directory if it starts with /
 makeConnectionString :: DBConfig -> Text
@@ -144,17 +178,18 @@ makeConnectionString config =
 -- | Clean the database by truncating all tables except system/migration tables.
 -- Use this between tests to reset state while keeping the schema and migration data intact.
 -- Excludes: schema_metadata (migration tracking)
-cleanDatabase :: Pool.Pool -> IO ()
-cleanDatabase pool = do
-  runOrThrow pool $ do
-    tableNames <- statement () queryTableNames
-    unless (null tableNames) $
-      truncateTables (Text.intercalate "," tableNames)
+cleanDatabase :: TestConfig -> IO ()
+cleanDatabase config = do
+  runOrThrow config.pools.writerPool $ do
+    tableNames <- statement () (queryTableNames config.schemaName)
+    unless (null tableNames) $ do
+      let qualifiedNames = map (\t -> config.schemaName <> "." <> t) tableNames
+      truncateTables (Text.intercalate "," qualifiedNames)
   where
-    queryTableNames :: Statement () [Text]
-    queryTableNames =
+    queryTableNames :: Text -> Statement () [Text]
+    queryTableNames schema =
       Statement
-        "SELECT tablename FROM pg_tables WHERE schemaname = 'hoard' AND tablename != 'schema_metadata'"
+        (cs $ "SELECT tablename FROM pg_tables WHERE schemaname = '" <> schema <> "' AND tablename != 'schema_metadata'")
         mempty
         (decodeList Decoders.text)
         True

@@ -14,7 +14,21 @@ where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.Async (async, wait)
-import Control.Concurrent.STM (TQueue, TVar, atomically, isEmptyTQueue, newTQueueIO, newTVarIO, orElse, readTVar, readTVarIO, registerDelay, retry, writeTQueue, writeTVar)
+import Control.Concurrent.STM
+  ( TQueue,
+    TVar,
+    atomically,
+    isEmptyTQueue,
+    newTQueueIO,
+    newTVarIO,
+    orElse,
+    readTVar,
+    readTVarIO,
+    registerDelay,
+    retry,
+    writeTQueue,
+    writeTVar,
+  )
 import Control.Exception (bracket)
 import Control.Monad (forM_, void)
 import Control.Monad.IO.Class (liftIO)

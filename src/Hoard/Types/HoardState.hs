@@ -1,7 +1,4 @@
-module Hoard.Types.HoardState
-  ( HoardState (..),
-  )
-where
+module Hoard.Types.HoardState (HoardState (..)) where
 
 import Data.Default (Default (..))
 

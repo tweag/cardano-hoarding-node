@@ -127,6 +127,91 @@ cat sqitch.plan
 4. **Use verify scripts**: Add meaningful verification checks
 5. **Use transactions**: Wrap migrations in BEGIN/COMMIT (already in templates)
 6. **Describe changes clearly**: Use descriptive migration names and notes
+7. **Create Rel8 schemas**: For each table, create corresponding Haskell types (see below)
+
+## Working with Rel8 Schemas
+
+For each database table, create three Haskell modules following this pattern:
+
+### Module Structure
+
+```
+src/Hoard/
+├── Data/
+│   ├── ID.hs              # Generic ID type (shared)
+│   └── <Entity>.hs        # Domain type (e.g., Peer.hs)
+└── DB/Schemas/
+    └── <Entity>s.hs       # Rel8 schema (e.g., Peers.hs)
+```
+
+### Example: Peers Table
+
+**1. Domain Type** (`src/Hoard/Data/Peer.hs`):
+```haskell
+data Peer = Peer
+  { peerId :: ID Peer,
+    address :: Text,
+    port :: Int,
+    firstDiscovered :: UTCTime,
+    lastSeen :: UTCTime,
+    discoveredVia :: Text
+  }
+```
+
+**2. Rel8 Schema** (`src/Hoard/DB/Schemas/Peers.hs`):
+```haskell
+data Row f = Row
+  { id :: Column f (ID Peer),
+    address :: Column f Text,
+    port :: Column f Int32,
+    -- ... other fields
+  }
+  deriving stock (Generic)
+  deriving anyclass (Rel8able)
+
+schema :: TableSchema (Row Name)
+schema = mkSchema "peers"
+
+-- Conversion functions
+peerFromRow :: Row Result -> Peer
+rowFromPeer :: Peer -> Row Result
+```
+
+**3. Migration** (`db/deploy/create_peers_table.sql`):
+```sql
+CREATE TABLE hoard.peers (
+    peer_id UUID PRIMARY KEY,
+    address TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    first_discovered TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    discovered_via TEXT NOT NULL
+);
+```
+
+### Testing Schemas
+
+Add a test case to `test/Integration/Hoard/SchemaSpec.hs`:
+
+```haskell
+it "is correctly mapped" $ \config -> do
+  weakTestSchema config YourSchema.schema
+```
+
+This verifies:
+- Table exists in the database
+- Column names match (Haskell camelCase → SQL snake_case)
+- Column types are compatible
+- Schema can be queried without errors
+
+**Test Database Lifecycle:**
+- A temporary test database is created once before the integration test suite runs
+- All migrations are applied automatically via sqitch
+- The database is reused across all test cases for performance
+- Tables are truncated (not dropped) between individual tests using `cleanDatabase`
+- The database is dropped after all tests complete
+
+Run tests with: `cabal test` or `nix develop -c cabal test`
 
 ## Directory Structure
 
