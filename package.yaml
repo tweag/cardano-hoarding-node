@@ -32,8 +32,13 @@ dependencies:
 - effectful-th
 - eve
 - hashable
+- hasql
+- hasql-pool
+- hasql-transaction
 - lens
 - mtl
+- network-uri
+- rel8
 - servant
 - servant-server
 - stm
@@ -85,3 +90,6 @@ tests:
     - http-client
     - wai
     - warp
+    - process
+    - directory
+    - uuid

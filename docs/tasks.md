@@ -1,3 +1,0 @@
-- ~~Review repository spec (not restful, just haskell wrapper around the database)~~
-- ~~Simplify the HTTP API (too many endpoints, let's keep it simple)~~
-- ~~Remove database section - too much detail for now~~

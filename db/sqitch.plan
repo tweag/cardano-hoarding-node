@@ -1,0 +1,6 @@
+%syntax-version=1.0.0
+%project=hoard
+%uri=https://github.com/tweag/cardano-hoarding-node
+
+init_schema 2025-10-20T12:16:28Z Christian Georgii <christian.georgii@moduscreate.com> # Initialize schema with metadata table
+create_db_users 2025-10-21T08:21:07Z Christian Georgii <christian.georgii@moduscreate.com> # Create read-only and read-write database users

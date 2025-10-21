@@ -1,7 +1,0 @@
-- Artificially increase mempool size of the full cardano node in order to increase the likelihood of witnessing transactions.
-- https://github.com/cardano-foundation/CIPs/pull/1078
-- Who will assess the acceptance of this CIP?
-- Add transaction body to node's log
-  - Enrich mempool tracing to contain the full rejected transaction body
-  - Consensus team (Alex Esgen, Nick Frisby)
-  - Tracing team (IOG people)

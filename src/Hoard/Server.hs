@@ -13,6 +13,7 @@ import Effectful.Console.ByteString (putStrLn)
 import Hoard.API (API, server)
 import Hoard.Effects (AppEff, Config (..), runEffectStack)
 import Hoard.Events (SomeEvent)
+import Hoard.Types.DBConfig (DBPools)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant
 import Prelude hiding (putStrLn)
@@ -21,7 +22,8 @@ import Prelude hiding (putStrLn)
 data ServerConfig = ServerConfig
   { port :: Int,
     host :: String,
-    eventQueue :: TQueue SomeEvent
+    eventQueue :: TQueue SomeEvent,
+    dbPools :: DBPools
   }
 
 -- | Run the Servant server with the provided configuration
@@ -33,5 +35,5 @@ runServer config = do
 
   -- Run Warp server (needs liftIO since Warp's runSettings is in IO)
   let settings = setPort config.port $ setHost (fromString config.host) defaultSettings
-  let servantApp = hoistServer (Proxy @API) (Handler . runEffectStack (Config config.eventQueue)) server
+  let servantApp = hoistServer (Proxy @API) (Handler . runEffectStack (Config config.eventQueue config.dbPools)) server
   liftIO $ runSettings settings (serve (Proxy @API) servantApp)
