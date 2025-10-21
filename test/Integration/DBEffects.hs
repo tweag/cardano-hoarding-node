@@ -10,18 +10,18 @@ import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
-import Hoard.TestHelpers.Database (cleanDatabase, withTestDatabase)
+import Hoard.TestHelpers.Database (TestConfig (..), cleanDatabase, withTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
 import Test.Hspec
 
 spec_DBEffects :: Spec
 spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
   describe "DBRead effect" $ do
-    it "can read from the database" $ \pools -> do
+    it "can read from the database" $ \config -> do
       result <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBRead pools.readerPool
+          . runDBRead config.pools.readerPool
           $ runQuery "count-metadata" countMetadataStmt
 
       result `shouldSatisfy` isRight
@@ -29,12 +29,12 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
         Right count -> count `shouldBe` 1 -- init_schema creates one row
         Left err -> expectationFailure $ "Query failed: " <> show err
 
-    it "can read data that was written" $ \pools -> do
+    it "can read data that was written" $ \config -> do
       -- First write some data
       _ <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBWrite pools.writerPool
+          . runDBWrite config.pools.writerPool
           $ runTransaction "insert-test"
           $ do
             TX.statement () insertTestStmt
@@ -43,7 +43,7 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
       result <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBRead pools.readerPool
+          . runDBRead config.pools.readerPool
           $ runQuery "count-after-insert" countMetadataStmt
 
       case result of
@@ -51,23 +51,23 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
         Left err -> expectationFailure $ "Query failed: " <> show err
 
   describe "DBWrite effect" $ do
-    it "can write to the database" $ \pools -> do
+    it "can write to the database" $ \config -> do
       result <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBWrite pools.writerPool
+          . runDBWrite config.pools.writerPool
           $ runTransaction "insert-test"
           $ do
             TX.statement () insertTestStmt
 
       result `shouldSatisfy` isRight
 
-    it "can delete from the database" $ \pools -> do
+    it "can delete from the database" $ \config -> do
       -- First insert
       _ <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBWrite pools.writerPool
+          . runDBWrite config.pools.writerPool
           $ runTransaction "insert"
           $ TX.statement () insertTestStmt
 
@@ -75,7 +75,7 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
       result <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBWrite pools.writerPool
+          . runDBWrite config.pools.writerPool
           $ runTransaction "delete"
           $ TX.statement () deleteTestStmt
 
@@ -85,7 +85,7 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
       countResult <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBRead pools.readerPool
+          . runDBRead config.pools.readerPool
           $ runQuery "count-after-delete" countMetadataStmt
 
       case countResult of
@@ -93,12 +93,12 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
         Left err -> expectationFailure $ "Count query failed: " <> show err
 
   describe "Permission separation" $ do
-    it "reader pool cannot write to the database" $ \pools -> do
+    it "reader pool cannot write to the database" $ \config -> do
       -- Try to write using the reader pool - this should fail
       result <-
         runEff
           . runErrorNoCallStack @Text
-          . runDBRead pools.readerPool
+          . runDBRead config.pools.readerPool
           $ runQuery "illegal-insert" insertAsSelectStmt
 
       -- We expect this to fail with a permission error
@@ -150,8 +150,8 @@ insertAsSelectStmt =
     (D.singleRow (D.column (D.nonNullable D.int4)))
     True
 
--- | Clean database before each test and return the pools
-cleanAndReturn :: DBPools -> IO DBPools
-cleanAndReturn pools = do
-  cleanDatabase pools.writerPool
-  pure pools
+-- | Clean database before each test and return the config
+cleanAndReturn :: TestConfig -> IO TestConfig
+cleanAndReturn config = do
+  cleanDatabase config
+  pure config
