@@ -1,9 +1,11 @@
 module Integration.Hoard.IntegrationSpec (spec_HeaderIntegration) where
 
 import Data.Either (isRight)
+import Effectful (liftIO)
+import Effectful.Concurrent (threadDelay)
 import Hoard.API (Routes (..))
 import Hoard.Events.HeaderReceived (HeaderReceived (..))
-import Hoard.TestHelpers
+import Hoard.TestHelpers (client, filterEvents, withEffectStackServer)
 import Hoard.Types.Header (Header (..))
 import Test.Hspec
 
@@ -14,51 +16,36 @@ spec_HeaderIntegration = describe "Header Integration Tests" $ do
       -- Setup: Create test header
       let testHeader = Header {info = "test header info"}
 
-      -- Setup: Create event capture
-      headerReceivedEvents <- observer @HeaderReceived
-
-      -- Setup: Start test app with custom listener
-      withTestApp (testConfig {captures = [capture headerReceivedEvents]}) $ \_ runClient -> do
-        -- Send request via servant client
+      (_, _, events) <- withEffectStackServer $ \_ runClient -> do
         result <- runClient (client.receiveHeader testHeader)
+        liftIO $ result `shouldSatisfy` isRight
+        threadDelay 2_000_000
 
-        -- Assert request succeeded
-        result `shouldSatisfy` isRight
-
-        -- Wait for at least 1 event (with 100ms timeout)
-        [HeaderReceived receivedHeader] <- waitForEvents headerReceivedEvents 1 0.1
-
-        -- Assert event contains the test data
-        receivedHeader `shouldBe` testHeader
+      case filterEvents events of
+        [HeaderReceived header] ->
+          header `shouldBe` testHeader
+        xs ->
+          expectationFailure $ "Expected 1 HeaderReceived event, got: " <> show (length xs)
 
     it "handles multiple sequential requests" $ do
       -- Setup: Create multiple test headers
       let testHeader1 = Header {info = "first header"}
       let testHeader2 = Header {info = "second header"}
 
-      -- Setup: Create event capture
-      headerReceivedEvents <- observer @HeaderReceived
-
       -- Setup: Start test app
-      withTestApp (testConfig {captures = [capture headerReceivedEvents]}) $ \_ runClient -> do
+      (_, _, events) <- withEffectStackServer $ \_ runClient -> do
         -- Send first request
         result1 <- runClient (client.receiveHeader testHeader1)
-        result1 `shouldSatisfy` isRight
+        liftIO $ result1 `shouldSatisfy` isRight
 
         -- Send second request
         result2 <- runClient (client.receiveHeader testHeader2)
-        result2 `shouldSatisfy` isRight
+        liftIO $ result2 `shouldSatisfy` isRight
 
-        -- Wait for at least 2 events (with 200ms timeout)
-        events <- waitForEvents headerReceivedEvents 2 0.2
-
-        -- Assert we got two events
-        length events `shouldBe` 2
-
-        -- Assert events contain correct data (in order)
-        case events of
-          [HeaderReceived h1, HeaderReceived h2] -> do
-            h1 `shouldBe` testHeader1
-            h2 `shouldBe` testHeader2
-          _ ->
-            expectationFailure $ "Expected 2 HeaderReceived events, got: " <> show (length events)
+      -- Assert events contain correct data (in order)
+      case filterEvents events of
+        [HeaderReceived h1, HeaderReceived h2] -> do
+          h1 `shouldBe` testHeader1
+          h2 `shouldBe` testHeader2
+        _ ->
+          expectationFailure $ "Expected 2 HeaderReceived events, got: " <> show (length events)

@@ -3,18 +3,22 @@ module Hoard.Effects
     runEffectStack,
     runEffectStackReturningState,
     AppEff,
+    AppEffects,
     -- Config
     Config (..),
+    Channels (..),
+    channelsFromPair,
 
     -- * Type Aliases
     type (::>),
   )
 where
 
-import Control.Concurrent.STM (TQueue)
+import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Default (def)
+import Data.Dynamic (Dynamic)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Effectful (Eff, IOE, runEff, (:>))
@@ -22,18 +26,26 @@ import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Console.ByteString (Console, runConsole)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
-import Effectful.State.Static.Local (State, evalState, runState)
+import Effectful.State.Static.Shared (State, evalState, runState)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
-import Hoard.Effects.Publisher (Publisher, runPublisher)
-import Hoard.Events (SomeEvent)
+import Hoard.Effects.Pub (Pub, runPub)
+import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.HoardState (HoardState)
 
 data Config = Config
-  { eventQueue :: TQueue SomeEvent,
-    dbPools :: DBPools
+  { dbPools :: DBPools,
+    channels :: Channels
   }
+
+data Channels = Channels
+  { inChan :: InChan Dynamic,
+    outChan :: OutChan Dynamic
+  }
+
+channelsFromPair :: (InChan Dynamic, OutChan Dynamic) -> Channels
+channelsFromPair (inChan, outChan) = Channels {inChan, outChan}
 
 -- | Constraint alias for application effects
 type AppEff es =
@@ -41,7 +53,8 @@ type AppEff es =
     Console :> es,
     FileSystem :> es,
     Concurrent :> es,
-    Publisher :> es,
+    Sub :> es,
+    Pub :> es,
     DBRead :> es,
     DBWrite :> es,
     Error Text :> es,
@@ -52,7 +65,7 @@ type AppEff es =
 type a ::> b = a Effectful.:> b
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Publisher, Concurrent, FileSystem, Console, IOE]
+type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Pub, Sub, Concurrent, FileSystem, Console, IOE]
 
 -- | Run the full effect stack for the application
 runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
@@ -62,7 +75,8 @@ runEffectStack config action = liftIO $ do
       . runConsole
       . runFileSystem
       . runConcurrent
-      . runPublisher config.eventQueue
+      . runSub config.channels.outChan
+      . runPub config.channels.inChan
       . runErrorNoCallStack @Text
       . runDBRead config.dbPools.readerPool
       . runDBWrite config.dbPools.writerPool
@@ -80,7 +94,8 @@ runEffectStackReturningState config action = liftIO $ do
       . runConsole
       . runFileSystem
       . runConcurrent
-      . runPublisher config.eventQueue
+      . runSub config.channels.outChan
+      . runPub config.channels.inChan
       . runErrorNoCallStack @Text
       . runDBRead config.dbPools.readerPool
       . runDBWrite config.dbPools.writerPool
