@@ -10,10 +10,12 @@ module Hoard.Types.DBConfig
 where
 
 import Data.Text (Text)
-import Data.Text.Encoding qualified as TE
 import Data.Word (Word16)
-import Hasql.Connection qualified as Connection
+import Hasql.Connection.Setting qualified as Setting
+import Hasql.Connection.Setting.Connection qualified as Connection
+import Hasql.Connection.Setting.Connection.Param qualified as Param
 import Hasql.Pool qualified as Pool
+import Hasql.Pool.Config qualified as Pool
 
 -- | Database port type
 newtype Port = Port Word16
@@ -42,25 +44,29 @@ data DBPools = DBPools
 -- | Acquire a single database connection pool
 acquireDatabasePool :: DBConfig -> IO Pool.Pool
 acquireDatabasePool config = do
-  let settings =
-        Connection.settings
-          (TE.encodeUtf8 config.host)
-          (portToWord16 config.port)
-          (TE.encodeUtf8 config.user)
-          (TE.encodeUtf8 config.password)
-          (TE.encodeUtf8 config.databaseName)
-
   -- Pool configuration:
   -- - Size: 10 connections
   -- - Acquisition timeout: 5 seconds
   -- - Aging timeout: 30 minutes (maximal connection lifetime)
   -- - Idleness timeout: 10 minutes (maximal connection idle time)
-  Pool.acquire
-    10 -- pool size
-    5 -- acquisition timeout (seconds)
-    (30 * 60) -- aging timeout (30 minutes in seconds)
-    (10 * 60) -- idleness timeout (10 minutes in seconds)
-    settings
+  let settings =
+        [ Pool.staticConnectionSettings
+            [ Setting.connection $
+                Connection.params
+                  [ Param.host config.host,
+                    Param.port (portToWord16 config.port),
+                    Param.user config.user,
+                    Param.password config.password,
+                    Param.dbname config.databaseName
+                  ]
+            ],
+          Pool.size 10,
+          Pool.acquisitionTimeout 5, -- (seconds)
+          Pool.agingTimeout (30 * 60), -- (30 minutes in seconds)
+          Pool.idlenessTimeout (10 * 60) -- (10 minutes in seconds)
+        ]
+
+  Pool.acquire $ Pool.settings settings
 
 -- | Acquire both read and write connection pools
 -- Uses different database users for read-only and read-write operations

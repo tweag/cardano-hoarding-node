@@ -2,7 +2,7 @@
   description = "Cardano Hoarding Node";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/5461b7fa65f3ca74cef60be837fd559a8918eaa0";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     git-hooks.url = "github:cachix/git-hooks.nix";
     tmp-postgres = { url = "github:jfischoff/tmp-postgres"; flake = false; };
   };
