@@ -21,6 +21,7 @@ library
       Hoard.DB.Schema
       Hoard.DB.Schemas.Peers
       Hoard.Effects
+      Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
       Hoard.Effects.Pub
@@ -67,6 +68,7 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , ki
     , network-uri
     , rel8
     , servant
@@ -118,6 +120,7 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , ki
     , network-uri
     , rel8
     , servant
@@ -180,6 +183,7 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
+    , ki
     , network-uri
     , postgres-options
     , process
