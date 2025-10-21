@@ -8,6 +8,7 @@ where
 import Control.Concurrent.Chan.Unagi (InChan, dupChan, readChan)
 import Control.Monad (forever)
 import Data.Typeable (Typeable)
+import Data.Void (Void)
 import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, liftIO, (:>))
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 
@@ -15,13 +16,13 @@ import Data.Dynamic qualified as Dyn
 
 
 data Sub :: Effect where
-    Listen :: (Typeable a) => (a -> m ()) -> Sub m ()
+    Listen :: (Typeable a) => (a -> m ()) -> Sub m Void
 
 
 type instance DispatchOf Sub = Dynamic
 
 
-listen :: (Sub :> es, Typeable a) => (a -> Eff es ()) -> Eff es ()
+listen :: (Sub :> es, Typeable a) => (a -> Eff es ()) -> Eff es Void
 listen = send . Listen
 
 

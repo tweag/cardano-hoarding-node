@@ -27,6 +27,7 @@ import Effectful.State.Static.Shared (State, evalState, runState)
 
 import Data.Text qualified as T
 
+import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Pub (Pub, runPub)
@@ -47,6 +48,7 @@ type AppEff es =
     , Console :> es
     , FileSystem :> es
     , Concurrent :> es
+    , Conc :> es
     , Sub :> es
     , Pub :> es
     , DBRead :> es
@@ -61,7 +63,7 @@ type a ::> b = a Effectful.:> b
 
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Pub, Sub, Concurrent, FileSystem, Console, IOE]
+type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Console, IOE]
 
 
 -- | Run the full effect stack for the application
@@ -72,13 +74,16 @@ runEffectStack config action = liftIO $ do
             . runConsole
             . runFileSystem
             . runConcurrent
-            . runSub config.inChan
-            . runPub config.inChan
-            . runErrorNoCallStack @Text
-            . runDBRead config.dbPools.readerPool
-            . runDBWrite config.dbPools.writerPool
-            . evalState def
-            $ action
+            . scoped
+            $ \scope ->
+                runConcWithKi scope
+                    . runSub config.inChan
+                    . runPub config.inChan
+                    . runErrorNoCallStack @Text
+                    . runDBRead config.dbPools.readerPool
+                    . runDBWrite config.dbPools.writerPool
+                    . evalState def
+                    $ action
     case result of
         Left err -> throwIO $ userError $ T.unpack err
         Right value -> pure value
@@ -92,13 +97,16 @@ runEffectStackReturningState config action = liftIO $ do
             . runConsole
             . runFileSystem
             . runConcurrent
-            . runSub config.inChan
-            . runPub config.inChan
-            . runErrorNoCallStack @Text
-            . runDBRead config.dbPools.readerPool
-            . runDBWrite config.dbPools.writerPool
-            . runState def
-            $ action
+            . scoped
+            $ \scope ->
+                runConcWithKi scope
+                    . runSub config.inChan
+                    . runPub config.inChan
+                    . runErrorNoCallStack @Text
+                    . runDBRead config.dbPools.readerPool
+                    . runDBWrite config.dbPools.writerPool
+                    . runState def
+                    $ action
     case result of
         Left err -> throwIO $ userError $ T.unpack err
         Right value -> pure value
