@@ -96,3 +96,5 @@ tests:
     - process
     - directory
     - uuid
+    - tmp-postgres
+    - postgres-options

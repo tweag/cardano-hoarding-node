@@ -7,17 +7,23 @@ where
 
 import Control.Exception (bracket)
 import Control.Monad (unless)
+import Data.Maybe (fromMaybe)
+import Data.Monoid (Last (..))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUIDv4
+import Database.PostgreSQL.Simple.Options (Options (..))
+import Database.Postgres.Temp qualified as TmpPostgres
 import Hasql.Decoders qualified as Decoders
 import Hasql.Pool qualified as Pool
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))
-import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), acquireDatabasePools)
+import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), acquireDatabasePool, acquireDatabasePools)
+import System.Environment (getEnv)
 import System.Exit (ExitCode (..))
+import System.IO.Error (catchIOError)
 import System.Process (readProcessWithExitCode)
 
 -- | Test configuration including database pools and schema name
@@ -29,98 +35,132 @@ data TestConfig = TestConfig
 -- | Run an action with a temporary PostgreSQL database that has migrations applied.
 -- The database is automatically cleaned up after the action completes.
 --
--- This creates the database ONCE for the entire test suite - you should clean
--- tables between individual tests using 'cleanDatabase'.
+-- This starts a temporary PostgreSQL server for the test suite and creates a test database.
+-- You should clean tables between individual tests using 'cleanDatabase'.
 withTestDatabase :: (TestConfig -> IO a) -> IO a
 withTestDatabase action = do
-  dbName <- generateUniqueDatabaseName
+  -- Get current system user (PostgreSQL will use this by default when user is not specified)
+  currentUser <- catchIOError (getEnv "USER") (const $ pure "postgres")
 
-  -- Use socket connection like devConfig
-  let adminConfig =
-        DBConfig
-          { host = "/home/cgeorgii/code/cardano-hoarding-node/postgres-data",
-            port = 5432,
-            user = "postgres",
-            password = "",
-            databaseName = "postgres"
-          }
+  -- Start temporary PostgreSQL server
+  TmpPostgres.withDbCache $ \dbCache -> do
+    result <- TmpPostgres.withConfig (TmpPostgres.cacheConfig dbCache) $ \db -> do
+      dbName <- generateUniqueDatabaseName
 
-  bracket
-    (setupDatabase adminConfig dbName)
-    (const $ cleanupDatabase adminConfig dbName)
-    $ \() -> do
-      -- Create configs for the test database with hoard users
-      let readerConfig =
+      -- Get connection info from the temporary server
+      let Options {host = Last mHost, port = Last mPort, user = Last mUser} =
+            TmpPostgres.toConnectionOptions db
+          socketDir = fromMaybe "localhost" mHost
+          portNum = fromIntegral (fromMaybe 5432 mPort)
+          -- Use the actual tmp-postgres user (or current system user if not specified)
+          tmpUser = fromMaybe currentUser mUser
+
+          -- Config using the tmp-postgres default user
+          tmpUserConfig =
             DBConfig
-              { host = "/home/cgeorgii/code/cardano-hoarding-node/postgres-data",
-                port = 5432,
-                user = "hoard_reader",
+              { host = cs socketDir,
+                port = portNum,
+                user = cs tmpUser,
                 password = "",
-                databaseName = dbName
-              }
-          writerConfig =
-            DBConfig
-              { host = "/home/cgeorgii/code/cardano-hoarding-node/postgres-data",
-                port = 5432,
-                user = "hoard_writer",
-                password = "",
-                databaseName = dbName
+                databaseName = "postgres"
               }
 
-      pools <- acquireDatabasePools readerConfig writerConfig
-      let testConfig =
-            TestConfig
-              { pools = pools,
-                schemaName = "hoard"
+          -- Admin config for postgres role (we'll create this role)
+          adminConfig =
+            DBConfig
+              { host = cs socketDir,
+                port = portNum,
+                user = "postgres",
+                password = "",
+                databaseName = "postgres"
               }
-      action testConfig
+
+      -- Setup required roles in the temporary PostgreSQL instance
+      setupRoles tmpUserConfig
+
+      -- Setup the test database and roles
+      bracket
+        (setupDatabase adminConfig dbName)
+        (const $ cleanupDatabase adminConfig dbName)
+        $ \() -> do
+          -- Create configs for the test database with hoard users
+          let readerConfig =
+                DBConfig
+                  { host = cs socketDir,
+                    port = portNum,
+                    user = "hoard_reader",
+                    password = "",
+                    databaseName = dbName
+                  }
+              writerConfig =
+                DBConfig
+                  { host = cs socketDir,
+                    port = portNum,
+                    user = "hoard_writer",
+                    password = "",
+                    databaseName = dbName
+                  }
+
+          pools <- acquireDatabasePools readerConfig writerConfig
+          let testConfig =
+                TestConfig
+                  { pools = pools,
+                    schemaName = "hoard"
+                  }
+          action testConfig
+
+    either (error . show) pure result
+
+-- | Create required PostgreSQL roles if they don't exist
+setupRoles :: DBConfig -> IO ()
+setupRoles config = do
+  pool <- acquireDatabasePool config
+  runOrThrow pool $ do
+    -- Create postgres role (superuser) if it doesn't exist
+    statement () $ Statement "CREATE ROLE postgres WITH SUPERUSER LOGIN" mempty Decoders.noResult False
 
 -- | Set up a test database: create it and run migrations
 setupDatabase :: DBConfig -> Text -> IO ()
 setupDatabase adminConfig dbName = do
+  pool <- acquireDatabasePool adminConfig
+
   -- Create the database
-  createDatabase adminConfig dbName
+  createDatabase pool dbName
 
   -- Run sqitch migrations
-  runSqitchMigrations dbName
+  runSqitchMigrations adminConfig dbName
 
   -- Grant TRUNCATE privileges to hoard_writer for test cleanup
   grantTruncatePrivileges adminConfig dbName
 
--- | Create a database using psql
-createDatabase :: DBConfig -> Text -> IO ()
-createDatabase config dbName = do
-  let connStr = makeConnectionString config
-      args = [cs connStr, "-c", "CREATE DATABASE " <> Text.unpack dbName]
-  (exitCode, stdout, stderr) <- readProcessWithExitCode "psql" args ""
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure code ->
-      error $
-        "Failed to create test database: "
-          <> show code
-          <> "\nstdout: "
-          <> stdout
-          <> "\nstderr: "
-          <> stderr
+-- | Create a database using hasql
+createDatabase :: Pool.Pool -> Text -> IO ()
+createDatabase pool dbName = do
+  runOrThrow pool $ do
+    statement () $ Statement (cs $ "CREATE DATABASE " <> dbName) mempty Decoders.noResult False
 
 -- | Clean up: drop the test database
 cleanupDatabase :: DBConfig -> Text -> IO ()
 cleanupDatabase config dbName = do
-  let connStr = makeConnectionString config
-      -- Use FORCE to drop even if there are active connections
-      args = [cs connStr, "-c", "DROP DATABASE IF EXISTS " <> Text.unpack dbName <> " WITH (FORCE)"]
-  (exitCode, _, _) <- readProcessWithExitCode "psql" args ""
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure _ -> pure () -- Ignore errors during cleanup
+  pool <- acquireDatabasePool config
+  -- Ignore errors during cleanup
+  _ <- Pool.use pool $ do
+    statement () $ Statement (cs $ "DROP DATABASE IF EXISTS " <> dbName <> " WITH (FORCE)") mempty Decoders.noResult False
+  pure ()
 
 -- | Run sqitch migrations against the test database
-runSqitchMigrations :: Text -> IO ()
-runSqitchMigrations dbName = do
-  -- Use socket connection with postgres user, like in sqitch.conf
-  -- Format: db:pg://user@/database
-  let targetUri = "db:pg://postgres@/" <> Text.unpack dbName
+runSqitchMigrations :: DBConfig -> Text -> IO ()
+runSqitchMigrations config dbName = do
+  -- Build sqitch connection string based on whether we're using TCP or socket
+  let targetUri =
+        "db:pg://"
+          <> Text.unpack config.user
+          <> "@/"
+          <> Text.unpack dbName
+          <> "?host="
+          <> Text.unpack config.host
+          <> "&port="
+          <> show config.port
       args = ["deploy", targetUri]
   (exitCode, stdout, stderr) <- readProcessWithExitCode "sqitch" args ""
   case exitCode of
@@ -138,42 +178,9 @@ runSqitchMigrations dbName = do
 -- This is only needed in test databases for the cleanDatabase function
 grantTruncatePrivileges :: DBConfig -> Text -> IO ()
 grantTruncatePrivileges config dbName = do
-  let connStr = makeConnectionString (config {databaseName = dbName})
-      grantSql = "GRANT TRUNCATE ON ALL TABLES IN SCHEMA hoard TO hoard_writer"
-      args = [cs connStr, "-c", grantSql]
-  (exitCode, stdout, stderr) <- readProcessWithExitCode "psql" args ""
-  case exitCode of
-    ExitSuccess -> pure ()
-    ExitFailure code ->
-      error $
-        "Failed to grant TRUNCATE privileges: "
-          <> show code
-          <> "\nstdout: "
-          <> stdout
-          <> "\nstderr: "
-          <> stderr
-
--- | Create a PostgreSQL connection string for psql from DBConfig
--- Uses the host as a socket directory if it starts with /
-makeConnectionString :: DBConfig -> Text
-makeConnectionString config =
-  if "/" `Text.isPrefixOf` config.host
-    then -- Socket connection
-      "postgresql:///"
-        <> config.databaseName
-        <> "?host="
-        <> config.host
-        <> "&user="
-        <> config.user
-    else -- TCP connection
-      "postgresql://"
-        <> config.user
-        <> "@"
-        <> config.host
-        <> ":"
-        <> Text.pack (show config.port)
-        <> "/"
-        <> config.databaseName
+  pool <- acquireDatabasePool (config {databaseName = dbName})
+  runOrThrow pool $ do
+    statement () $ Statement "GRANT TRUNCATE ON ALL TABLES IN SCHEMA hoard TO hoard_writer" mempty Decoders.noResult False
 
 -- | Clean the database by truncating all tables except system/migration tables.
 -- Use this between tests to reset state while keeping the schema and migration data intact.

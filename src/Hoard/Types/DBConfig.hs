@@ -1,8 +1,6 @@
 module Hoard.Types.DBConfig
   ( DBConfig (..),
     DBPools (..),
-    Port,
-    portToWord16,
     acquireDatabasePool,
     acquireDatabasePools,
     devConfig,
@@ -17,18 +15,10 @@ import Hasql.Connection.Setting.Connection.Param qualified as Param
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
--- | Database port type
-newtype Port = Port Word16
-  deriving newtype (Show, Eq, Num)
-
--- | Convert Port to Word16
-portToWord16 :: Port -> Word16
-portToWord16 (Port w) = w
-
 -- | Database configuration for a single user
 data DBConfig = DBConfig
   { host :: Text,
-    port :: Port,
+    port :: Word16,
     user :: Text,
     password :: Text,
     databaseName :: Text
@@ -54,7 +44,7 @@ acquireDatabasePool config = do
             [ Setting.connection $
                 Connection.params
                   [ Param.host config.host,
-                    Param.port (portToWord16 config.port),
+                    Param.port config.port,
                     Param.user config.user,
                     Param.password config.password,
                     Param.dbname config.databaseName
