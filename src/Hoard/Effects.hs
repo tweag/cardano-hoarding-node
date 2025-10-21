@@ -12,20 +12,27 @@ module Hoard.Effects
 where
 
 import Control.Concurrent.STM (TQueue)
+import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Default (def)
+import Data.Text (Text)
+import Data.Text qualified as T
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Console.ByteString (Console, runConsole)
+import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Local (State, evalState, runState)
+import Hoard.Effects.DBRead (DBRead, runDBRead)
+import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Publisher (Publisher, runPublisher)
 import Hoard.Events (SomeEvent)
+import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.HoardState (HoardState)
-import Prelude hiding (appendFile, putStrLn, readFile)
 
 data Config = Config
-  { eventQueue :: TQueue SomeEvent
+  { eventQueue :: TQueue SomeEvent,
+    dbPools :: DBPools
   }
 
 -- | Constraint alias for application effects
@@ -35,6 +42,9 @@ type AppEff es =
     FileSystem :> es,
     Concurrent :> es,
     Publisher :> es,
+    DBRead :> es,
+    DBWrite :> es,
+    Error Text :> es,
     State HoardState :> es
   )
 
@@ -42,26 +52,40 @@ type AppEff es =
 type a ::> b = a Effectful.:> b
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, Publisher, Concurrent, FileSystem, Console, IOE]
+type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Publisher, Concurrent, FileSystem, Console, IOE]
 
 -- | Run the full effect stack for the application
 runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
-runEffectStack config =
-  liftIO
-    . runEff
-    . runConsole
-    . runFileSystem
-    . runConcurrent
-    . runPublisher config.eventQueue
-    . evalState def
+runEffectStack config action = liftIO $ do
+  result <-
+    runEff
+      . runConsole
+      . runFileSystem
+      . runConcurrent
+      . runPublisher config.eventQueue
+      . runErrorNoCallStack @Text
+      . runDBRead config.dbPools.readerPool
+      . runDBWrite config.dbPools.writerPool
+      . evalState def
+      $ action
+  case result of
+    Left err -> throwIO $ userError $ T.unpack err
+    Right value -> pure value
 
 -- | Run the full effect stack and return both the result and final HoardState
 runEffectStackReturningState :: (MonadIO m) => Config -> Eff AppEffects a -> m (a, HoardState)
-runEffectStackReturningState config =
-  liftIO
-    . runEff
-    . runConsole
-    . runFileSystem
-    . runConcurrent
-    . runPublisher config.eventQueue
-    . runState def
+runEffectStackReturningState config action = liftIO $ do
+  result <-
+    runEff
+      . runConsole
+      . runFileSystem
+      . runConcurrent
+      . runPublisher config.eventQueue
+      . runErrorNoCallStack @Text
+      . runDBRead config.dbPools.readerPool
+      . runDBWrite config.dbPools.writerPool
+      . runState def
+      $ action
+  case result of
+    Left err -> throwIO $ userError $ T.unpack err
+    Right value -> pure value

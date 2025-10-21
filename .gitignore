@@ -7,3 +7,4 @@ dist-newstyle/
 *.prof
 *.hspp
 build.log
+postgres-data/
