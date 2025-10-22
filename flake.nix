@@ -153,6 +153,7 @@
       # Development environment with tools and git hooks
       devShells.${system}.default = pkgs.haskellPackages.shellFor {
         packages = p: [ self.packages.${system}.hoard ];
+        withHoogle = true;
 
         # Haskell development tools
         buildInputs = with pkgs.haskellPackages; [
