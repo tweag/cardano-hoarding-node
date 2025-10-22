@@ -1,10 +1,10 @@
 module Hoard.TestHelpers
-  ( withServer,
-    runEffectStackTest,
-    withEffectStackServer,
-    client,
-    filterEvents,
-  )
+    ( withServer
+    , runEffectStackTest
+    , withEffectStackServer
+    , client
+    , filterEvents
+    )
 where
 
 import Control.Concurrent (forkIO, killThread)
@@ -17,29 +17,21 @@ import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Typeable (Typeable)
 import Effectful
-  ( Eff,
-    IOE,
-    Limit (..),
-    MonadIO,
-    Persistence (..),
-    UnliftStrategy (..),
-    liftIO,
-    runEff,
-    withEffToIO,
-    (:>),
-  )
+    ( Eff
+    , IOE
+    , Limit (..)
+    , MonadIO
+    , Persistence (..)
+    , UnliftStrategy (..)
+    , liftIO
+    , runEff
+    , withEffToIO
+    , (:>)
+    )
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Console.ByteString (Console, runConsole)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, runState)
-import Hasql.Pool qualified as Pool
-import Hasql.Pool.Config qualified as Pool
-import Hoard.API (API, Routes, server)
-import Hoard.Effects (Channels (..), Config (..), channelsFromPair, runEffectStack)
-import Hoard.Effects.Pub (Pub, runPub)
-import Hoard.Effects.Sub (Sub, runSub)
-import Hoard.Types.DBConfig (DBPools (..))
-import Hoard.Types.HoardState (HoardState)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (testWithApplication)
@@ -48,78 +40,96 @@ import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEn
 import Servant.Client.Core (ClientError)
 import Servant.Client.Generic (genericClient)
 
-withEffectStackServer ::
-  (es ~ TestAppEffs, MonadIO m) =>
-  (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b) ->
-  m (b, HoardState, [Dynamic])
+import Hasql.Pool qualified as Pool
+import Hasql.Pool.Config qualified as Pool
+
+import Hoard.API (API, Routes, server)
+import Hoard.Effects (Channels (..), Config (..), channelsFromPair, runEffectStack)
+import Hoard.Effects.Pub (Pub, runPub)
+import Hoard.Effects.Sub (Sub, runSub)
+import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.HoardState (HoardState)
+
+
+withEffectStackServer
+    :: (MonadIO m, es ~ TestAppEffs)
+    => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
+    -> m (b, HoardState, [Dynamic])
 withEffectStackServer action = runEffectStackTest $ \channels -> withServer channels action
 
-withServer ::
-  forall b es.
-  (IOE :> es) =>
-  Config ->
-  (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b) ->
-  Eff es b
+
+withServer
+    :: forall b es
+     . (IOE :> es)
+    => Config
+    -> (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
+    -> Eff es b
 withServer config action = do
-  app <- makeApp config
-  withEffToIO (ConcUnlift Persistent Unlimited) $ \unlift -> testWithApplication (pure app) $ \port -> do
-    manager <- newManager defaultManagerSettings
-    let baseUrl = BaseUrl Http "localhost" port ""
-    let clientEnv = mkClientEnv manager baseUrl
-    let runClient :: forall a. ClientM a -> Eff es (Either ClientError a)
-        runClient = liftIO . flip runClientM clientEnv
-    unlift $ action port runClient
+    app <- makeApp config
+    withEffToIO (ConcUnlift Persistent Unlimited) $ \unlift -> testWithApplication (pure app) $ \port -> do
+        manager <- newManager defaultManagerSettings
+        let baseUrl = BaseUrl Http "localhost" port ""
+        let clientEnv = mkClientEnv manager baseUrl
+        let runClient :: forall a. ClientM a -> Eff es (Either ClientError a)
+            runClient = liftIO . flip runClientM clientEnv
+        unlift $ action port runClient
+
 
 makeApp :: (IOE :> es) => Config -> Eff es Application
 makeApp config =
-  liftIO $ do
-    let servantApp = hoistServer (Proxy @API) (runEffectStack config) server
-    pure $ serve (Proxy @API) servantApp
+    liftIO $ do
+        let servantApp = hoistServer (Proxy @API) (runEffectStack config) server
+        pure $ serve (Proxy @API) servantApp
 
-runEffectStackTest ::
-  (MonadIO m) =>
-  (Config -> Eff TestAppEffs a) ->
-  m (a, HoardState, [Dynamic])
+
+runEffectStackTest
+    :: (MonadIO m)
+    => (Config -> Eff TestAppEffs a)
+    -> m (a, HoardState, [Dynamic])
 runEffectStackTest mkEff = do
-  channels <- channelsFromPair <$> liftIO newChan
-  wireTap <- liftIO $ dupChan channels.inChan
-  pool <- liftIO $ Pool.acquire $ Pool.settings []
-  let dbPools = DBPools pool pool
-  let config = Config {channels, dbPools}
-  wireTapOutput <- liftIO $ newIORef []
-  wireTapThreadID <- liftIO $ forkIO $ recordMessages wireTapOutput wireTap
-  (a, state) <-
-    liftIO
-      . runEff
-      . runConsole
-      . runFileSystem
-      . runConcurrent
-      . runSub config.channels.outChan
-      . runPub config.channels.inChan
-      . runState def
-      $ mkEff config
-  liftIO $ killThread wireTapThreadID
-  publishes <- fmap reverse . liftIO $ readIORef wireTapOutput
-  pure (a, state, publishes)
+    channels <- channelsFromPair <$> liftIO newChan
+    wireTap <- liftIO $ dupChan channels.inChan
+    pool <- liftIO $ Pool.acquire $ Pool.settings []
+    let dbPools = DBPools pool pool
+    let config = Config {channels, dbPools}
+    wireTapOutput <- liftIO $ newIORef []
+    wireTapThreadID <- liftIO $ forkIO $ recordMessages wireTapOutput wireTap
+    (a, state) <-
+        liftIO
+            . runEff
+            . runConsole
+            . runFileSystem
+            . runConcurrent
+            . runSub config.channels.outChan
+            . runPub config.channels.inChan
+            . runState def
+            $ mkEff config
+    liftIO $ killThread wireTapThreadID
+    publishes <- fmap reverse . liftIO $ readIORef wireTapOutput
+    pure (a, state, publishes)
+
 
 recordMessages :: IORef [a] -> OutChan a -> IO b
 recordMessages outputRef outChan = forever $ do
-  event <- readChan outChan
-  atomicModifyIORef' outputRef $ \xs -> (event : xs, ())
+    event <- readChan outChan
+    atomicModifyIORef' outputRef $ \xs -> (event : xs, ())
+
 
 type TestAppEffs =
-  [ State HoardState,
-    Pub,
-    Sub,
-    Concurrent,
-    FileSystem,
-    Console,
-    IOE
-  ]
+    [ State HoardState
+    , Pub
+    , Sub
+    , Concurrent
+    , FileSystem
+    , Console
+    , IOE
+    ]
+
 
 -- | Generate servant client from API
 client :: Routes (AsClientT ClientM)
 client = genericClient
+
 
 filterEvents :: (Typeable a) => [Dynamic] -> [a]
 filterEvents = mapMaybe fromDynamic
