@@ -25,6 +25,7 @@ dependencies:
 - aeson
 - async
 - bytestring
+- casing
 - containers
 - data-default
 - effectful
@@ -32,8 +33,13 @@ dependencies:
 - effectful-th
 - eve
 - hashable
+- hasql
+- hasql-pool
+- hasql-transaction
 - lens
 - mtl
+- network-uri
+- rel8
 - servant
 - servant-server
 - stm
@@ -41,6 +47,7 @@ dependencies:
 - text
 - time
 - unordered-containers
+- uuid
 - warp
 
 default-extensions:
@@ -48,6 +55,7 @@ default-extensions:
 - DataKinds
 - DeriveAnyClass
 - DerivingStrategies
+- DuplicateRecordFields
 - FlexibleContexts
 - GADTs
 - LambdaCase
@@ -85,3 +93,8 @@ tests:
     - http-client
     - wai
     - warp
+    - process
+    - directory
+    - uuid
+    - tmp-postgres
+    - postgres-options

@@ -14,7 +14,21 @@ where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.Async (async, wait)
-import Control.Concurrent.STM (TQueue, TVar, atomically, isEmptyTQueue, newTQueueIO, newTVarIO, orElse, readTVar, readTVarIO, registerDelay, retry, writeTQueue, writeTVar)
+import Control.Concurrent.STM
+  ( TQueue,
+    TVar,
+    atomically,
+    isEmptyTQueue,
+    newTQueueIO,
+    newTVarIO,
+    orElse,
+    readTVar,
+    readTVarIO,
+    registerDelay,
+    retry,
+    writeTQueue,
+    writeTVar,
+  )
 import Control.Exception (bracket)
 import Control.Monad (forM_, void)
 import Control.Monad.IO.Class (liftIO)
@@ -161,7 +175,7 @@ withTestAppState config action = do
 -- | Create the Wai application
 makeApp :: TQueue SomeEvent -> IO Application
 makeApp eventQueue = do
-  let servantApp = hoistServer (Proxy @API) (runEffectStack (Config eventQueue)) server
+  let servantApp = hoistServer (Proxy @API) (runEffectStack (Config eventQueue undefined)) server
   pure $ serve (Proxy @API) servantApp
 
 -- | Start test server and run action with client
@@ -236,7 +250,7 @@ runEventSystemWithListener ::
   (forall es. (AppEff es, Typeable es) => App es ()) ->
   IO (Eve.AppState, HoardState)
 runEventSystemWithListener eventQueue captures initBlock = do
-  runEffectStackReturningState (Config eventQueue) $ do
+  runEffectStackReturningState (Config eventQueue undefined) $ do
     startEventSystem eventQueue $ do
       -- Run the provided initialization block
       initBlock
