@@ -3,35 +3,49 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    git-hooks.url = "github:cachix/git-hooks.nix";
-    tmp-postgres = { url = "github:jfischoff/tmp-postgres"; flake = false; };
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    tmp-postgres = {
+      url = "github:jfischoff/tmp-postgres";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, git-hooks, tmp-postgres }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      git-hooks,
+      tmp-postgres,
+    }:
     let
       system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system}.extend (final: prev: {
-        haskellPackages = prev.haskellPackages.override {
-          overrides = hfinal: hprev: {
-            eve = prev.haskellPackages.callCabal2nix "eve" (prev.fetchFromGitHub {
-              owner = "cgeorgii";
-              repo = "eve";
-              rev = "nixified";
-              sha256 = "sha256-wX1UTtO7e0FHk8eoGywocYCMUa9r+BYzR6RWFKjM2C8=";
-            }) {};
+      pkgs = nixpkgs.legacyPackages.${system}.extend (
+        final: prev: {
+          haskellPackages = prev.haskellPackages.override {
+            overrides = hfinal: hprev: {
+              eve = prev.haskellPackages.callCabal2nix "eve" (prev.fetchFromGitHub {
+                owner = "cgeorgii";
+                repo = "eve";
+                rev = "nixified";
+                sha256 = "sha256-wX1UTtO7e0FHk8eoGywocYCMUa9r+BYzR6RWFKjM2C8=";
+              }) { };
 
-            # Build tmp-postgres from source with tests disabled
-            tmp-postgres = prev.haskell.lib.dontCheck (
-              prev.haskellPackages.callCabal2nix "tmp-postgres" tmp-postgres {}
-            );
+              # Build tmp-postgres from source with tests disabled
+              tmp-postgres = prev.haskell.lib.dontCheck (
+                prev.haskellPackages.callCabal2nix "tmp-postgres" tmp-postgres { }
+              );
+            };
           };
-        };
-      });
+        }
+      );
     in
     {
       # Main packages - Haskell project built with callCabal2nix
       packages.${system} = {
-        hoard = pkgs.haskellPackages.callCabal2nix "hoard" ./. {};
+        hoard = pkgs.haskellPackages.callCabal2nix "hoard" ./. { };
         default = self.packages.${system}.hoard;
       };
 
@@ -114,20 +128,19 @@
       # Build checks and validation
       checks.${system} = {
         hoard = self.packages.${system}.hoard;
-        hoard-test = pkgs.haskell.lib.overrideCabal
-          (pkgs.haskellPackages.callCabal2nix "hoard" ./. {})
-          (oldAttrs: { doCheck = true; });
+        hoard-test =
+          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "hoard" ./. { })
+            (oldAttrs: {
+              doCheck = true;
+            });
         git-hooks = git-hooks.lib.${system}.run {
           src = ./.;
-          hooks =
-            let
-              cabal = nixpkgs.lib.getExe pkgs.haskellPackages.cabal-install;
-            in
-            {
-              hpack.enable = true;
-              ormolu.enable = true;
-              hlint.enable = true;
-            };
+          hooks = {
+            hlint.enable = true;
+            hpack.enable = true;
+            nixfmt-rfc-style.enable = true;
+            ormolu.enable = true;
+          };
         };
       };
 
@@ -138,19 +151,20 @@
         # Haskell development tools
         buildInputs = with pkgs.haskellPackages; [
           cabal-install
-          haskell-language-server
-          tasty-discover
           ghcid
+          haskell-language-server
           hlint
+          tasty-discover
           weeder
         ];
 
         # Non-Haskell tools
         nativeBuildInputs = with pkgs; [
           hpack
+          nixfmt
+          postgresql # psql and other postgres client tools
           pre-commit
-          postgresql  # psql and other postgres client tools
-          sqitchPg    # database migration tool
+          sqitchPg # database migration tool
         ];
 
         # Git hooks integration and PostgreSQL configuration
