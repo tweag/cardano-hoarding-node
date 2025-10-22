@@ -62,18 +62,14 @@ library
     , effectful
     , effectful-core
     , effectful-th
-    , eve
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
-    , lens
-    , mtl
     , network-uri
     , rel8
     , servant
     , servant-server
-    , stm
     , string-conversions
     , text
     , time
@@ -115,19 +111,15 @@ executable hoard-exe
     , effectful
     , effectful-core
     , effectful-th
-    , eve
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
     , hoard
-    , lens
-    , mtl
     , network-uri
     , rel8
     , servant
     , servant-server
-    , stm
     , string-conversions
     , text
     , time
@@ -178,7 +170,6 @@ test-suite hoard-test
     , effectful
     , effectful-core
     , effectful-th
-    , eve
     , hashable
     , hasql
     , hasql-pool
@@ -186,8 +177,6 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
-    , lens
-    , mtl
     , network-uri
     , postgres-options
     , process
@@ -196,7 +185,6 @@ test-suite hoard-test
     , servant-client
     , servant-client-core
     , servant-server
-    , stm
     , string-conversions
     , tasty
     , tasty-discover
