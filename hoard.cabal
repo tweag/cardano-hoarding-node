@@ -1,0 +1,213 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.38.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           hoard
+version:        0.1.0.0
+synopsis:       TODO write a short description
+description:    TODO write a long description
+author:         Christian Georgii
+maintainer:     christian.georgii@moduscreate.com
+license:        MIT
+build-type:     Simple
+
+library
+  exposed-modules:
+      Hoard.API
+      Hoard.Data.ID
+      Hoard.Data.Peer
+      Hoard.DB.Schema
+      Hoard.DB.Schemas.Peers
+      Hoard.Effects
+      Hoard.Effects.DBRead
+      Hoard.Effects.DBWrite
+      Hoard.Effects.Pub
+      Hoard.Effects.Sub
+      Hoard.Events
+      Hoard.Events.HeaderReceived
+      Hoard.Listeners.HeaderReceivedListener
+      Hoard.Server
+      Hoard.Types.DBConfig
+      Hoard.Types.Header
+      Hoard.Types.HoardState
+  other-modules:
+      Paths_hoard
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  build-depends:
+      aeson
+    , async
+    , base >=4.7 && <5
+    , bytestring
+    , casing
+    , containers
+    , data-default
+    , effectful
+    , effectful-core
+    , effectful-th
+    , eve
+    , hashable
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , lens
+    , mtl
+    , network-uri
+    , rel8
+    , servant
+    , servant-server
+    , stm
+    , string-conversions
+    , text
+    , time
+    , unagi-chan
+    , unordered-containers
+    , uuid
+    , warp
+  default-language: GHC2021
+
+executable hoard-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_hoard
+  hs-source-dirs:
+      app/hoard
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  build-depends:
+      aeson
+    , async
+    , base >=4.7 && <5
+    , bytestring
+    , casing
+    , containers
+    , data-default
+    , effectful
+    , effectful-core
+    , effectful-th
+    , eve
+    , hashable
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , hoard
+    , lens
+    , mtl
+    , network-uri
+    , rel8
+    , servant
+    , servant-server
+    , stm
+    , string-conversions
+    , text
+    , time
+    , unagi-chan
+    , unordered-containers
+    , uuid
+    , warp
+  default-language: GHC2021
+
+test-suite hoard-test
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  other-modules:
+      Hoard.TestHelpers
+      Hoard.TestHelpers.Database
+      Integration.DBEffects
+      Integration.Hoard.IntegrationSpec
+      Integration.Hoard.SchemaSpec
+      Unit.Hoard.Listeners.HeaderReceivedListenerSpec
+      Paths_hoard
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded
+  build-depends:
+      QuickCheck
+    , aeson
+    , async
+    , base >=4.7 && <5
+    , bytestring
+    , casing
+    , containers
+    , data-default
+    , directory
+    , effectful
+    , effectful-core
+    , effectful-th
+    , eve
+    , hashable
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , hoard
+    , hspec
+    , http-client
+    , lens
+    , mtl
+    , network-uri
+    , postgres-options
+    , process
+    , rel8
+    , servant
+    , servant-client
+    , servant-client-core
+    , servant-server
+    , stm
+    , string-conversions
+    , tasty
+    , tasty-discover
+    , tasty-hspec
+    , text
+    , time
+    , tmp-postgres
+    , unagi-chan
+    , unix
+    , unordered-containers
+    , uuid
+    , wai
+    , warp
+  default-language: GHC2021
