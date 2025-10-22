@@ -1,5 +1,6 @@
 module Integration.DBEffects (spec_DBEffects) where
 
+import Data.Either (isLeft, isRight)
 import Data.Int (Int32)
 import Data.Text (Text)
 import Effectful (runEff)
@@ -10,12 +11,12 @@ import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
-import Hoard.TestHelpers.Database (TestConfig (..), cleanDatabase, withTestDatabase)
+import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
 import Test.Hspec
 
 spec_DBEffects :: Spec
-spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
+spec_DBEffects = withCleanTestDatabase $ do
   describe "DBRead effect" $ do
     it "can read from the database" $ \config -> do
       result <-
@@ -104,16 +105,6 @@ spec_DBEffects = aroundAll withTestDatabase $ beforeWith cleanAndReturn $ do
       -- We expect this to fail with a permission error
       result `shouldSatisfy` isLeft
 
--- Helper to check if Either is Right
-isRight :: Either a b -> Bool
-isRight (Right _) = True
-isRight _ = False
-
--- Helper to check if Either is Left
-isLeft :: Either a b -> Bool
-isLeft (Left _) = True
-isLeft _ = False
-
 -- | Count metadata entries
 countMetadataStmt :: Statement.Statement () Int32
 countMetadataStmt =
@@ -149,9 +140,3 @@ insertAsSelectStmt =
     E.noParams
     (D.singleRow (D.column (D.nonNullable D.int4)))
     True
-
--- | Clean database before each test and return the config
-cleanAndReturn :: TestConfig -> IO TestConfig
-cleanAndReturn config = do
-  cleanDatabase config
-  pure config

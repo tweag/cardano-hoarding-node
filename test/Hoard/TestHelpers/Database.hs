@@ -1,7 +1,6 @@
 module Hoard.TestHelpers.Database
   ( TestConfig (..),
-    withTestDatabase,
-    cleanDatabase,
+    withCleanTestDatabase,
   )
 where
 
@@ -25,12 +24,29 @@ import System.Environment (getEnv)
 import System.Exit (ExitCode (..))
 import System.IO.Error (catchIOError)
 import System.Process (readProcessWithExitCode)
+import Test.Hspec (Spec, SpecWith, aroundAll, beforeWith)
 
 -- | Test configuration including database pools and schema name
 data TestConfig = TestConfig
   { pools :: DBPools,
     schemaName :: Text
   }
+
+-- | Helper that combines 'withTestDatabase' and database cleaning for use with Hspec.
+-- Sets up a test database for the entire test suite and cleans it before each test.
+--
+-- Usage:
+-- @
+-- spec :: Spec
+-- spec = withCleanTestDatabase $ do
+--   it "can read from the database" $ \config -> do
+--     -- Test code using config
+-- @
+withCleanTestDatabase :: SpecWith TestConfig -> Spec
+withCleanTestDatabase = aroundAll withTestDatabase . beforeWith cleanAndReturn
+  where
+    cleanAndReturn :: TestConfig -> IO TestConfig
+    cleanAndReturn config = cleanDatabase config >> pure config
 
 -- | Run an action with a temporary PostgreSQL database that has migrations applied.
 -- The database is automatically cleaned up after the action completes.
