@@ -127,12 +127,18 @@
 
       # Build checks and validation
       checks.${system} = {
-        hoard = self.packages.${system}.hoard;
-        hoard-test =
-          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "hoard" ./. { })
-            (oldAttrs: {
-              doCheck = true;
-            });
+        hoard = pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "hoard" ./. { }) (drv: {
+          doCheck = true;
+          testToolDepends = (drv.testToolDepends or [ ]) ++ [
+            pkgs.postgresql
+            pkgs.sqitchPg
+          ];
+          # initdb requires HOME to exist; Nix sandbox doesn't provide one
+          preCheck = ''
+            export HOME="$TMPDIR"
+          ''
+          + (drv.preCheck or "");
+        });
         git-hooks = git-hooks.lib.${system}.run {
           src = ./.;
           hooks = {

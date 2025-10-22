@@ -98,3 +98,4 @@ tests:
     - uuid
     - tmp-postgres
     - postgres-options
+    - unix

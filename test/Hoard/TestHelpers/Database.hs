@@ -20,9 +20,8 @@ import Hasql.Pool qualified as Pool
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))
 import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), acquireDatabasePool, acquireDatabasePools)
-import System.Environment (getEnv)
 import System.Exit (ExitCode (..))
-import System.IO.Error (catchIOError)
+import System.Posix.User (getEffectiveUserName)
 import System.Process (readProcessWithExitCode)
 import Test.Hspec (Spec, SpecWith, aroundAll, beforeWith)
 
@@ -55,12 +54,15 @@ withCleanTestDatabase = aroundAll withTestDatabase . beforeWith cleanAndReturn
 -- You should clean tables between individual tests using 'cleanDatabase'.
 withTestDatabase :: (TestConfig -> IO a) -> IO a
 withTestDatabase action = do
-  -- Get current system user (PostgreSQL will use this by default when user is not specified)
-  currentUser <- catchIOError (getEnv "USER") (const $ pure "postgres")
+  -- Get the effective OS user that tmp-postgres will use for the superuser
+  effectiveUser <- getEffectiveUserName
 
   -- Start temporary PostgreSQL server
   TmpPostgres.withDbCache $ \dbCache -> do
-    result <- TmpPostgres.withConfig (TmpPostgres.cacheConfig dbCache) $ \db -> do
+    -- Use the default configuration - tmp-postgres will create a superuser
+    -- based on the effective user running the process
+    let config = TmpPostgres.cacheConfig dbCache
+    result <- TmpPostgres.withConfig config $ \db -> do
       dbName <- generateUniqueDatabaseName
 
       -- Get connection info from the temporary server
@@ -68,10 +70,11 @@ withTestDatabase action = do
             TmpPostgres.toConnectionOptions db
           socketDir = fromMaybe "localhost" mHost
           portNum = fromIntegral (fromMaybe 5432 mPort)
-          -- Use the actual tmp-postgres user (or current system user if not specified)
-          tmpUser = fromMaybe currentUser mUser
+          -- Use the effective OS user - tmp-postgres creates a superuser with this name
+          -- In Nix sandbox, this will be nixbld1, nixbld2, etc.
+          tmpUser = fromMaybe effectiveUser mUser
 
-          -- Config using the tmp-postgres default user
+          -- Config using the tmp-postgres default user (also used as admin)
           tmpUserConfig =
             DBConfig
               { host = cs socketDir,
@@ -81,18 +84,8 @@ withTestDatabase action = do
                 databaseName = "postgres"
               }
 
-          -- Admin config for postgres role (we'll create this role)
-          adminConfig =
-            DBConfig
-              { host = cs socketDir,
-                port = portNum,
-                user = "postgres",
-                password = "",
-                databaseName = "postgres"
-              }
-
-      -- Setup required roles in the temporary PostgreSQL instance
-      setupRoles tmpUserConfig
+          -- Admin config uses the same tmp-postgres user (which is already a superuser)
+          adminConfig = tmpUserConfig
 
       -- Setup the test database and roles
       bracket
@@ -126,14 +119,6 @@ withTestDatabase action = do
           action testConfig
 
     either (error . show) pure result
-
--- | Create required PostgreSQL roles if they don't exist
-setupRoles :: DBConfig -> IO ()
-setupRoles config = do
-  pool <- acquireDatabasePool config
-  runOrThrow pool $ do
-    -- Create postgres role (superuser) if it doesn't exist
-    statement () $ Statement "CREATE ROLE postgres WITH SUPERUSER LOGIN" mempty Decoders.noResult False
 
 -- | Set up a test database: create it and run migrations
 setupDatabase :: DBConfig -> Text -> IO ()
