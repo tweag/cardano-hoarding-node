@@ -8,7 +8,7 @@ where
 import Effectful (Eff)
 import GHC.Generics (Generic)
 import Hoard.Effects (AppEff)
-import Hoard.Effects.Publisher (publish)
+import Hoard.Effects.Pub (publish)
 import Hoard.Events.HeaderReceived (HeaderReceived (..))
 import Hoard.Types.Header (Header)
 import Servant hiding (Header)
