@@ -5,7 +5,7 @@ module Hoard.Effects.Sub
     )
 where
 
-import Control.Concurrent.Chan.Unagi (OutChan, readChan)
+import Control.Concurrent.Chan.Unagi (InChan, dupChan, readChan)
 import Control.Monad (forever)
 import Data.Typeable (Typeable)
 import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, liftIO, (:>))
@@ -25,11 +25,12 @@ listen :: (Sub :> es, Typeable a) => (a -> Eff es ()) -> Eff es ()
 listen = send . Listen
 
 
-runSub :: (IOE :> es) => OutChan Dyn.Dynamic -> Eff (Sub : es) a -> Eff es a
-runSub outChan = interpret $ \env -> \case
+runSub :: (IOE :> es) => InChan Dyn.Dynamic -> Eff (Sub : es) a -> Eff es a
+runSub inChan = interpret $ \env -> \case
     Listen listener -> localSeqUnlift env $ \unlift -> do
+        chan <- liftIO $ dupChan inChan
         forever $ do
-            event <- liftIO $ readChan outChan
+            event <- liftIO $ readChan chan
             case Dyn.fromDynamic event of
                 Nothing -> pure ()
                 Just x -> unlift $ listener x

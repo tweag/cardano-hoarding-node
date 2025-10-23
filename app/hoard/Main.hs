@@ -4,7 +4,7 @@ import Control.Concurrent.Chan.Unagi (newChan)
 
 import Effectful.Concurrent qualified as Eff
 
-import Hoard.Effects (Config (..), channelsFromPair, runEffectStack)
+import Hoard.Effects (Config (..), runEffectStack)
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Server (ServerConfig (..), runServer)
@@ -37,9 +37,9 @@ loadConfig :: IO Config
 loadConfig = do
     let (readerConfig, writerConfig) = devConfig
     dbPools <- acquireDatabasePools readerConfig writerConfig
-    channels <- channelsFromPair <$> newChan
+    (inChan, _) <- newChan
     pure
         $ Config
             { dbPools
-            , channels
+            , inChan
             }
