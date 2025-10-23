@@ -2,13 +2,13 @@ module Main (main) where
 
 import Control.Concurrent.Chan.Unagi (newChan)
 
-import Effectful.Concurrent qualified as Eff
-
 import Hoard.Effects (Config (..), runEffectStack)
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Server (ServerConfig (..), runServer)
 import Hoard.Types.DBConfig (acquireDatabasePools, devConfig)
+
+import Hoard.Effects.Conc qualified as Conc
 
 
 main :: IO ()
@@ -25,12 +25,10 @@ main = do
                     , host = "0.0.0.0"
                     , config
                     }
-        _ <- Eff.forkIO $ runServer serverConfig
+        _ <- Conc.fork $ runServer serverConfig
+        _ <- Conc.fork $ listen headerReceivedListener
 
-        -- Blocks indefinitely
-        listen headerReceivedListener
-
-        pure ()
+        Conc.awaitAll
 
 
 loadConfig :: IO Config

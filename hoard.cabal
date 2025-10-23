@@ -16,6 +16,7 @@ build-type:     Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.Collectors
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
@@ -27,9 +28,11 @@ library
       Hoard.Effects.Pub
       Hoard.Effects.Sub
       Hoard.Events
+      Hoard.Events.Collector
       Hoard.Events.HeaderReceived
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Server
+      Hoard.Types.Collector
       Hoard.Types.DBConfig
       Hoard.Types.Header
       Hoard.Types.HoardState
