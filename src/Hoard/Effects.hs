@@ -6,15 +6,13 @@ module Hoard.Effects
     , AppEffects
     -- Config
     , Config (..)
-    , Channels (..)
-    , channelsFromPair
 
       -- * Type Aliases
     , type (::>)
     )
 where
 
-import Control.Concurrent.Chan.Unagi (InChan, OutChan)
+import Control.Concurrent.Chan.Unagi (InChan)
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Default (def)
@@ -39,18 +37,8 @@ import Hoard.Types.HoardState (HoardState)
 
 data Config = Config
     { dbPools :: DBPools
-    , channels :: Channels
+    , inChan :: InChan Dynamic
     }
-
-
-data Channels = Channels
-    { inChan :: InChan Dynamic
-    , outChan :: OutChan Dynamic
-    }
-
-
-channelsFromPair :: (InChan Dynamic, OutChan Dynamic) -> Channels
-channelsFromPair (inChan, outChan) = Channels {inChan, outChan}
 
 
 -- | Constraint alias for application effects
@@ -84,8 +72,8 @@ runEffectStack config action = liftIO $ do
             . runConsole
             . runFileSystem
             . runConcurrent
-            . runSub config.channels.outChan
-            . runPub config.channels.inChan
+            . runSub config.inChan
+            . runPub config.inChan
             . runErrorNoCallStack @Text
             . runDBRead config.dbPools.readerPool
             . runDBWrite config.dbPools.writerPool
@@ -104,8 +92,8 @@ runEffectStackReturningState config action = liftIO $ do
             . runConsole
             . runFileSystem
             . runConcurrent
-            . runSub config.channels.outChan
-            . runPub config.channels.inChan
+            . runSub config.inChan
+            . runPub config.inChan
             . runErrorNoCallStack @Text
             . runDBRead config.dbPools.readerPool
             . runDBWrite config.dbPools.writerPool

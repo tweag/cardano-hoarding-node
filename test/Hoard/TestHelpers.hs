@@ -44,7 +44,7 @@ import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
-import Hoard.Effects (Channels (..), Config (..), channelsFromPair, runEffectStack)
+import Hoard.Effects (Config (..), runEffectStack)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -55,7 +55,7 @@ withEffectStackServer
     :: (MonadIO m, es ~ TestAppEffs)
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> m (b, HoardState, [Dynamic])
-withEffectStackServer action = runEffectStackTest $ \channels -> withServer channels action
+withEffectStackServer action = runEffectStackTest $ \config -> withServer config action
 
 
 withServer
@@ -87,11 +87,11 @@ runEffectStackTest
     => (Config -> Eff TestAppEffs a)
     -> m (a, HoardState, [Dynamic])
 runEffectStackTest mkEff = do
-    channels <- channelsFromPair <$> liftIO newChan
-    wireTap <- liftIO $ dupChan channels.inChan
+    (inChan, _) <- liftIO newChan
+    wireTap <- liftIO $ dupChan inChan
     pool <- liftIO $ Pool.acquire $ Pool.settings []
     let dbPools = DBPools pool pool
-    let config = Config {channels, dbPools}
+    let config = Config {dbPools, inChan}
     wireTapOutput <- liftIO $ newIORef []
     wireTapThreadID <- liftIO $ forkIO $ recordMessages wireTapOutput wireTap
     (a, state) <-
@@ -100,8 +100,8 @@ runEffectStackTest mkEff = do
             . runConsole
             . runFileSystem
             . runConcurrent
-            . runSub config.channels.outChan
-            . runPub config.channels.inChan
+            . runSub config.inChan
+            . runPub config.inChan
             . runState def
             $ mkEff config
     liftIO $ killThread wireTapThreadID
