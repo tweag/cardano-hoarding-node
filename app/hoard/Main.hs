@@ -36,8 +36,8 @@ loadConfig = do
     let (readerConfig, writerConfig) = devConfig
     dbPools <- acquireDatabasePools readerConfig writerConfig
     (inChan, _) <- newChan
-    pure
-        $ Config
+    pure $
+        Config
             { dbPools
             , inChan
             }
