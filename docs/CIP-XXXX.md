@@ -45,6 +45,16 @@ Existing tools like block explorers and node monitoring only show the "final" ca
 - Analyze why certain blocks or transactions are rejected
 - Track the propagation and timing of network events
 
+### Related Work
+
+**Xatu (Ethereum)**: The Ethereum ecosystem has a project called [Xatu](https://github.com/ethpandaops/xatu) which provides extensive datasets including every diffused block for various analytical tasks. It is widely used in the Ethereum community for assessing new features both before and after deployment, using custom tooling for data collection (essentially Ethereum's "hoarding node").
+
+**Pooltool.io (Cardano)**: A Cardano stake pool monitoring and analytics platform that collects performance metrics through voluntary opt-in integration from stake pool operators via API keys. Pool operators can send data such as block height and slot election information. While complementary to hoarding nodes (pooltool relies on voluntary reporting while hoarding nodes observe network behavior directly), pooltool and similar monitoring services represent potential consumers of hoarding node data for enhanced analytics.
+
+**cardano-slurp (Cardano)**: A simple prototype implementation focused on collecting headers and blocks (but not transactions). Demonstrates early exploration of this concept within the Cardano ecosystem.
+
+The hoarding node proposal builds on these precedents while providing standardized, protocol-level visibility into Cardano network behavior that can serve researchers, security analysts, and monitoring tools.
+
 ## Specification
 
 ### Architecture Overview
@@ -52,10 +62,20 @@ Existing tools like block explorers and node monitoring only show the "final" ca
 The hoarding node system consists of five main components:
 
 1. **Hoarding Processes** - Lightweight processes that connect to Cardano peers and collect network data
-2. **Repository Service** - Data access abstraction layer providing APIs for all database operations
+2. **Repository Component** - Data access abstraction layer providing interfaces for all database operations
 3. **Full Cardano Node** - Standard node providing validation services and canonical chain state
 4. **HTTP Analytics API** - REST endpoints for researchers and monitoring tools to access collected data
 5. **Background Workers** - Automated data processing for classification, archival, and cleanup
+
+#### Deployment Architecture
+
+**Single-Process Design**: The hoarding system runs as a unified single-process application containing multiple logical components (hoarding processes, background workers, HTTP API, and repository component). This approach simplifies deployment, debugging, and resource management while maintaining clear architectural boundaries between components.
+
+**External Dependencies**: Only two components run as separate services:
+- **PostgreSQL Database**: Persistent storage for all collected data
+- **Full Cardano Node**: Separate cardano-node instance providing validation services and network relaying
+
+**Event-Based Communication**: Components communicate primarily via events, providing loose coupling between components. This event-based architecture not only simplifies the initial single-process implementation but also facilitates optional future separation of components into independent services if operational requirements demand it (e.g., horizontal scaling, independent deployment cycles).
 
 ```mermaid
 graph TD
@@ -77,7 +97,7 @@ graph TD
 
     %% Data Storage Subgraph
     subgraph Storage ["💾 Data Storage Layer"]
-        R((Repository Service<br/>- Data access APIs<br/>- Connection pooling<br/>- Caching & optimization))
+        R((Repository Component<br/>- Data access interfaces<br/>- Connection pooling<br/>- Caching & optimization))
         C[(Shared Database<br/>PostgreSQL<br/>- Blocks, transactions, violations<br/>- Deduplication and correlation)]
     end
 
@@ -89,7 +109,7 @@ graph TD
 
     %% External Components
     F(External Consumers<br/>- Research tools<br/>- Monitoring<br/>- Security analysis<br/>- Academic studies)
-    G{{Full Cardano Node<br/>- Block validation<br/>- Transaction verification<br/>- State queries}}
+    G{{Full Cardano Node<br/>- Block validation<br/>- Transaction validation<br/>- State queries}}
 
     %% Network Protocol Connections
     A -.->|Node-to-Node Protocol| B1
@@ -147,7 +167,7 @@ Lightweight processes that establish Node-to-Node protocol connections with Card
 
 ```yaml
 max_connections_per_process: 20  # Maximum peer connections per process
-max_blocks_per_slot_pool: 10     # Storage limit per (slot, pool_id) pair
+max_blocks_per_slot_pool: 10     # Storage limit per (`slot`, `pool_id`) pair
 ```
 
 **Process Scaling:**
@@ -159,7 +179,7 @@ max_blocks_per_slot_pool: 10     # Storage limit per (slot, pool_id) pair
 
 ###### Data Collection
 
-Store all received ChainSync, BlockFetch, and TxSubmission messages via Repository Service APIs.
+Store all received Chain-Sync, Block-Fetch, and Tx-Submission messages via Repository operations.
 
 ###### Operating Mode
 
@@ -170,7 +190,7 @@ Hoarding processes are passive observers: they do not forward blocks or transact
 - Bootstrap from known relay nodes
 - Use Peer Sharing Protocol to discover new peers during operation
 - Store discovered peers persistently in PEERS table
-- Periodically spawn new hoarding processes to connect to undiscovered peers
+- Periodically spawn new hoarding processes to connect to newly-discovered peers
 - Iterative expansion maximizes network coverage and visibility into protocol violations
 
 ###### Connection Management
@@ -182,7 +202,7 @@ Hoarding processes are passive observers: they do not forward blocks or transact
 
 ##### Protocol-Specific Data Collection
 
-###### ChainSync Protocol
+###### Chain-Sync Protocol
 
 - **Block Headers**: Collect all announced block headers regardless of validation status
 - **Chain Updates**: Record `RollForward` and `RollBackward` messages with timestamps
@@ -190,7 +210,7 @@ Hoarding processes are passive observers: they do not forward blocks or transact
 - **Tip Updates**: Monitor how chain tip announcements propagate across peers
 - **Rollback Events**: Capture chain reorganizations with depth and timing information
 
-###### BlockFetch Protocol
+###### Block-Fetch Protocol
 
 - **Block Requests**: Log which blocks are requested from which peers
 - **Block Responses**: Store complete block bodies including failed/timed-out requests
@@ -198,7 +218,7 @@ Hoarding processes are passive observers: they do not forward blocks or transact
 - **Streaming Behavior**: Track batched block fetch patterns and peer responsiveness
 - **Block Validation**: Correlate fetched blocks with subsequent validation results
 
-###### TxSubmission Protocol
+###### Tx-Submission Protocol
 
 **Current Protocol Constraint**: The Cardano Node-to-Node protocol does not currently support peers pushing transaction bodies to connected nodes. This means hoarding processes cannot directly observe rejected transactions or full mempool activity from their peer connections.
 
@@ -229,12 +249,16 @@ Hoarding processes enforce storage limits to prevent unbounded growth from adver
 - Limit: Maximum of `max_blocks_per_slot_pool` blocks stored per `(slot_number, pool_id)` pair
 - When limit reached: Discard additional blocks for that slot/pool combination and log the attempt for metrics
 
+**Storage Guarantees:**
+
+Mathematical bounds exist on slot leader elections per time window (e.g., Cardano mainnet has <10,000 elections per 36h except with negligible probability). Combined with `max_blocks_per_slot_pool`, this provides concrete upper bounds on storage requirements.
+
 ##### Open Considerations
 
 ###### Data Collection Optimization
 
-- Should hoarding processes perform immediate hash-based deduplication before calling Repository Service APIs to reduce storage load?
-- How should batching be implemented to balance memory usage vs. Repository Service call efficiency?
+- Should hoarding processes perform immediate hash-based deduplication before calling Repository operations to reduce storage load?
+- How should batching be implemented to balance memory usage vs. Repository operation efficiency?
 - What memory bounds and backpressure mechanisms are needed for queued data awaiting storage?
 
 ###### Security and Resource Protection
@@ -247,7 +271,7 @@ Hoarding processes enforce storage limits to prevent unbounded growth from adver
 ###### Network Compatibility
 
 - What protocol compliance checks are needed to maintain compatibility with regular nodes?
-- How can connection patterns be randomized to avoid detection as monitoring infrastructure?
+- How should connection patterns be randomized to distribute load evenly across peers and avoid concentrating connections on particular nodes?
 - Should there be graceful degradation when peers start rejecting connections?
 
 ###### Peer Opt-out Mechanism
@@ -260,7 +284,7 @@ Hoarding processes enforce storage limits to prevent unbounded growth from adver
 - Should there be a standardized opt-out registry or does each hoarding node operator handle this independently?
 - **Note**: Any opt-out mechanism could be abused by adversarial participants to avoid monitoring and hide protocol violations. This creates a fundamental tension between respecting operator preferences and ensuring comprehensive security monitoring.
 
-#### 2. Repository Service
+#### 2. Repository Component
 
 **Purpose**: Data access abstraction layer that provides clean, consistent interfaces for all database operations while encapsulating complexity.
 
@@ -293,6 +317,8 @@ Hoarding processes enforce storage limits to prevent unbounded growth from adver
 
 **Purpose**: Provide validation services to background workers and handle network relaying duties for the hoarding system.
 
+**Deployment**: A single shared cardano-node instance serves the entire hoarding system. Hoarding processes themselves do not require running separate full nodes.
+
 **Responsibilities**:
 
 - **Network Relay**: Connects to Cardano network and relays valid blocks/transactions (maintains network citizenship)
@@ -313,7 +339,7 @@ TBD - Specific query types and response formats for validation offloading will b
 
 **Purpose**: Provide standardized access to collected hoarding data for researchers, security analysts, and monitoring tools.
 
-**Architecture**: HTTP API that queries data through the Repository Service, providing JSON responses.
+**Architecture**: HTTP API that queries data through the Repository Component, providing JSON responses.
 
 **Authentication**: Configurable authentication methods (API keys, OAuth2, or public read-only access for research deployments).
 
@@ -355,7 +381,7 @@ Prometheus metrics endpoint exposing operational statistics in standard expositi
 
 **Purpose**: Automated data processing to manage storage and focus on valuable violations while discarding routine data.
 
-**Data Processing Worker**: Periodically queries unprocessed data via Repository Service APIs and decides whether to:
+**Data Processing Worker**: Periodically queries unprocessed data via Repository operations and decides whether to:
 
 - **Keep/Enrich**: Mark data as valuable and add analysis metadata (violation type, research category, peer reputation impact)
 - **Discard/Archive**: Remove routine data or compress to summary statistics
@@ -389,7 +415,7 @@ background_workers:
 
 **Equivocation Detection**:
 
-1. **Data Indexing**: Maintain an index of blocks by (slot_number, pool_id)
+1. **Data Indexing**: Maintain an index of blocks by `(slot_number, pool_id)`
 2. **Conflict Detection**: For each new block, check if another block exists for the same slot+pool combination
 3. **Signature Verification**: Validate that both blocks are properly signed by the claimed pool
 4. **Evidence Collection**: Store both conflicting blocks with metadata about detection time and source peers
@@ -402,6 +428,7 @@ background_workers:
 3. **Fork Detection**: Identify blocks that were valid but didn't become canonical due to chain reorganization
 4. **Temporal Classification**: Distinguish between recent orphans (may still become canonical) and settled orphans
 5. **Causal Analysis**: Correlate orphaned blocks with network events (timing, peer behavior, competing blocks)
+6. **Transaction Recovery Tracking**: Track whether transactions from orphaned blocks eventually appear in canonical chain blocks (useful for understanding rollback impact on users)
 
 **Timing Analysis**:
 
@@ -428,36 +455,18 @@ Background workers measure validation duration to identify blocks and transactio
 1. **Timing Capture**: Record start and end timestamps when background workers submit blocks/transactions to the full node for validation
 2. **Duration Calculation**: Compute validation duration as the round-trip time of the validation query
 3. **Threshold Detection**: Flag blocks/transactions exceeding the configured `expensive_validation_threshold_seconds`
-4. **Metadata Storage**: Store validation timing data alongside block/transaction records via Repository Service APIs
+4. **Metadata Storage**: Store validation timing data alongside block/transaction records via Repository operations
 
 **Limitations**:
 
 - **Best-effort metric**: Validation timing includes network latency and full node processing queue delays, not just pure validation cost
 - **Caching effects**: Full node may cache validation results; repeated validation of the same block returns cached results instantly
-- **Cold vs warm validation**: First-time validation may be slower due to script compilation, UTxO cache warming, and ledger state access patterns
+- **Cold vs warm validation**: First-time validation may be slower due to UTxO cache warming and ledger state access patterns
 - **Concurrent load**: Full node load from other operations affects measured validation times
 
 **Validation Cost Factors**:
 
-Blocks and transactions vary in validation cost due to:
-
-- **Plutus script complexity**: Expensive smart contract execution (cryptographic operations, complex computations)
-- **Transaction count**: More transactions require more signature checks and UTxO validations
-- **Multi-signature transactions**: Multiple cryptographic signature verifications
-- **Input/output count**: More UTxOs to validate and update
-- **Redeemer and metadata size**: Large data structures increase deserialization overhead
-- **Native token operations**: Minting/burning many different tokens
-
-**Future Enhancement**:
-
-For more accurate validation timing measurements, the architecture could be extended with a dedicated lightweight validation service:
-
-- **Decoupled from full node**: Separate service focused solely on validation timing, independent of full node caching
-- **Fresh validation**: Each block/transaction validated from scratch without cached results
-- **Minimal state**: Lighter weight than full node - only maintains state necessary for validation (stake distribution, protocol parameters, recent UTxO set)
-- **Instrumentation**: Detailed breakdown of validation phases (deserialization, signature verification, script execution, ledger rule checks)
-
-This would provide higher-fidelity validation cost data but requires additional infrastructure and maintenance.
+Blocks and transactions vary significantly in validation cost due to factors such as Plutus script complexity, transaction count, and UTxO operations. For detailed analysis of validation cost factors and measurement approaches, see the [Block Cost Investigation proposal](https://docs.google.com/document/d/1mDA0NuD7rQYtNMmwY2zNz9wci7RCy2bMPFZrbolA-jA/edit?tab=t.0#heading=h.rkdqb0ttlsiu).
 
 ### Network Health Safeguards
 
