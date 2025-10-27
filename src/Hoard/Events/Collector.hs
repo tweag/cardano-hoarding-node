@@ -8,7 +8,7 @@ import Hoard.Types.Collector (CollectorId, Peer)
 
 
 data CollectorEvent
-    = CollectorStarted CollectorId [Peer]
+    = CollectorStarted CollectorId Peer
     | ConnectingToPeer CollectorId Peer
     | ConnectedToPeer CollectorId Peer
     | ConnectionFailed CollectorId Peer String
