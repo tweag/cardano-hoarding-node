@@ -62,6 +62,7 @@ library
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
@@ -113,6 +114,7 @@ executable hoard-exe
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
@@ -175,6 +177,7 @@ test-suite hoard-test
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
