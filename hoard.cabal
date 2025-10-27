@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -16,7 +16,9 @@ build-type:     Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.CLI.Options
       Hoard.Collector
+      Hoard.Config.Loader
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
@@ -35,8 +37,10 @@ library
       Hoard.Server
       Hoard.Types.Collector
       Hoard.Types.DBConfig
+      Hoard.Types.Environment
       Hoard.Types.Header
       Hoard.Types.HoardState
+      Hoard.Types.QuietSnake
   other-modules:
       Paths_hoard
   hs-source-dirs:
@@ -46,6 +50,7 @@ library
       DataKinds
       DeriveAnyClass
       DerivingStrategies
+      DerivingVia
       DuplicateRecordFields
       FlexibleContexts
       GADTs
@@ -66,15 +71,18 @@ library
     , casing
     , containers
     , data-default
+    , directory
     , effectful
     , effectful-core
     , effectful-th
+    , filepath
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
     , ki
     , network-uri
+    , optparse-applicative
     , rel8
     , servant
     , servant-server
@@ -85,6 +93,7 @@ library
     , unordered-containers
     , uuid
     , warp
+    , yaml
   default-language: GHC2021
 
 executable hoard-exe
@@ -98,6 +107,7 @@ executable hoard-exe
       DataKinds
       DeriveAnyClass
       DerivingStrategies
+      DerivingVia
       DuplicateRecordFields
       FlexibleContexts
       GADTs
@@ -118,9 +128,11 @@ executable hoard-exe
     , casing
     , containers
     , data-default
+    , directory
     , effectful
     , effectful-core
     , effectful-th
+    , filepath
     , hashable
     , hasql
     , hasql-pool
@@ -128,6 +140,7 @@ executable hoard-exe
     , hoard
     , ki
     , network-uri
+    , optparse-applicative
     , rel8
     , servant
     , servant-server
@@ -138,6 +151,7 @@ executable hoard-exe
     , unordered-containers
     , uuid
     , warp
+    , yaml
   default-language: GHC2021
 
 test-suite hoard-test
@@ -158,6 +172,7 @@ test-suite hoard-test
       DataKinds
       DeriveAnyClass
       DerivingStrategies
+      DerivingVia
       DuplicateRecordFields
       FlexibleContexts
       GADTs
@@ -185,6 +200,7 @@ test-suite hoard-test
     , effectful
     , effectful-core
     , effectful-th
+    , filepath
     , hashable
     , hasql
     , hasql-pool
@@ -194,6 +210,7 @@ test-suite hoard-test
     , http-client
     , ki
     , network-uri
+    , optparse-applicative
     , postgres-options
     , process
     , rel8
@@ -214,4 +231,5 @@ test-suite hoard-test
     , uuid
     , wai
     , warp
+    , yaml
   default-language: GHC2021

@@ -1,20 +1,35 @@
 module Hoard.Types.DBConfig
     ( DBConfig (..)
     , DBPools (..)
+    , PoolConfig (..)
     , acquireDatabasePool
     , acquireDatabasePools
-    , devConfig
     )
 where
 
+import Data.Aeson (FromJSON)
 import Data.Text (Text)
 import Data.Word (Word16)
+import GHC.Generics (Generic)
 
 import Hasql.Connection.Setting qualified as Setting
 import Hasql.Connection.Setting.Connection qualified as Connection
 import Hasql.Connection.Setting.Connection.Param qualified as Param
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
+
+import Hoard.Types.QuietSnake (QuietSnake (..))
+
+
+-- | Connection pool configuration
+data PoolConfig = PoolConfig
+    { size :: Int
+    , acquisitionTimeoutSeconds :: Int
+    , agingTimeoutSeconds :: Int
+    , idlenessTimeoutSeconds :: Int
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake PoolConfig
 
 
 -- | Database configuration for a single user
@@ -24,6 +39,7 @@ data DBConfig = DBConfig
     , user :: Text
     , password :: Text
     , databaseName :: Text
+    , pool :: PoolConfig
     }
     deriving stock (Eq, Show)
 
@@ -38,11 +54,6 @@ data DBPools = DBPools
 -- | Acquire a single database connection pool
 acquireDatabasePool :: DBConfig -> IO Pool.Pool
 acquireDatabasePool config = do
-    -- Pool configuration:
-    -- - Size: 10 connections
-    -- - Acquisition timeout: 5 seconds
-    -- - Aging timeout: 30 minutes (maximal connection lifetime)
-    -- - Idleness timeout: 10 minutes (maximal connection idle time)
     let settings =
             [ Pool.staticConnectionSettings
                 [ Setting.connection $
@@ -54,10 +65,10 @@ acquireDatabasePool config = do
                         , Param.dbname config.databaseName
                         ]
                 ]
-            , Pool.size 10
-            , Pool.acquisitionTimeout 5 -- (seconds)
-            , Pool.agingTimeout (30 * 60) -- (30 minutes in seconds)
-            , Pool.idlenessTimeout (10 * 60) -- (10 minutes in seconds)
+            , Pool.size config.pool.size
+            , Pool.acquisitionTimeout (fromIntegral config.pool.acquisitionTimeoutSeconds)
+            , Pool.agingTimeout (fromIntegral config.pool.agingTimeoutSeconds)
+            , Pool.idlenessTimeout (fromIntegral config.pool.idlenessTimeoutSeconds)
             ]
 
     Pool.acquire $ Pool.settings settings
@@ -75,28 +86,3 @@ acquireDatabasePools readerConfig writerConfig = do
     readerPool <- acquireDatabasePool readerConfig
     writerPool <- acquireDatabasePool writerConfig
     pure $ DBPools {readerPool, writerPool}
-
-
--- | Development database configuration
--- Connects to the local postgres instance started with `nix run .#postgres`
--- Uses socket connection in ./postgres-data directory
--- Returns separate configs for reader and writer users
-devConfig :: (DBConfig, DBConfig)
-devConfig =
-    ( -- Read-only user
-      DBConfig
-        { host = "/home/cgeorgii/code/cardano-hoarding-node/postgres-data"
-        , port = 5432
-        , user = "hoard_reader"
-        , password = ""
-        , databaseName = "hoard_dev"
-        }
-    , -- Read-write user
-      DBConfig
-        { host = "/home/cgeorgii/code/cardano-hoarding-node/postgres-data"
-        , port = 5432
-        , user = "hoard_writer"
-        , password = ""
-        , databaseName = "hoard_dev"
-        }
-    )

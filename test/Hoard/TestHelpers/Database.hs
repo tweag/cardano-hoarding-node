@@ -25,7 +25,7 @@ import Database.Postgres.Temp qualified as TmpPostgres
 import Hasql.Decoders qualified as Decoders
 import Hasql.Pool qualified as Pool
 
-import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), acquireDatabasePool, acquireDatabasePools)
+import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), PoolConfig (..), acquireDatabasePool, acquireDatabasePools)
 
 
 -- | Test configuration including database pools and schema name
@@ -79,6 +79,15 @@ withTestDatabase action = do
                 -- In Nix sandbox, this will be nixbld1, nixbld2, etc.
                 tmpUser = fromMaybe effectiveUser mUser
 
+                -- Default pool config for tests
+                defaultPool =
+                    PoolConfig
+                        { size = 10
+                        , acquisitionTimeoutSeconds = 5
+                        , agingTimeoutSeconds = 1800
+                        , idlenessTimeoutSeconds = 600
+                        }
+
                 -- Config using the tmp-postgres default user (also used as admin)
                 tmpUserConfig =
                     DBConfig
@@ -87,6 +96,7 @@ withTestDatabase action = do
                         , user = cs tmpUser
                         , password = ""
                         , databaseName = "postgres"
+                        , pool = defaultPool
                         }
 
                 -- Admin config uses the same tmp-postgres user (which is already a superuser)
@@ -105,6 +115,7 @@ withTestDatabase action = do
                                 , user = "hoard_reader"
                                 , password = ""
                                 , databaseName = dbName
+                                , pool = defaultPool
                                 }
                         writerConfig =
                             DBConfig
@@ -113,6 +124,7 @@ withTestDatabase action = do
                                 , user = "hoard_writer"
                                 , password = ""
                                 , databaseName = dbName
+                                , pool = defaultPool
                                 }
 
                     pools <- acquireDatabasePools readerConfig writerConfig
