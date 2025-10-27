@@ -22,7 +22,9 @@ startCollectors
        , Pub :> es
        , State HoardState :> es
        )
-    => Int -> [Peer] -> Eff es ()
+    => Int
+    -> [Peer]
+    -> Eff es ()
 startCollectors maxPeersPerCollector peers = do
     let peerGroups = groupPeers maxPeersPerCollector peers
     forM_ peerGroups $ \handle ->
@@ -37,7 +39,8 @@ collectorLoop
        , Pub :> es
        , State HoardState :> es
        )
-    => CollectorHandle -> Eff es a
+    => CollectorHandle
+    -> Eff es a
 collectorLoop handle = do
     modify $ \s -> s {collectors = Map.insert handle.cid handle s.collectors}
     publish $ CollectorStarted handle.cid handle.peers

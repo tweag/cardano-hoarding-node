@@ -14,11 +14,11 @@ import Hoard.Types.Header (Header (..))
 -- This allows us to capture the output for testing
 runListenerWithWriter :: HeaderReceived -> ((), [BS.ByteString])
 runListenerWithWriter event =
-    runPureEff
-        $ runWriter
-        $ do
-            -- Reinterpret the listener to use Writer instead of Console
-            headerReceivedListenerWithWriter event
+    runPureEff $
+        runWriter $
+            do
+                -- Reinterpret the listener to use Writer instead of Console
+                headerReceivedListenerWithWriter event
 
 
 -- | Version of headerReceivedListener that uses Writer instead of Console

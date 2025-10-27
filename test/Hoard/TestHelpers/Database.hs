@@ -176,8 +176,8 @@ runSqitchMigrations config dbName = do
     case exitCode of
         ExitSuccess -> pure ()
         ExitFailure code ->
-            error
-                $ "Failed to run sqitch migrations: "
+            error $
+                "Failed to run sqitch migrations: "
                     <> show code
                     <> "\nstdout: "
                     <> stdout
@@ -215,8 +215,8 @@ cleanDatabase config = do
 
     truncateTables :: Text -> Session ()
     truncateTables tableNames =
-        statement ()
-            $ Statement
+        statement () $
+            Statement
                 (cs $ "TRUNCATE TABLE " <> tableNames <> " CASCADE")
                 mempty
                 Decoders.noResult
