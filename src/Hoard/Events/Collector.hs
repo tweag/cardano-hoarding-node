@@ -4,14 +4,14 @@ module Hoard.Events.Collector
 
 import Data.Typeable (Typeable)
 
-import Hoard.Types.Collector (CollectorId, Peer)
+import Hoard.Types.Collector (Peer)
 
 
 data CollectorEvent
-    = CollectorStarted CollectorId Peer
-    | ConnectingToPeer CollectorId Peer
-    | ConnectedToPeer CollectorId Peer
-    | ConnectionFailed CollectorId Peer String
-    | ChainSyncReceived CollectorId Peer
-    | BlockFetchReceived CollectorId Peer
+    = CollectorStarted Peer
+    | ConnectingToPeer Peer
+    | ConnectedToPeer Peer
+    | ConnectionFailed Peer String
+    | ChainSyncReceived Peer
+    | BlockFetchReceived Peer
     deriving (Show, Typeable)
