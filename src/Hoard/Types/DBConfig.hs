@@ -45,8 +45,8 @@ acquireDatabasePool config = do
     -- - Idleness timeout: 10 minutes (maximal connection idle time)
     let settings =
             [ Pool.staticConnectionSettings
-                [ Setting.connection
-                    $ Connection.params
+                [ Setting.connection $
+                    Connection.params
                         [ Param.host config.host
                         , Param.port config.port
                         , Param.user config.user

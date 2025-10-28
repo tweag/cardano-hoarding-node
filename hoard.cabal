@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.2.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -62,6 +62,7 @@ library
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
@@ -113,6 +114,7 @@ executable hoard-exe
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
@@ -167,12 +169,15 @@ test-suite hoard-test
       TemplateHaskell
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded
+  build-tool-depends:
+      tasty-discover:tasty-discover
   build-depends:
       QuickCheck
     , aeson
     , async
     , base >=4.7 && <5
     , bytestring
+    , cardano-api
     , casing
     , containers
     , data-default
