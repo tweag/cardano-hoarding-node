@@ -11,7 +11,7 @@ newtype CollectorId = CollectorId Int
 
 data CollectorHandle = CollectorHandle
     { cid :: CollectorId
-    , peers :: [Peer]
+    , peer :: Peer
     }
     deriving (Eq, Show)
 

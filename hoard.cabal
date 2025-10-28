@@ -16,7 +16,7 @@ build-type:     Simple
 library
   exposed-modules:
       Hoard.API
-      Hoard.Collectors
+      Hoard.Collector
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
