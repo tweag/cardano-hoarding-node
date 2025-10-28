@@ -30,6 +30,7 @@ library
       Hoard.Events
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
+      Hoard.Events.Node
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Server
       Hoard.Types.Collector

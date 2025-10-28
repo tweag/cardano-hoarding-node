@@ -1,16 +1,16 @@
 module Hoard.Types.HoardState (HoardState (..)) where
 
 import Data.Default (Default (..))
-import Data.Map.Strict (Map)
+import Data.Set (Set)
 
-import Data.Map.Strict qualified as M
+import Data.Set qualified as S
 
-import Hoard.Types.Collector (CollectorHandle, CollectorId)
+import Hoard.Types.Collector (Peer)
 
 
 -- | Application state
 data HoardState = HoardState
-    { collectors :: Map CollectorId CollectorHandle
+    { peers :: Set Peer
     }
     deriving (Eq, Show)
 
@@ -18,5 +18,5 @@ data HoardState = HoardState
 instance Default HoardState where
     def =
         HoardState
-            { collectors = M.empty
+            { peers = S.empty
             }

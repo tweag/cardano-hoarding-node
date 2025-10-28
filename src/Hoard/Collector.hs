@@ -1,23 +1,32 @@
-module Hoard.Collector (runCollector) where
+module Hoard.Collector (dispatchDiscoveredNodes, runCollector) where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
+import Data.Void (Void)
 import Effectful (Eff, IOE, liftIO, (:>))
 
+import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Sub (Sub, listen)
 import Hoard.Events.Collector (CollectorEvent (..))
-import Hoard.Types.Collector (CollectorHandle (..), CollectorId (..), Peer)
+import Hoard.Events.Node (NodeDiscovered (..))
+import Hoard.Types.Collector (Peer)
 
 
-runCollector :: (IOE :> es, Pub :> es) => CollectorHandle -> Eff es a
-runCollector CollectorHandle {cid, peer} = do
-    publish $ CollectorStarted cid peer
-    publish $ ConnectingToPeer cid peer
+dispatchDiscoveredNodes :: (Conc :> es, IOE :> es, Pub :> es, Sub :> es) => Eff es Void
+dispatchDiscoveredNodes = listen $ \(NodeDiscovered peer) ->
+    fork_ $ runCollector peer
+
+
+runCollector :: (IOE :> es, Pub :> es) => Peer -> Eff es a
+runCollector peer = do
+    publish $ CollectorStarted peer
+    publish $ ConnectingToPeer peer
     conn <- connectToPeer peer
-    publish $ ConnectedToPeer cid peer
+    publish $ ConnectedToPeer peer
     forever $ do
-        processChainSync cid peer conn
-        processBlockFetch cid peer conn
+        processChainSync peer conn
+        processBlockFetch peer conn
         liftIO $ threadDelay 10000
 
 
@@ -27,14 +36,14 @@ connectToPeer _ =
     pure Connection
 
 
-processChainSync :: CollectorId -> Peer -> Connection -> Eff es ()
-processChainSync _ _ _ = do
+processChainSync :: Peer -> Connection -> Eff es ()
+processChainSync _ _ = do
     -- TODO: Implement processChainSync
     pure ()
 
 
-processBlockFetch :: CollectorId -> Peer -> Connection -> Eff es ()
-processBlockFetch _ _ _ = do
+processBlockFetch :: Peer -> Connection -> Eff es ()
+processBlockFetch _ _ = do
     -- TODO: Implement processBlockFetch
     pure ()
 
