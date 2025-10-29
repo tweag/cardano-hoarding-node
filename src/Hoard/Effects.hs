@@ -34,8 +34,10 @@ import Data.Text qualified as T
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
+import Hoard.Effects.Network (Network, runNetwork)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
+import Hoard.Network.Config (defaultNetworkConfig)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.HoardState (HoardState)
 import Hoard.Types.QuietSnake (QuietSnake (..))
@@ -66,6 +68,7 @@ type AppEff es =
     , Conc :> es
     , Sub :> es
     , Pub :> es
+    , Network :> es
     , DBRead :> es
     , DBWrite :> es
     , Error Text :> es
@@ -78,7 +81,7 @@ type a ::> b = a Effectful.:> b
 
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, DBWrite, DBRead, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Console, IOE]
+type AppEffects = '[State HoardState, DBWrite, DBRead, Network, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Console, IOE]
 
 
 -- | Run the full effect stack for the application
@@ -95,6 +98,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
+                    . runNetwork defaultNetworkConfig
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . evalState def
@@ -118,6 +122,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
+                    . runNetwork defaultNetworkConfig
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runState def
