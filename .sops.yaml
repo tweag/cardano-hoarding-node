@@ -14,6 +14,8 @@
 # - For prod/staging: stored securely (e.g., in CI secrets, HashiCorp Vault)
 keys: &all
   - &cgeorgii age1kq67lkr7sz9q0qk4k4nf7rdn88mzkscpersvhgf500gpke9wfcjqkxzm69
+  - &prednaz age1444057eh6n48vd4ncz4lr8mvz5yaqah20a3nngngee4hfl25u4hqm5f69f
+  - &Gipphe age1pzemcrww7x0azxvyvavd92r9a585xr5yep5lssfyh3qd5hyvjgqqmuq3ne
 
 creation_rules:
   # Development environment

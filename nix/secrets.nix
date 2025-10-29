@@ -49,4 +49,50 @@
       ${pkgs.sops}/bin/sops -d "$SECRET_FILE"
     ''}";
   };
+
+  # Reencrypt all secrets with current keys from .sops.yaml
+  secrets-reencrypt = {
+    type = "app";
+    program = "${pkgs.writeShellScript "secrets-reencrypt" ''
+      SECRETS_DIR="secrets"
+
+      if [ ! -d "$SECRETS_DIR" ]; then
+        echo "Error: Secrets directory $SECRETS_DIR does not exist"
+        exit 1
+      fi
+
+      echo "Reencrypting all secrets with current keys from .sops.yaml..."
+      echo ""
+
+      # Find all .yaml files in secrets directory
+      shopt -s nullglob
+      SECRET_FILES=("$SECRETS_DIR"/*.yaml)
+
+      if [ ''${#SECRET_FILES[@]} -eq 0 ]; then
+        echo "No .yaml files found in $SECRETS_DIR"
+        exit 0
+      fi
+
+      SUCCESS=0
+      FAILED=0
+
+      for file in "''${SECRET_FILES[@]}"; do
+        echo "Updating keys for: $file"
+        if ${pkgs.sops}/bin/sops updatekeys "$file"; then
+          echo "  ✓ Successfully updated"
+          ((SUCCESS++))
+        else
+          echo "  ✗ Failed to update"
+          ((FAILED++))
+        fi
+        echo ""
+      done
+
+      echo "Summary: $SUCCESS succeeded, $FAILED failed"
+
+      if [ $FAILED -gt 0 ]; then
+        exit 1
+      fi
+    ''}";
+  };
 }
