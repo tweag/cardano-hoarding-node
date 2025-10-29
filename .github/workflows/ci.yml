@@ -4,6 +4,12 @@ on:
   push:
     branches: [ main ]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      use-magic-cache:
+        description: 'Use magic-nix-cache'
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,4 +26,5 @@ jobs:
             extra-substituters = https://cache.iog.io
             extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
       - uses: DeterminateSystems/magic-nix-cache-action@main
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.use-magic-cache }}
       - run: nix flake check -L
