@@ -1,0 +1,39 @@
+# SOPS Configuration
+#
+# This file defines encryption keys for different environments.
+# Each environment uses age encryption with different public keys.
+#
+# To generate a new age key pair:
+#   age-keygen -o key.txt
+#
+# Or convert an existing SSH key:
+#   ssh-to-age < ~/.ssh/id_ed25519.pub
+#
+# The public key goes in this file, the private key should be:
+# - For dev: kept in your local ~/.config/sops/age/keys.txt
+# - For prod/staging: stored securely (e.g., in CI secrets, HashiCorp Vault)
+keys: &all
+  - &cgeorgii age1kq67lkr7sz9q0qk4k4nf7rdn88mzkscpersvhgf500gpke9wfcjqkxzm69
+  - &prednaz age1444057eh6n48vd4ncz4lr8mvz5yaqah20a3nngngee4hfl25u4hqm5f69f
+  - &Gipphe age1pzemcrww7x0azxvyvavd92r9a585xr5yep5lssfyh3qd5hyvjgqqmuq3ne
+
+creation_rules:
+  # Development environment
+  - path_regex: dev\.yaml$
+    key_groups:
+      - age: *all
+
+  # CI environment
+  - path_regex: ci\.yaml$
+    key_groups:
+      - age: *all
+
+  # Staging environment
+  - path_regex: staging\.yaml$
+    key_groups:
+      - age: *all
+
+  # Production environment
+  - path_regex: prod\.yaml$
+    key_groups:
+      - age: *all

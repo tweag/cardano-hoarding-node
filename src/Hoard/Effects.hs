@@ -6,6 +6,7 @@ module Hoard.Effects
     , AppEffects
     -- Config
     , Config (..)
+    , ServerConfig (..)
 
       -- * Type Aliases
     , type (::>)
@@ -15,15 +16,18 @@ where
 import Control.Concurrent.Chan.Unagi (InChan)
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson (FromJSON)
 import Data.Default (def)
 import Data.Dynamic (Dynamic)
 import Data.Text (Text)
+import Data.Word (Word16)
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Console.ByteString (Console, runConsole)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, evalState, runState)
+import GHC.Generics (Generic)
 
 import Data.Text qualified as T
 
@@ -34,11 +38,22 @@ import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.HoardState (HoardState)
+import Hoard.Types.QuietSnake (QuietSnake (..))
+
+
+-- | HTTP server configuration
+data ServerConfig = ServerConfig
+    { host :: Text
+    , port :: Word16
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake ServerConfig
 
 
 data Config = Config
     { dbPools :: DBPools
     , inChan :: InChan Dynamic
+    , server :: ServerConfig
     }
 
 

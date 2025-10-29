@@ -1,43 +1,36 @@
 module Main (main) where
 
-import Control.Concurrent.Chan.Unagi (newChan)
+import Data.Maybe (fromMaybe)
 
-import Hoard.Effects (Config (..), runEffectStack)
+import Data.Text qualified as T
+import Options.Applicative qualified as Opt
+
+import Hoard.CLI.Options (Options (..), optsParser)
+import Hoard.Config.Loader (loadConfig)
+import Hoard.Effects (Config (..), ServerConfig (..), runEffectStack)
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
-import Hoard.Server (ServerConfig (..), runServer)
-import Hoard.Types.DBConfig (acquireDatabasePools, devConfig)
+import Hoard.Types.Environment (Environment (..))
 
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Server qualified as Server
 
 
 main :: IO ()
 main = do
-    config <- loadConfig
+    options <- Opt.execParser optsParser
+
+    -- Determine environment: CLI flag > default to Dev
+    let env = fromMaybe Dev options.environment
+
+    putStrLn $ "Loading configuration for environment: " <> show env
+    config <- loadConfig env
 
     -- Start background threads in the effect stack
-    putStrLn "Starting Hoard..."
+    putStrLn $ "Starting Hoard on " <> T.unpack config.server.host <> ":" <> show config.server.port <> "..."
     runEffectStack config $ do
         -- Fork the HTTP server
-        let serverConfig =
-                ServerConfig
-                    { port = 3000
-                    , host = "0.0.0.0"
-                    , config
-                    }
-        _ <- Conc.fork $ runServer serverConfig
+        _ <- Conc.fork $ Server.runServer config
         _ <- Conc.fork $ listen headerReceivedListener
 
         Conc.awaitAll
-
-
-loadConfig :: IO Config
-loadConfig = do
-    let (readerConfig, writerConfig) = devConfig
-    dbPools <- acquireDatabasePools readerConfig writerConfig
-    (inChan, _) <- newChan
-    pure $
-        Config
-            { dbPools
-            , inChan
-            }

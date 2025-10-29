@@ -1,0 +1,16 @@
+server:
+  host: 127.0.0.1
+  port: 3000
+
+# Path to secrets file (can be relative or absolute)
+secrets_file: secrets/ci.yaml
+
+database:
+  host: localhost
+  port: 5432
+  database_name: hoard_test
+  pool:
+    size: 5
+    acquisition_timeout_seconds: 5
+    aging_timeout_seconds: 600
+    idleness_timeout_seconds: 300
