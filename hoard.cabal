@@ -73,7 +73,9 @@ library
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -135,7 +137,9 @@ executable hoard-exe
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -198,7 +202,9 @@ executable test-connection
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -271,7 +277,9 @@ test-suite hoard-test
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful

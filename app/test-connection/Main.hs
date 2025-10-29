@@ -31,7 +31,7 @@ import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Config (previewTestnetConfig)
-import Hoard.Network.Events
+import Hoard.Network.Events hiding (peer)
 
 import Hoard.Effects.Conc qualified as Conc
 
@@ -43,7 +43,8 @@ main = do
     putStrLn "This program will:"
     putStrLn "  1. Connect to a Preview testnet relay"
     putStrLn "  2. Verify handshake completion"
-    putStrLn "  3. Keep the connection alive for 30 seconds"
+    putStrLn "  3. Request peer addresses via PeerSharing protocol"
+    putStrLn "  4. Keep the connection alive for 30 seconds"
     putStrLn ""
 
     -- Create event channel
@@ -58,7 +59,7 @@ main = do
                 . runErrorNoCallStack @Text
                 . runSub inChan
                 . runPub inChan
-                . runNetwork
+                . runNetwork inChan
                 $ testConnection
 
     case result of
@@ -94,8 +95,9 @@ testConnection = do
     liftIO $ putStrLn $ "Connecting to " <> T.unpack (address previewRelay) <> ":" <> show (port previewRelay)
     liftIO $ hFlush stdout
 
-    -- Start event listener in background
-    Conc.fork_ eventListener
+    -- Start event listeners in background
+    Conc.fork_ networkEventListener
+    Conc.fork_ peerSharingEventListener
 
     -- Connect to peer
     conn <- connectToPeer previewTestnetConfig previewRelay
@@ -108,22 +110,22 @@ testConnection = do
         then liftIO $ putStrLn "✓ Connection is alive"
         else liftIO $ putStrLn "✗ Connection appears dead"
 
-    -- Keep connection alive for 30 seconds
-    liftIO $ putStrLn "Keeping connection alive for 30 seconds..."
-    liftIO $ threadDelay (30 * 1000000)
+    -- Keep connection alive for 10 seconds
+    liftIO $ putStrLn "Keeping connection alive for 10 seconds..."
+    liftIO $ threadDelay (10 * 1000000)
 
     -- Check status again
     isAlive' <- isConnected conn
     if isAlive'
-        then liftIO $ putStrLn "✓ Connection still alive after 30 seconds"
+        then liftIO $ putStrLn "✓ Connection still alive after 10 seconds"
         else liftIO $ putStrLn "✗ Connection died"
 
 
--- | Listen for and print network events
-eventListener
+-- | Listen for and print network lifecycle events
+networkEventListener
     :: (IOE :> es, Sub :> es)
     => Eff es Void
-eventListener = listen $ \event -> do
+networkEventListener = listen $ \event -> do
     liftIO $ case event of
         ConnectionEstablished dat -> do
             putStrLn $ "🔗 Connection established with peer at " <> show dat.timestamp
@@ -133,4 +135,20 @@ eventListener = listen $ \event -> do
             putStrLn $ "🤝 Handshake completed with version " <> show dat.version
         ProtocolError dat -> do
             putStrLn $ "❌ Protocol error: " <> T.unpack dat.errorMessage
+    liftIO $ hFlush stdout
+
+
+-- | Listen for and print peer sharing events
+peerSharingEventListener
+    :: (IOE :> es, Sub :> es)
+    => Eff es Void
+peerSharingEventListener = listen $ \event -> do
+    liftIO $ case event of
+        PeerSharingStarted dat -> do
+            putStrLn $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
+        PeersReceived dat -> do
+            putStrLn $ "📡 Received " <> show dat.peerCount <> " peer addresses from remote peer:"
+            mapM_ (\addr -> putStrLn $ "   - " <> T.unpack addr) dat.peerAddresses
+        PeerSharingFailed dat -> do
+            putStrLn $ "❌ PeerSharing failed: " <> T.unpack dat.errorMessage
     liftIO $ hFlush stdout

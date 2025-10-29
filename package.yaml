@@ -31,7 +31,9 @@ dependencies:
 - ouroboros-network-framework
 - network-mux
 - casing
+- cborg
 - containers
+- contra-tracer
 - data-default
 - directory
 - effectful
