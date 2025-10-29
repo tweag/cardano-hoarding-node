@@ -2,16 +2,17 @@ module Hoard.Events.Collector
     ( CollectorEvent (..)
     ) where
 
+import Data.Text (Text)
 import Data.Typeable (Typeable)
 
-import Hoard.Types.Collector (Peer)
+import Hoard.Data.Peer (Peer)
 
 
 data CollectorEvent
     = CollectorStarted Peer
     | ConnectingToPeer Peer
     | ConnectedToPeer Peer
-    | ConnectionFailed Peer String
+    | ConnectionFailed Peer Text
     | ChainSyncReceived Peer
     | BlockFetchReceived Peer
     deriving (Show, Typeable)
