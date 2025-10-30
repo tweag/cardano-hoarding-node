@@ -29,13 +29,19 @@ import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..))
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
+    , MiniProtocolParameters (..)
     , NodeToNodeVersion (..)
     , NodeToNodeVersionData (..)
+    , blockFetchMiniProtocolNum
+    , chainSyncMiniProtocolNum
     , combineVersions
     , connectTo
+    , defaultMiniProtocolParameters
     , keepAliveMiniProtocolNum
     , nullNetworkConnectTracers
+    , peerSharingMiniProtocolNum
     , simpleSingletonVersions
+    , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.Snocket (socketSnocket)
 
@@ -250,7 +256,28 @@ mkApplication
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
 mkApplication _ioManager _peer =
     OuroborosApplication
-        [ -- KeepAlive mini-protocol (stub)
+        [ -- ChainSync mini-protocol (stub)
+          MiniProtocol
+            { miniProtocolNum = chainSyncMiniProtocolNum
+            , miniProtocolLimits = chainSyncLimits
+            , miniProtocolStart = StartOnDemand
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
+                -- Stub: For Ticket #1, just return immediately to allow connection to complete
+                -- Real implementation in Ticket #3 will do actual protocol handshake
+                putStrLn "[DEBUG] ChainSync protocol stub started"
+                pure ((), Nothing)
+            }
+        , -- BlockFetch mini-protocol (stub)
+          MiniProtocol
+            { miniProtocolNum = blockFetchMiniProtocolNum
+            , miniProtocolLimits = blockFetchLimits
+            , miniProtocolStart = StartOnDemand
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
+                -- Stub: For Ticket #1, just return immediately
+                putStrLn "[DEBUG] BlockFetch protocol stub started"
+                pure ((), Nothing)
+            }
+        , -- KeepAlive mini-protocol (stub)
           MiniProtocol
             { miniProtocolNum = keepAliveMiniProtocolNum
             , miniProtocolLimits = keepAliveLimits
@@ -260,9 +287,50 @@ mkApplication _ioManager _peer =
                 putStrLn "[DEBUG] KeepAlive protocol stub started"
                 pure ((), Nothing)
             }
+        , -- PeerSharing mini-protocol (stub)
+          MiniProtocol
+            { miniProtocolNum = peerSharingMiniProtocolNum
+            , miniProtocolLimits = peerSharingLimits
+            , miniProtocolStart = StartOnDemand
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
+                -- Stub: For Ticket #1, just return immediately
+                putStrLn "[DEBUG] PeerSharing protocol stub started"
+                pure ((), Nothing)
+            }
+        , -- TxSubmission mini-protocol (stub, not needed for hoarding)
+          MiniProtocol
+            { miniProtocolNum = txSubmissionMiniProtocolNum
+            , miniProtocolLimits = txSubmissionLimits
+            , miniProtocolStart = StartOnDemand
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
+                -- Stub: For Ticket #1, just return immediately
+                putStrLn "[DEBUG] TxSubmission protocol stub started"
+                pure ((), Nothing)
+            }
         ]
   where
+    -- Get protocol parameters
+    params = defaultMiniProtocolParameters
+
+    -- Protocol limits from parameters
+    -- Using chainSyncPipeliningHighMark as a reasonable default for all protocols
+    chainSyncLimits =
+        MiniProtocolLimits
+            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params
+            }
+    blockFetchLimits =
+        MiniProtocolLimits
+            { maximumIngressQueue = fromIntegral $ blockFetchPipeliningMax params
+            }
     keepAliveLimits =
         MiniProtocolLimits
             { maximumIngressQueue = 1000 -- Reasonable default for keep alive
+            }
+    peerSharingLimits =
+        MiniProtocolLimits
+            { maximumIngressQueue = 1000 -- Reasonable default for peer sharing
+            }
+    txSubmissionLimits =
+        MiniProtocolLimits
+            { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
             }
