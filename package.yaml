@@ -47,6 +47,8 @@ dependencies:
 - network-uri
 - optparse-applicative
 - rel8
+- cborg
+- serialise
 - servant
 - servant-server
 - string-conversions

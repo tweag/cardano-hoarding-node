@@ -2,5 +2,7 @@
     - -XOverloadedRecordDot
 
 - ignore: {name: Use newtype instead of data}
+- ignore: {name: Move brackets to avoid $}
+- ignore: {name: Redundant $}
 
 - group: {name: future, enabled: true}

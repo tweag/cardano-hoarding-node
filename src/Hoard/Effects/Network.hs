@@ -15,6 +15,10 @@ module Hoard.Effects.Network
     , runNetwork
     ) where
 
+import Codec.CBOR.Decoding (Decoder, decodeListLen, decodeWord, decodeWord16)
+import Codec.CBOR.Encoding (Encoding, encodeListLen, encodeWord, encodeWord16)
+import Codec.Serialise (Serialise (decode, encode), deserialise, serialise)
+import Control.Monad (when)
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
 import Data.Void (Void)
@@ -22,8 +26,18 @@ import Effectful (Eff, Effect, IOE, liftIO, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
+import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Network.Config (NetworkConfig (..))
+import Hoard.Network.Events
+    ( ConnectionEstablishedData (..)
+    , ConnectionLostData (..)
+    , HandshakeCompletedData (..)
+    , NetworkEvent (..)
+    )
+import Hoard.Network.Types (Connection (..))
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
-import Network.Socket (AddrInfo (..), SockAddr, SocketType (Stream))
+import Network.Socket (AddrInfo (..), SockAddr (SockAddrInet, SockAddrInet6, SockAddrUnix), SocketType (Stream))
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..))
@@ -42,17 +56,6 @@ import Ouroboros.Network.Snocket (socketSnocket)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Text qualified as T
 import Network.Socket qualified as Socket
-
-import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Network.Config (NetworkConfig (..))
-import Hoard.Network.Events
-    ( ConnectionEstablishedData (..)
-    , ConnectionLostData (..)
-    , HandshakeCompletedData (..)
-    , NetworkEvent (..)
-    )
-import Hoard.Network.Types (Connection (..))
 
 
 --------------------------------------------------------------------------------
@@ -266,3 +269,74 @@ mkApplication _ioManager _peer =
         MiniProtocolLimits
             { maximumIngressQueue = 1000 -- Reasonable default for keep alive
             }
+
+
+encodeSockAddr :: SockAddr -> Encoding
+encodeSockAddr (SockAddrInet portNumber hostAddress) =
+    encodeListLen 3
+        <> encodeWord 0
+        <> ( encodeListLen 2
+                <> encodeWord 0
+                <> encodeWord16 (fromIntegral portNumber)
+           )
+        <> encode hostAddress
+encodeSockAddr (SockAddrInet6 portNumber flowInfo hostAddress6 scopeID) =
+    encodeListLen 5
+        <> encodeWord 1
+        <> ( encodeListLen 2
+                <> encodeWord 0
+                <> encodeWord16 (fromIntegral portNumber)
+           )
+        <> encode flowInfo
+        <> encode hostAddress6
+        <> encode scopeID
+encodeSockAddr (SockAddrUnix string) =
+    encodeListLen 2
+        <> encodeWord 2
+        <> encode string
+
+
+decodeSockAddr :: Decoder s SockAddr
+decodeSockAddr =
+    do
+        len <- decodeListLen
+        tag <- decodeWord
+        case (len, tag) of
+            (3, 0) -> do
+                len' <- decodeListLen
+                when (len' /= 2) $ fail "expect list of length 2"
+                tag' <- decodeWord
+                when (tag' /= 0) $ fail "unexpected tag. Expect 0"
+                portNumber <- decodeWord16
+                SockAddrInet (fromIntegral portNumber) <$> decode
+            (5, 1) -> do
+                len' <- decodeListLen
+                when (len' /= 2) $ fail "expect list of length 2"
+                tag' <- decodeWord
+                when (tag' /= 0) $ fail "unexpected tag. Expect 0"
+                portNumber <- decodeWord16
+                SockAddrInet6 (fromIntegral portNumber) <$> decode <*> decode <*> decode
+            (2, 2) -> do
+                SockAddrUnix <$> decode
+            _ -> fail "invalid SockAddr encoding"
+
+
+-- tests
+
+instance Serialise SockAddr where
+    encode = encodeSockAddr
+    decode = decodeSockAddr
+
+
+test :: Bool
+test =
+    roundTripTest (SockAddrInet 8080 (Socket.tupleToHostAddress (127, 0, 0, 1)))
+        && roundTripTest (SockAddrInet6 8080 0 (Socket.tupleToHostAddress6 (1, 2, 3, 4, 5, 6, 7, 8)) 0)
+        && roundTripTest (SockAddrInet6 80 0 (0, 0, 0xffff, 0x01020304) 0)
+        && roundTripTest (SockAddrUnix "/tmp/socket")
+  where
+    roundTripTest :: SockAddr -> Bool
+    roundTripTest addr = (deserialise $ serialise $ addr) == addr
+
+-- >>> test
+-- True

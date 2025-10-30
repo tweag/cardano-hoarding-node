@@ -73,6 +73,7 @@ library
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
     , data-default
     , directory
@@ -93,6 +94,7 @@ library
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -135,6 +137,7 @@ executable hoard-exe
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
     , data-default
     , directory
@@ -156,6 +159,7 @@ executable hoard-exe
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -198,6 +202,7 @@ executable test-connection
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
     , data-default
     , directory
@@ -219,6 +224,7 @@ executable test-connection
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -271,6 +277,7 @@ test-suite hoard-test
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
     , data-default
     , directory
@@ -296,6 +303,7 @@ test-suite hoard-test
     , postgres-options
     , process
     , rel8
+    , serialise
     , servant
     , servant-client
     , servant-client-core
