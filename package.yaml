@@ -27,11 +27,14 @@ dependencies:
 - bytestring
 - cardano-api
 - ouroboros-network
+- ouroboros-network-api
 - ouroboros-network-protocols
 - ouroboros-network-framework
 - network-mux
 - casing
+- cborg
 - containers
+- contra-tracer
 - data-default
 - directory
 - effectful
@@ -42,13 +45,16 @@ dependencies:
 - hasql
 - hasql-pool
 - hasql-transaction
+- "io-classes:{io-classes, strict-stm}"
 - ki
 - network
 - network-uri
 - optparse-applicative
+- random
 - rel8
 - servant
 - servant-server
+- stm
 - string-conversions
 - text
 - time

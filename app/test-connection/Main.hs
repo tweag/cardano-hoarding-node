@@ -9,24 +9,26 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Chan.Unagi (newChan)
+import Control.Concurrent.Chan.Unagi (newChan, writeChan)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
-import Data.Void (Void)
+import Data.Typeable (Typeable)
+import Data.Void (Void, absurd)
 import Effectful (Eff, IOE, liftIO, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Ouroboros.Network.IOManager (withIOManager)
 import System.IO (hFlush, stdout)
 
+import Data.Dynamic qualified as Dyn
 import Data.Text qualified as T
 import Data.UUID qualified as UUID
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Conc (Conc, scoped)
-import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
+import Hoard.Effects.Network (Network, connectToPeer, connectToPeerImpl, isConnected, runDiffusion, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Config (previewTestnetConfig)
@@ -48,24 +50,29 @@ main = withIOManager $ \ioManager -> do
     -- Create event channel
     (inChan, _outChan) <- newChan
 
-    -- Run the test
-    result <- runEff
-        . runConcurrent
-        . scoped
-        $ \scope -> do
-            Conc.runConcWithKi scope
-                . runErrorNoCallStack @Text
-                . runSub inChan
-                . runPub inChan
-                . runNetwork ioManager previewTestnetConfig
-                $ testConnection
+    previewRelay <- mkPreviewRelay
+    let publishIO :: forall event. (Typeable event) => event -> IO ()
+        publishIO event = writeChan inChan (Dyn.toDyn event)
+    absurd <$> runDiffusion ioManager publishIO previewTestnetConfig previewRelay
 
-    case result of
-        Left err -> do
-            putStrLn $ "\n❌ Test failed with error: " <> T.unpack err
-        Right () -> do
-            putStrLn "\n✅ Test completed successfully!"
 
+-- -- Run the test
+-- result <- runEff
+--     . runConcurrent
+--     . scoped
+--     $ \scope -> do
+--         Conc.runConcWithKi scope
+--             . runErrorNoCallStack @Text
+--             . runSub inChan
+--             . runPub inChan
+--             . runNetwork ioManager previewTestnetConfig
+--             $ testConnection
+--
+-- case result of
+--     Left err -> do
+--         putStrLn $ "\n❌ Test failed with error: " <> T.unpack err
+--     Right () -> do
+--         putStrLn "\n✅ Test completed successfully!"
 
 -- | Preview testnet relay peer
 -- Creates a test peer with dummy values for testing

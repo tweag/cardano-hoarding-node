@@ -25,6 +25,10 @@ module Hoard.Network.Events
     , BlockReceivedData (..)
     , BlockFetchFailedData (..)
     , BlockBatchCompletedData (..)
+    , PeerSharingEvent (..)
+    , PeerSharingStartedData (..)
+    , PeersReceivedData (..)
+    , PeerSharingFailedData (..)
     ) where
 
 import Data.Text (Text)
@@ -201,6 +205,45 @@ data BlockFetchFailedData = BlockFetchFailedData
 data BlockBatchCompletedData = BlockBatchCompletedData
     { peer :: Peer
     , blockCount :: Int
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+--------------------------------------------------------------------------------
+-- PeerSharing Protocol Events
+--------------------------------------------------------------------------------
+
+-- | Events from the PeerSharing mini-protocol.
+--
+-- PeerSharing allows nodes to discover new peers by requesting peer addresses
+-- from connected nodes.
+data PeerSharingEvent
+    = PeerSharingStarted PeerSharingStartedData
+    | PeersReceived PeersReceivedData
+    | PeerSharingFailed PeerSharingFailedData
+    deriving (Show, Typeable)
+
+
+data PeerSharingStartedData = PeerSharingStartedData
+    { peer :: Peer
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+data PeersReceivedData = PeersReceivedData
+    { peer :: Peer -- The peer we requested from
+    , peerAddresses :: [Text] -- The peer addresses we received
+    , peerCount :: Int
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+data PeerSharingFailedData = PeerSharingFailedData
+    { peer :: Peer
+    , errorMessage :: Text
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)

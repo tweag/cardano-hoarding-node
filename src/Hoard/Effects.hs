@@ -100,7 +100,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager defaultNetworkConfig
+                    . runNetwork config.ioManager defaultNetworkConfig config.inChan
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . evalState def
@@ -124,7 +124,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager defaultNetworkConfig
+                    . runNetwork config.ioManager defaultNetworkConfig config.inChan
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runState def

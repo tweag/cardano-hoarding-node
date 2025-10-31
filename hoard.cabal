@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
@@ -47,6 +47,8 @@ library
       Hoard.Types.QuietSnake
   other-modules:
       Paths_hoard
+  autogen-modules:
+      Paths_hoard
   hs-source-dirs:
       src
   default-extensions:
@@ -73,7 +75,9 @@ library
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -84,17 +88,21 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , io-classes:{strict-stm}
     , ki
     , network
     , network-mux
     , network-uri
     , optparse-applicative
     , ouroboros-network
+    , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , random
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -108,6 +116,8 @@ library
 executable hoard-exe
   main-is: Main.hs
   other-modules:
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       app/hoard
@@ -135,7 +145,9 @@ executable hoard-exe
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -147,17 +159,21 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , io-classes:{strict-stm}
     , ki
     , network
     , network-mux
     , network-uri
     , optparse-applicative
     , ouroboros-network
+    , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , random
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -171,6 +187,8 @@ executable hoard-exe
 executable test-connection
   main-is: Main.hs
   other-modules:
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       app/test-connection
@@ -198,7 +216,9 @@ executable test-connection
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -210,17 +230,21 @@ executable test-connection
     , hasql-pool
     , hasql-transaction
     , hoard
+    , io-classes:{strict-stm}
     , ki
     , network
     , network-mux
     , network-uri
     , optparse-applicative
     , ouroboros-network
+    , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , random
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -241,6 +265,8 @@ test-suite hoard-test
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       test
@@ -271,7 +297,9 @@ test-suite hoard-test
     , bytestring
     , cardano-api
     , casing
+    , cborg
     , containers
+    , contra-tracer
     , data-default
     , directory
     , effectful
@@ -285,21 +313,25 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
+    , io-classes:{strict-stm}
     , ki
     , network
     , network-mux
     , network-uri
     , optparse-applicative
     , ouroboros-network
+    , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , postgres-options
     , process
+    , random
     , rel8
     , servant
     , servant-client
     , servant-client-core
     , servant-server
+    , stm
     , string-conversions
     , tasty
     , tasty-discover
