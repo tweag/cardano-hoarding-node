@@ -25,7 +25,7 @@ import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (AddrInfo (..), SockAddr, SocketType (Stream))
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
-import Ouroboros.Network.IOManager (IOManager, withIOManager)
+import Ouroboros.Network.IOManager (IOManager)
 import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..))
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
@@ -88,11 +88,12 @@ makeEffect ''Network
 -- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
     :: (Error Text :> es, IOE :> es, Pub :> es)
-    => NetworkConfig
+    => IOManager
+    -> NetworkConfig
     -> Eff (Network : es) a
     -> Eff es a
-runNetwork config = interpret $ \_ -> \case
-    ConnectToPeer peer -> connectToPeerImpl config peer
+runNetwork ioManager config = interpret $ \_ -> \case
+    ConnectToPeer peer -> connectToPeerImpl ioManager config peer
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
 
@@ -112,56 +113,56 @@ runNetwork config = interpret $ \_ -> \case
 -- 6. Publishes connection events
 connectToPeerImpl
     :: (Error Text :> es, IOE :> es, Pub :> es)
-    => NetworkConfig
+    => IOManager
+    -> NetworkConfig
     -> Peer
     -> Eff es Connection
-connectToPeerImpl config peer = do
+connectToPeerImpl ioManager config peer = do
     -- Resolve address
     liftIO $ putStrLn "[DEBUG] Resolving peer address..."
     addr <- liftIO $ resolvePeerAddress peer
     liftIO $ putStrLn $ "[DEBUG] Resolved to: " <> show addr
 
     -- Create connection using ouroboros-network
-    liftIO $ putStrLn "[DEBUG] Creating IOManager and attempting connection..."
-    result <- liftIO $ withIOManager $ \ioManager -> do
-        liftIO $ putStrLn "[DEBUG] IOManager created, creating snocket..."
-        let snocket = socketSnocket ioManager
+    liftIO $ putStrLn "[DEBUG] Attempting connection..."
+    liftIO $ putStrLn "[DEBUG] Creating snocket..."
+    let snocket = socketSnocket ioManager
 
-        -- Create version data for handshake
-        let versionData =
-                NodeToNodeVersionData
-                    { networkMagic = config.networkMagic
-                    , diffusionMode = InitiatorOnlyDiffusionMode
-                    , peerSharing = PeerSharingDisabled
-                    , query = False
-                    }
+    -- Create version data for handshake
+    let versionData =
+            NodeToNodeVersionData
+                { networkMagic = config.networkMagic
+                , diffusionMode = InitiatorOnlyDiffusionMode
+                , peerSharing = PeerSharingDisabled
+                , query = False
+                }
 
-        -- Create versions for negotiation - offer both V_14 and V_15
-        -- to increase compatibility with different node versions
-        liftIO $ putStrLn "[DEBUG] Creating protocol versions..."
-        let versionsV14 =
-                simpleSingletonVersions
-                    NodeToNodeV_14
-                    versionData
-                    (\_ -> mkApplication ioManager peer)
-        let versionsV15 =
-                simpleSingletonVersions
-                    NodeToNodeV_15
-                    versionData
-                    (\_ -> mkApplication ioManager peer)
-        let versions = combineVersions [versionsV14, versionsV15]
+    -- Create versions for negotiation - offer both V_14 and V_15
+    -- to increase compatibility with different node versions
+    liftIO $ putStrLn "[DEBUG] Creating protocol versions..."
+    let versionsV14 =
+            simpleSingletonVersions
+                NodeToNodeV_14
+                versionData
+                (\_ -> mkApplication ioManager peer)
+    let versionsV15 =
+            simpleSingletonVersions
+                NodeToNodeV_15
+                versionData
+                (\_ -> mkApplication ioManager peer)
+    let versions = combineVersions [versionsV14, versionsV15]
 
-        -- Connect to the peer
-        liftIO $ putStrLn "[DEBUG] Calling connectTo..."
-        result <-
+    -- Connect to the peer
+    liftIO $ putStrLn "[DEBUG] Calling connectTo..."
+    result <-
+        liftIO $
             connectTo
                 snocket
                 nullNetworkConnectTracers
                 versions
                 Nothing -- No local address binding
                 addr
-        liftIO $ putStrLn "[DEBUG] connectTo returned!"
-        pure result
+    liftIO $ putStrLn "[DEBUG] connectTo returned!"
 
     case result of
         Left err -> do

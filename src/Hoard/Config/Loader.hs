@@ -11,6 +11,7 @@ import Data.Aeson (FromJSON (..))
 import Data.Text (Text)
 import Data.Word (Word16)
 import GHC.Generics (Generic)
+import Ouroboros.Network.IOManager (IOManager)
 import System.FilePath ((</>))
 
 import Data.Text qualified as T
@@ -92,8 +93,8 @@ toDBConfig dbCfg credentials =
 
 -- | Load the full application configuration for a given environment
 -- Loads both the public config YAML and the secrets YAML file
-loadConfig :: Environment -> IO Config
-loadConfig env = do
+loadConfig :: IOManager -> Environment -> IO Config
+loadConfig ioManager env = do
     let envName = T.unpack $ environmentName env
 
     -- Load non-sensitive config from YAML
@@ -112,7 +113,13 @@ loadConfig env = do
     -- Create pub/sub channel
     (inChan, _) <- newChan
 
-    pure Config {dbPools, inChan, server = configFile.server}
+    pure
+        Config
+            { ioManager
+            , dbPools
+            , inChan
+            , server = configFile.server
+            }
 
 
 loadYaml :: (FromJSON a) => String -> IO a
