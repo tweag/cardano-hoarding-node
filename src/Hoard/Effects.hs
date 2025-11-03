@@ -28,6 +28,7 @@ import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, evalState, runState)
 import GHC.Generics (Generic)
+import Ouroboros.Network.IOManager (IOManager)
 
 import Data.Text qualified as T
 
@@ -53,7 +54,8 @@ data ServerConfig = ServerConfig
 
 
 data Config = Config
-    { dbPools :: DBPools
+    { ioManager :: IOManager
+    , dbPools :: DBPools
     , inChan :: InChan Dynamic
     , server :: ServerConfig
     }
@@ -98,7 +100,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork defaultNetworkConfig
+                    . runNetwork config.ioManager defaultNetworkConfig
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . evalState def
@@ -122,7 +124,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork defaultNetworkConfig
+                    . runNetwork config.ioManager defaultNetworkConfig
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runState def

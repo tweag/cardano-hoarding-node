@@ -17,6 +17,7 @@ import Data.Void (Void)
 import Effectful (Eff, IOE, liftIO, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
+import Ouroboros.Network.IOManager (withIOManager)
 import System.IO (hFlush, stdout)
 
 import Data.Text qualified as T
@@ -35,7 +36,7 @@ import Hoard.Effects.Conc qualified as Conc
 
 
 main :: IO ()
-main = do
+main = withIOManager $ \ioManager -> do
     putStrLn "=== Cardano Peer Connection Test ==="
     putStrLn ""
     putStrLn "This program will:"
@@ -56,7 +57,7 @@ main = do
                 . runErrorNoCallStack @Text
                 . runSub inChan
                 . runPub inChan
-                . runNetwork previewTestnetConfig
+                . runNetwork ioManager previewTestnetConfig
                 $ testConnection
 
     case result of
