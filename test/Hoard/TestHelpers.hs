@@ -35,6 +35,7 @@ import Effectful.State.Static.Shared (State, runState)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (testWithApplication)
+import Ouroboros.Network.IOManager (withIOManager)
 import Servant (hoistServer, serve)
 import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM)
 import Servant.Client.Core (ClientError)
@@ -86,18 +87,17 @@ runEffectStackTest
     :: (MonadIO m)
     => (Config -> Eff TestAppEffs a)
     -> m (a, HoardState, [Dynamic])
-runEffectStackTest mkEff = do
-    (inChan, _) <- liftIO newChan
-    wireTap <- liftIO $ dupChan inChan
-    pool <- liftIO $ Pool.acquire $ Pool.settings []
+runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
+    (inChan, _) <- newChan
+    wireTap <- dupChan inChan
+    pool <- Pool.acquire $ Pool.settings []
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
-    let config = Config {dbPools, inChan, server = serverConfig}
-    wireTapOutput <- liftIO $ newIORef []
-    wireTapThreadID <- liftIO $ forkIO $ recordMessages wireTapOutput wireTap
+    let config = Config {ioManager, dbPools, inChan, server = serverConfig}
+    wireTapOutput <- newIORef []
+    wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, state) <-
-        liftIO
-            . runEff
+        runEff
             . runConsole
             . runFileSystem
             . runConcurrent
@@ -105,8 +105,8 @@ runEffectStackTest mkEff = do
             . runPub config.inChan
             . runState def
             $ mkEff config
-    liftIO $ killThread wireTapThreadID
-    publishes <- fmap reverse . liftIO $ readIORef wireTapOutput
+    killThread wireTapThreadID
+    publishes <- fmap reverse $ readIORef wireTapOutput
     pure (a, state, publishes)
 
 

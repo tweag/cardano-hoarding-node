@@ -15,8 +15,18 @@ module Hoard.Effects.Network
     , runNetwork
     ) where
 
+import Cardano.Api.IO (File (..))
+import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
+import Codec.CBOR.Read (DeserialiseFailure)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Chan.Unagi (InChan, writeChan)
+import Control.Monad.Trans.Except (runExceptT)
+import Control.Tracer (contramap, stdoutTracer)
+import Data.Functor.Contravariant ((>$<))
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
+import Data.Typeable (Typeable)
 import Data.Void (Void)
 import Effectful (Eff, Effect, IOE, liftIO, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
@@ -24,12 +34,22 @@ import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (AddrInfo (..), SockAddr, SocketType (Stream))
+import Network.TypedProtocol (PeerRole (..))
+import Network.TypedProtocol.Peer.Client
+import Ouroboros.Consensus.Block.Abstract (headerPoint)
+import Ouroboros.Consensus.Cardano.Block (CardanoBlock, StandardCrypto)
+import Ouroboros.Consensus.Config (configCodec)
+import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
+import Ouroboros.Consensus.Node.NetworkProtocolVersion (BlockNodeToNodeVersion, supportedNodeToNodeVersions)
+import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
+import Ouroboros.Network.Block (castPoint, genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.IOManager (IOManager)
-import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..))
+import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..), mkMiniProtocolCbFromPeer, mkMiniProtocolCbFromPeerPipelined)
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , MiniProtocolParameters (..)
+    , NetworkConnectTracers (..)
     , NodeToNodeVersion (..)
     , NodeToNodeVersionData (..)
     , blockFetchMiniProtocolNum
@@ -43,20 +63,43 @@ import Ouroboros.Network.NodeToNode
     , simpleSingletonVersions
     , txSubmissionMiniProtocolNum
     )
+import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
+import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
+import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
+import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
+import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
+import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 
 import Data.ByteString.Lazy qualified as LBS
+import Data.Dynamic qualified as Dyn
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
+import Debug.Trace qualified
 import Network.Socket qualified as Socket
+import Network.TypedProtocol.Peer.Client qualified as Peer
+import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
+import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Config (NetworkConfig (..))
 import Hoard.Network.Events
-    ( ConnectionEstablishedData (..)
+    ( ChainSyncEvent (..)
+    , ChainSyncIntersectionFoundData (..)
+    , ChainSyncStartedData (..)
+    , ConnectionEstablishedData (..)
     , ConnectionLostData (..)
     , HandshakeCompletedData (..)
+    , Header'
+    , HeaderReceivedData (..)
     , NetworkEvent (..)
+    , PeerSharingEvent (..)
+    , PeerSharingStartedData (..)
+    , PeersReceivedData (..)
+    , Point'
+    , RollBackwardData (..)
+    , Tip'
     )
 import Hoard.Network.Types (Connection (..))
 
@@ -69,7 +112,7 @@ import Hoard.Network.Types (Connection (..))
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data Network :: Effect where
-    ConnectToPeer :: Peer -> Network m Connection
+    ConnectToPeer :: NetworkConfig -> Peer -> Network m Connection
     DisconnectPeer :: Connection -> Network m ()
     IsConnected :: Connection -> Network m Bool
 
@@ -89,11 +132,11 @@ makeEffect ''Network
 runNetwork
     :: (Error Text :> es, IOE :> es, Pub :> es)
     => IOManager
-    -> NetworkConfig
+    -> InChan Dyn.Dynamic
     -> Eff (Network : es) a
     -> Eff es a
-runNetwork ioManager config = interpret $ \_ -> \case
-    ConnectToPeer peer -> connectToPeerImpl ioManager config peer
+runNetwork ioManager chan = interpret $ \_ -> \case
+    ConnectToPeer config peer -> connectToPeerImpl ioManager chan config peer
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
 
@@ -114,10 +157,11 @@ runNetwork ioManager config = interpret $ \_ -> \case
 connectToPeerImpl
     :: (Error Text :> es, IOE :> es, Pub :> es)
     => IOManager
+    -> InChan Dyn.Dynamic
     -> NetworkConfig
     -> Peer
     -> Eff es Connection
-connectToPeerImpl ioManager config peer = do
+connectToPeerImpl ioManager chan config peer = do
     -- Resolve address
     liftIO $ putStrLn "[DEBUG] Resolving peer address..."
     addr <- liftIO $ resolvePeerAddress peer
@@ -125,32 +169,58 @@ connectToPeerImpl ioManager config peer = do
 
     -- Create connection using ouroboros-network
     liftIO $ putStrLn "[DEBUG] Attempting connection..."
+    -- Create a publish callback that can be called from IO
+    let publishIO :: forall event. (Typeable event) => event -> IO ()
+        publishIO event = writeChan chan (Dyn.toDyn event)
+
     liftIO $ putStrLn "[DEBUG] Creating snocket..."
     let snocket = socketSnocket ioManager
+
+    -- Load protocol info and create codecs
+    liftIO $ putStrLn "[DEBUG] Loading protocol configuration..."
+    protocolInfo <- liftIO $ loadProtocolInfo "config/preview"
+    let codecConfig = configCodec (pInfoConfig protocolInfo)
+
+    -- Get all supported versions
+    let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy (CardanoBlock StandardCrypto))
+
+    liftIO $ putStrLn "[DEBUG] Creating version-specific codecs and applications..."
 
     -- Create version data for handshake
     let versionData =
             NodeToNodeVersionData
                 { networkMagic = config.networkMagic
                 , diffusionMode = InitiatorOnlyDiffusionMode
-                , peerSharing = PeerSharingDisabled
+                , peerSharing = PeerSharingEnabled -- Enable peer sharing
                 , query = False
                 }
 
-    -- Create versions for negotiation - offer both V_14 and V_15
-    -- to increase compatibility with different node versions
+    -- Helper function to create application for a specific version
+    let mkVersionedApp :: NodeToNodeVersion -> BlockNodeToNodeVersion (CardanoBlock StandardCrypto) -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
+        mkVersionedApp nodeVersion blockVersion =
+            let codecs = defaultCodecs codecConfig blockVersion encodeRemoteAddress (\v -> decodeRemoteAddress v) nodeVersion
+            in  mkApplication codecs peer publishIO
+
+    -- Create versions for negotiation - offer all supported versions
     liftIO $ putStrLn "[DEBUG] Creating protocol versions..."
-    let versionsV14 =
+    let mkVersions version blockVersion =
             simpleSingletonVersions
-                NodeToNodeV_14
+                version
                 versionData
-                (\_ -> mkApplication ioManager peer)
-    let versionsV15 =
-            simpleSingletonVersions
-                NodeToNodeV_15
-                versionData
-                (\_ -> mkApplication ioManager peer)
-    let versions = combineVersions [versionsV14, versionsV15]
+                (\_ -> mkVersionedApp version blockVersion)
+
+    -- Create versions for all supported protocol versions
+    let versions =
+            combineVersions
+                [ mkVersions nodeVersion blockVersion
+                | (nodeVersion, blockVersion) <- Map.toList supportedVersions
+                ]
+
+    liftIO $ putStrLn "[DEBUG] Codecs created successfully"
+    let adhocTracers =
+            nullNetworkConnectTracers
+                { nctHandshakeTracer = (("[Network] " <>) . show) >$< stdoutTracer
+                }
 
     -- Connect to the peer
     liftIO $ putStrLn "[DEBUG] Calling connectTo..."
@@ -158,7 +228,7 @@ connectToPeerImpl ioManager config peer = do
         liftIO $
             connectTo
                 snocket
-                nullNetworkConnectTracers
+                adhocTracers
                 versions
                 Nothing -- No local address binding
                 addr
@@ -241,6 +311,33 @@ resolvePeerAddress peer = do
 
 
 --------------------------------------------------------------------------------
+-- Codec Configuration
+--------------------------------------------------------------------------------
+
+-- | Load the Cardano protocol info from config files.
+-- This is needed to get the CodecConfig for creating proper codecs.
+loadProtocolInfo :: FilePath -> IO (ProtocolInfo (CardanoBlock StandardCrypto))
+loadProtocolInfo configDir = do
+    let configFile = File (configDir <> "/config.json")
+
+    -- Load NodeConfig
+    nodeConfigResult <- runExceptT $ readNodeConfig configFile
+    nodeConfig <- case nodeConfigResult of
+        Left err -> Prelude.error $ "Failed to read node config: " <> T.unpack err
+        Right cfg -> pure cfg
+
+    -- Load GenesisConfig
+    genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
+    genesisConfig <- case genesisConfigResult of
+        Left err -> Prelude.error $ "Failed to read genesis config: " <> show err
+        Right cfg -> pure cfg
+
+    -- Create ProtocolInfo
+    let (protocolInfo, _mkBlockForging) = mkProtocolInfoCardano genesisConfig
+    pure protocolInfo
+
+
+--------------------------------------------------------------------------------
 -- Mini-Protocol Application
 --------------------------------------------------------------------------------
 
@@ -248,61 +345,80 @@ resolvePeerAddress peer = do
 --
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
---
--- For Ticket #1, these are minimal stubs that just keep the connection alive.
--- Proper protocol implementations will be added in later tickets.
 mkApplication
-    :: IOManager
+    :: Codecs (CardanoBlock StandardCrypto) SockAddr DeserialiseFailure IO LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString
     -> Peer
+    -> (forall event. (Typeable event) => event -> IO ())
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication _ioManager _peer =
+mkApplication codecs peer publishEvent =
     OuroborosApplication
-        [ -- ChainSync mini-protocol (stub)
+        [ -- ChainSync mini-protocol (pipelined)
           MiniProtocol
             { miniProtocolNum = chainSyncMiniProtocolNum
             , miniProtocolLimits = chainSyncLimits
-            , miniProtocolStart = StartOnDemand
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
-                -- Stub: For Ticket #1, just return immediately to allow connection to complete
-                -- Real implementation in Ticket #3 will do actual protocol handshake
-                putStrLn "[DEBUG] ChainSync protocol stub started"
-                pure ((), Nothing)
+            , miniProtocolStart = StartEagerly
+            , miniProtocolRun =
+                InitiatorProtocolOnly $
+                    mkMiniProtocolCbFromPeerPipelined $
+                        \_ ->
+                            let codec = cChainSyncCodec codecs
+                                client = chainSyncClientImpl peer publishEvent
+                                -- Use a tracer to see protocol messages
+                                tracer = (("[ChainSync] " <>) . show) >$< stdoutTracer
+                            in  (tracer, codec, client)
             }
         , -- BlockFetch mini-protocol (stub)
           MiniProtocol
             { miniProtocolNum = blockFetchMiniProtocolNum
             , miniProtocolLimits = blockFetchLimits
-            , miniProtocolStart = StartOnDemand
+            , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
                 -- Stub: For Ticket #1, just return immediately
                 putStrLn "[DEBUG] BlockFetch protocol stub started"
                 pure ((), Nothing)
             }
-        , -- KeepAlive mini-protocol (stub)
+        , -- KeepAlive mini-protocol
           MiniProtocol
             { miniProtocolNum = keepAliveMiniProtocolNum
             , miniProtocolLimits = keepAliveLimits
-            , miniProtocolStart = StartOnDemand
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
-                -- Stub: For Ticket #1, just return immediately
-                putStrLn "[DEBUG] KeepAlive protocol stub started"
-                pure ((), Nothing)
+            , miniProtocolStart = StartEagerly
+            , miniProtocolRun =
+                InitiatorProtocolOnly $
+                    mkMiniProtocolCbFromPeer $
+                        \_ ->
+                            let codec = cKeepAliveCodec codecs
+                                wrappedPeer = Peer.Effect $ do
+                                    putStrLn "[DEBUG] KeepAlive protocol started"
+                                    pure (keepAliveClientPeer keepAliveClientImpl)
+                                tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
+                            in  (tracer, codec, wrappedPeer)
             }
-        , -- PeerSharing mini-protocol (stub)
+        , -- PeerSharing mini-protocol
           MiniProtocol
             { miniProtocolNum = peerSharingMiniProtocolNum
             , miniProtocolLimits = peerSharingLimits
-            , miniProtocolStart = StartOnDemand
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
-                -- Stub: For Ticket #1, just return immediately
-                putStrLn "[DEBUG] PeerSharing protocol stub started"
-                pure ((), Nothing)
+            , miniProtocolStart = StartEagerly
+            , miniProtocolRun =
+                InitiatorProtocolOnly $
+                    mkMiniProtocolCbFromPeer $
+                        \_ ->
+                            let client = peerSharingClientImpl peer publishEvent
+                                -- IMPORTANT: Use the version-specific codec from the codecs record!
+                                codec = cPeerSharingCodec codecs
+                                wrappedPeer = Peer.Effect $ do
+                                    timestamp <- getCurrentTime
+                                    publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
+                                    putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                    putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                    pure (peerSharingClientPeer client)
+                                tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
+                            in  (tracer, codec, wrappedPeer)
             }
         , -- TxSubmission mini-protocol (stub, not needed for hoarding)
           MiniProtocol
             { miniProtocolNum = txSubmissionMiniProtocolNum
             , miniProtocolLimits = txSubmissionLimits
-            , miniProtocolStart = StartOnDemand
+            , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
                 -- Stub: For Ticket #1, just return immediately
                 putStrLn "[DEBUG] TxSubmission protocol stub started"
@@ -335,3 +451,151 @@ mkApplication _ioManager _peer =
         MiniProtocolLimits
             { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
             }
+
+
+--------------------------------------------------------------------------------
+-- PeerSharing Protocol Implementation
+--------------------------------------------------------------------------------
+
+-- | Create a PeerSharing client that requests peer addresses.
+--
+-- This client:
+-- 1. Requests up to 100 peer addresses from the remote peer
+-- 2. Publishes a PeersReceived event with the results
+-- 3. Terminates after one request
+peerSharingClientImpl
+    :: Peer
+    -> (forall event. (Typeable event) => event -> IO ())
+    -> PeerSharingClient SockAddr IO ()
+peerSharingClientImpl peer publishEvent =
+    Debug.Trace.trace "[DEBUG] PeerSharing: Creating SendMsgShareRequest..." $
+        PeerSharing.SendMsgShareRequest (PeerSharingAmount 100) $
+            \peerAddrs -> do
+                putStrLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
+                putStrLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+                timestamp <- getCurrentTime
+                let peerAddrTexts = map (T.pack . show) peerAddrs
+                    peerCount = length peerAddrs
+                publishEvent $
+                    PeersReceived
+                        PeersReceivedData
+                            { peer = peer
+                            , peerAddresses = peerAddrTexts
+                            , peerCount = peerCount
+                            , timestamp = timestamp
+                            }
+                putStrLn "[DEBUG] PeerSharing: Published PeersReceived event"
+                pure $ PeerSharing.SendMsgDone (pure ())
+
+
+-- | Create a ChainSync client that synchronizes chain headers (pipelined version).
+--
+-- This client:
+-- 1. Finds an intersection starting from genesis
+-- 2. Requests headers continuously
+-- 3. Publishes HeaderReceived events for each header
+-- 4. Handles rollbacks by publishing RollBackward events
+--
+-- Note: This runs forever, continuously requesting the next header.
+chainSyncClientImpl
+    :: Peer
+    -> (forall event. (Typeable event) => event -> IO ())
+    -> PeerPipelined (ChainSync Header' Point' Tip') AsClient ChainSync.StIdle IO ()
+chainSyncClientImpl peer publishEvent =
+    ClientPipelined $ Effect $ do
+        -- Publish started event
+        timestamp <- getCurrentTime
+        publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
+        putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
+        putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+        pure findIntersect
+  where
+    findIntersect :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
+    findIntersect =
+        Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
+            ChainSync.MsgIntersectNotFound {} -> Effect $ do
+                putStrLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
+                pure requestNext
+            ChainSync.MsgIntersectFound intersectPt tip -> Effect $ do
+                putStrLn "[DEBUG] ChainSync: Intersection found"
+                timestamp <- getCurrentTime
+                publishEvent $
+                    ChainSyncIntersectionFound
+                        ChainSyncIntersectionFoundData
+                            { peer = peer
+                            , point = intersectPt
+                            , tip = tip
+                            , timestamp = timestamp
+                            }
+                pure requestNext
+
+    requestNext :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
+    requestNext =
+        Yield ChainSync.MsgRequestNext $ Await $ \case
+            ChainSync.MsgRollForward hdr tip -> Effect $ do
+                putStrLn "[DEBUG] ChainSync: Received header (RollForward)"
+                timestamp <- getCurrentTime
+                let hdrPoint = castPoint $ headerPoint hdr
+                publishEvent $
+                    HeaderReceived
+                        HeaderReceivedData
+                            { peer = peer
+                            , header = hdr
+                            , -- TODO point is derived, therefore redundant
+                              point = hdrPoint
+                            , tip = tip
+                            , timestamp = timestamp
+                            }
+                pure requestNext
+            ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
+                putStrLn "[DEBUG] ChainSync: Rollback"
+                timestamp <- getCurrentTime
+                publishEvent $
+                    RollBackward
+                        RollBackwardData
+                            { peer = peer
+                            , point = rollbackPt
+                            , tip = tip
+                            , timestamp = timestamp
+                            }
+                pure requestNext
+            ChainSync.MsgAwaitReply -> Await $ \case
+                ChainSync.MsgRollForward hdr tip -> Effect $ do
+                    putStrLn "[DEBUG] ChainSync: Received header after await (RollForward)"
+                    timestamp <- getCurrentTime
+                    let hdrPoint = castPoint $ headerPoint hdr
+                    publishEvent $
+                        HeaderReceived
+                            HeaderReceivedData
+                                { peer = peer
+                                , header = hdr
+                                , point = hdrPoint
+                                , tip = tip
+                                , timestamp = timestamp
+                                }
+                    pure requestNext
+                ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
+                    putStrLn "[DEBUG] ChainSync: Rollback after await"
+                    timestamp <- getCurrentTime
+                    publishEvent $
+                        RollBackward
+                            RollBackwardData
+                                { peer = peer
+                                , point = rollbackPt
+                                , tip = tip
+                                , timestamp = timestamp
+                                }
+                    pure requestNext
+
+
+-- | KeepAlive client implementation.
+--
+-- This client sends periodic keepalive messages to maintain the connection
+-- and detect network failures. It sends a message every 10 seconds.
+keepAliveClientImpl :: KeepAliveClient IO ()
+keepAliveClientImpl = KeepAliveClient go
+  where
+    go = do
+        putStrLn "[DEBUG] KeepAlive: Sending keepalive message"
+        threadDelay 10_000_000 -- 10 seconds in microseconds
+        pure $ SendMsgKeepAlive (Cookie 42) go
