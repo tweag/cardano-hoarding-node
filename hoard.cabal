@@ -35,7 +35,6 @@ library
       Hoard.Events.HeaderReceived
       Hoard.Events.Node
       Hoard.Listeners.HeaderReceivedListener
-      Hoard.Network.Config
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server

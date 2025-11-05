@@ -12,7 +12,6 @@ import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Effects.Sub (Sub, listen)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Events.Node (NodeDiscovered (..))
-import Hoard.Network.Config (previewTestnetConfig)
 
 
 dispatchDiscoveredNodes
@@ -30,7 +29,7 @@ runCollector peer = do
     publish $ CollectorStarted peer
     publish $ ConnectingToPeer peer
 
-    _conn <- connectToPeer previewTestnetConfig peer
+    _conn <- connectToPeer peer
     publish $ ConnectedToPeer peer
 
     -- Connection is now running autonomously!

@@ -29,7 +29,6 @@ import Hoard.Effects.Conc (Conc, scoped)
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
-import Hoard.Network.Config (previewTestnetConfig)
 import Hoard.Network.Events
 
 import Hoard.Effects.Conc qualified as Conc
@@ -101,7 +100,7 @@ testConnection = do
     Conc.fork_ chainSyncEventListener
 
     -- Connect to peer
-    conn <- connectToPeer previewTestnetConfig previewRelay
+    conn <- connectToPeer previewRelay
 
     liftIO $ putStrLn "✓ Connection established!"
 

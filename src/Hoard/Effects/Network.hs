@@ -39,7 +39,8 @@ import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, StandardCrypto)
-import Ouroboros.Consensus.Config (configCodec)
+import Ouroboros.Consensus.Config (configBlock, configCodec)
+import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (BlockNodeToNodeVersion, supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
@@ -59,6 +60,7 @@ import Ouroboros.Network.NodeToNode
     , connectTo
     , defaultMiniProtocolParameters
     , keepAliveMiniProtocolNum
+    , networkMagic
     , nullNetworkConnectTracers
     , peerSharingMiniProtocolNum
     , simpleSingletonVersions
@@ -84,7 +86,6 @@ import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Network.Config (NetworkConfig (..))
 import Hoard.Network.Events
     ( ChainSyncEvent (..)
     , ChainSyncIntersectionFoundData (..)
@@ -113,7 +114,7 @@ import Hoard.Network.Types (Connection (..))
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data Network :: Effect where
-    ConnectToPeer :: NetworkConfig -> Peer -> Network m Connection
+    ConnectToPeer :: Peer -> Network m Connection
     DisconnectPeer :: Connection -> Network m ()
     IsConnected :: Connection -> Network m Bool
 
@@ -138,7 +139,7 @@ runNetwork
     -> Eff (Network : es) a
     -> Eff es a
 runNetwork ioManager chan protocolConfigPath = interpret $ \_ -> \case
-    ConnectToPeer config peer -> connectToPeerImpl ioManager chan protocolConfigPath config peer
+    ConnectToPeer peer -> connectToPeerImpl ioManager chan protocolConfigPath peer
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
 
@@ -161,10 +162,9 @@ connectToPeerImpl
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
-    -> NetworkConfig
     -> Peer
     -> Eff es Connection
-connectToPeerImpl ioManager chan protocolConfigPath config peer = do
+connectToPeerImpl ioManager chan protocolConfigPath peer = do
     -- Resolve address
     liftIO $ putStrLn "[DEBUG] Resolving peer address..."
     addr <- liftIO $ resolvePeerAddress peer
@@ -183,6 +183,7 @@ connectToPeerImpl ioManager chan protocolConfigPath config peer = do
     liftIO $ putStrLn "[DEBUG] Loading protocol configuration..."
     protocolInfo <- liftIO $ loadProtocolInfo protocolConfigPath
     let codecConfig = configCodec (pInfoConfig protocolInfo)
+    let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
     -- Get all supported versions
     let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy (CardanoBlock StandardCrypto))
@@ -192,7 +193,7 @@ connectToPeerImpl ioManager chan protocolConfigPath config peer = do
     -- Create version data for handshake
     let versionData =
             NodeToNodeVersionData
-                { networkMagic = config.networkMagic
+                { networkMagic
                 , diffusionMode = InitiatorOnlyDiffusionMode
                 , peerSharing = PeerSharingEnabled -- Enable peer sharing
                 , query = False
@@ -201,7 +202,13 @@ connectToPeerImpl ioManager chan protocolConfigPath config peer = do
     -- Helper function to create application for a specific version
     let mkVersionedApp :: NodeToNodeVersion -> BlockNodeToNodeVersion (CardanoBlock StandardCrypto) -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
         mkVersionedApp nodeVersion blockVersion =
-            let codecs = defaultCodecs codecConfig blockVersion encodeRemoteAddress (\v -> decodeRemoteAddress v) nodeVersion
+            let codecs =
+                    defaultCodecs
+                        codecConfig
+                        blockVersion
+                        encodeRemoteAddress
+                        (\v -> decodeRemoteAddress v)
+                        nodeVersion
             in  mkApplication codecs peer publishIO
 
     -- Create versions for negotiation - offer all supported versions
@@ -414,9 +421,10 @@ mkApplication codecs peer publishEvent =
                         \_ ->
                             let codec = cKeepAliveCodec codecs
                                 wrappedPeer = Peer.Effect $
-                                    withExceptionLogging "KeepAlive" $ do
-                                        putStrLn "[DEBUG] KeepAlive protocol started"
-                                        pure (keepAliveClientPeer keepAliveClientImpl)
+                                    withExceptionLogging "KeepAlive" $
+                                        do
+                                            putStrLn "[DEBUG] KeepAlive protocol started"
+                                            pure (keepAliveClientPeer keepAliveClientImpl)
                                 tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
@@ -433,12 +441,13 @@ mkApplication codecs peer publishEvent =
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
                                 wrappedPeer = Peer.Effect $
-                                    withExceptionLogging "PeerSharing" $ do
-                                        timestamp <- getCurrentTime
-                                        publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                        putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                        putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
-                                        pure (peerSharingClientPeer client)
+                                    withExceptionLogging "PeerSharing" $
+                                        do
+                                            timestamp <- getCurrentTime
+                                            publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
+                                            putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                            putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                            pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
@@ -536,13 +545,14 @@ chainSyncClientImpl
 chainSyncClientImpl peer publishEvent =
     ClientPipelined $
         Effect $
-            withExceptionLogging "ChainSync" $ do
-                -- Publish started event
-                timestamp <- getCurrentTime
-                publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-                putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
-                putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
-                pure findIntersect
+            withExceptionLogging "ChainSync" $
+                do
+                    -- Publish started event
+                    timestamp <- getCurrentTime
+                    publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
+                    putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
+                    putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+                    pure findIntersect
   where
     findIntersect :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
