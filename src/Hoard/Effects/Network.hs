@@ -85,6 +85,7 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
     ( ChainSyncEvent (..)
@@ -104,6 +105,8 @@ import Hoard.Network.Events
     , Tip'
     )
 import Hoard.Network.Types (Connection (..))
+
+import Hoard.Effects.Log qualified as Log
 
 
 --------------------------------------------------------------------------------
@@ -132,7 +135,7 @@ makeEffect ''Network
 -- This handler establishes actual network connections and spawns protocol threads.
 -- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
-    :: (Error Text :> es, IOE :> es, Pub :> es)
+    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -158,7 +161,7 @@ runNetwork ioManager chan protocolConfigPath = interpret $ \_ -> \case
 -- 5. Connects using ouroboros-network's connectTo
 -- 6. Publishes connection events
 connectToPeerImpl
-    :: (Error Text :> es, IOE :> es, Pub :> es)
+    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -166,21 +169,21 @@ connectToPeerImpl
     -> Eff es Connection
 connectToPeerImpl ioManager chan protocolConfigPath peer = do
     -- Resolve address
-    liftIO $ putStrLn "[DEBUG] Resolving peer address..."
+    Log.debug "Resolving peer address..."
     addr <- liftIO $ resolvePeerAddress peer
-    liftIO $ putStrLn $ "[DEBUG] Resolved to: " <> show addr
+    Log.debug $ "Resolved to: " <> (T.pack (show addr))
 
     -- Create connection using ouroboros-network
-    liftIO $ putStrLn "[DEBUG] Attempting connection..."
+    Log.debug "Attempting connection..."
     -- Create a publish callback that can be called from IO
     let publishIO :: forall event. (Typeable event) => event -> IO ()
         publishIO event = writeChan chan (Dyn.toDyn event)
 
-    liftIO $ putStrLn "[DEBUG] Creating snocket..."
+    Log.debug "Creating snocket..."
     let snocket = socketSnocket ioManager
 
     -- Load protocol info and create codecs
-    liftIO $ putStrLn "[DEBUG] Loading protocol configuration..."
+    Log.debug "Loading protocol configuration..."
     protocolInfo <- liftIO $ loadProtocolInfo protocolConfigPath
     let codecConfig = configCodec (pInfoConfig protocolInfo)
     let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
@@ -188,7 +191,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
     -- Get all supported versions
     let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy (CardanoBlock StandardCrypto))
 
-    liftIO $ putStrLn "[DEBUG] Creating version-specific codecs and applications..."
+    Log.debug "Creating version-specific codecs and applications..."
 
     -- Create version data for handshake
     let versionData =
@@ -212,7 +215,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
             in  mkApplication codecs peer publishIO
 
     -- Create versions for negotiation - offer all supported versions
-    liftIO $ putStrLn "[DEBUG] Creating protocol versions..."
+    Log.debug "Creating protocol versions..."
     let mkVersions version blockVersion =
             simpleSingletonVersions
                 version
@@ -226,14 +229,14 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
                 | (nodeVersion, blockVersion) <- Map.toList supportedVersions
                 ]
 
-    liftIO $ putStrLn "[DEBUG] Codecs created successfully"
+    Log.debug "Codecs created successfully"
     let adhocTracers =
             nullNetworkConnectTracers
                 { nctHandshakeTracer = (("[Network] " <>) . show) >$< stdoutTracer
                 }
 
     -- Connect to the peer
-    liftIO $ putStrLn "[DEBUG] Calling connectTo..."
+    Log.debug "Calling connectTo..."
     result <-
         liftIO $
             connectTo
@@ -242,7 +245,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
                 versions
                 Nothing -- No local address binding
                 addr
-    liftIO $ putStrLn "[DEBUG] connectTo returned!"
+    Log.debug "connectTo returned!"
 
     case result of
         Left err -> do

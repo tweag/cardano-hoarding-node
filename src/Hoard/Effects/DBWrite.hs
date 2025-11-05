@@ -16,6 +16,10 @@ import Data.Text qualified as T
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
 
+import Hoard.Effects.Log (Log)
+
+import Hoard.Effects.Log qualified as Log
+
 
 -- | Effect for write database transactions
 data DBWrite :: Effect where
@@ -27,7 +31,7 @@ makeEffect ''DBWrite
 
 -- | Run the DBWrite effect with a connection pool
 runDBWrite
-    :: (Error Text :> es, IOE :> es)
+    :: (Error Text :> es, IOE :> es, Log :> es)
     => Pool.Pool
     -> Eff (DBWrite : es) a
     -> Eff es a
@@ -36,6 +40,6 @@ runDBWrite pool = interpret $ \_ -> \case
         result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
         case result of
             Left err -> do
-                liftIO $ putStrLn $ T.unpack $ "DBWrite: " <> txName <> " failed: " <> T.pack (show err)
+                Log.debug $ "DBWrite: " <> txName <> " failed: " <> T.pack (show err)
                 throwError $ "Transaction failed: " <> txName <> " - " <> T.pack (show err)
             Right value -> pure value
