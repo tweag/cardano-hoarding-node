@@ -15,6 +15,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Effectful.Instances
       Hoard.API
       Hoard.CLI.Options
       Hoard.Collector
@@ -28,6 +29,9 @@ library
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
       Hoard.Effects.Network
+      Hoard.Effects.Network.ConnectionManager
+      Hoard.Effects.Network.Diffusion
+      Hoard.Effects.Network.MiniProtocols
       Hoard.Effects.Pub
       Hoard.Effects.Sub
       Hoard.Events
@@ -80,15 +84,18 @@ library
     , contra-tracer
     , data-default
     , directory
+    , dns
     , effectful
     , effectful-core
     , effectful-th
+    , exceptions
     , filepath
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
-    , io-classes:{strict-stm}
+    , io-classes
+    , io-classes:strict-stm
     , ki
     , network
     , network-mux
@@ -98,6 +105,7 @@ library
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , random
     , rel8
     , servant
@@ -150,16 +158,19 @@ executable hoard-exe
     , contra-tracer
     , data-default
     , directory
+    , dns
     , effectful
     , effectful-core
     , effectful-th
+    , exceptions
     , filepath
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
     , hoard
-    , io-classes:{strict-stm}
+    , io-classes
+    , io-classes:strict-stm
     , ki
     , network
     , network-mux
@@ -169,6 +180,7 @@ executable hoard-exe
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , random
     , rel8
     , servant
@@ -221,16 +233,19 @@ executable test-connection
     , contra-tracer
     , data-default
     , directory
+    , dns
     , effectful
     , effectful-core
     , effectful-th
+    , exceptions
     , filepath
     , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
     , hoard
-    , io-classes:{strict-stm}
+    , io-classes
+    , io-classes:strict-stm
     , ki
     , network
     , network-mux
@@ -240,6 +255,7 @@ executable test-connection
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , random
     , rel8
     , servant
@@ -302,9 +318,11 @@ test-suite hoard-test
     , contra-tracer
     , data-default
     , directory
+    , dns
     , effectful
     , effectful-core
     , effectful-th
+    , exceptions
     , filepath
     , hashable
     , hasql
@@ -313,7 +331,8 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
-    , io-classes:{strict-stm}
+    , io-classes
+    , io-classes:strict-stm
     , ki
     , network
     , network-mux
@@ -324,6 +343,7 @@ test-suite hoard-test
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , postgres-options
+    , primitive
     , process
     , random
     , rel8

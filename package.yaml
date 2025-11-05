@@ -26,6 +26,7 @@ dependencies:
 - async
 - bytestring
 - cardano-api
+- dns
 - ouroboros-network
 - ouroboros-network-api
 - ouroboros-network-protocols
@@ -40,16 +41,19 @@ dependencies:
 - effectful
 - effectful-core
 - effectful-th
+- exceptions
 - filepath
 - hashable
 - hasql
 - hasql-pool
 - hasql-transaction
-- "io-classes:{io-classes, strict-stm}"
+- io-classes
+- "io-classes:{strict-stm}"
 - ki
 - network
 - network-uri
 - optparse-applicative
+- primitive
 - random
 - rel8
 - servant
