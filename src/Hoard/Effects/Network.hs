@@ -20,6 +20,7 @@ import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig,
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
+import Control.Exception (AsyncException (..), SomeException, catch, fromException, throwIO)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Tracer (contramap, stdoutTracer)
 import Data.Functor.Contravariant ((>$<))
@@ -341,6 +342,24 @@ loadProtocolInfo configDir = do
 -- Mini-Protocol Application
 --------------------------------------------------------------------------------
 
+-- | Wrap a protocol action with exception logging to debug cancellations.
+withExceptionLogging :: String -> IO a -> IO a
+withExceptionLogging protocolName action =
+    action `catch` \(e :: SomeException) -> do
+        case fromException e of
+            Just ThreadKilled -> do
+                putStrLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
+                putStrLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
+            Just UserInterrupt -> do
+                putStrLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
+            Just (asyncEx :: AsyncException) -> do
+                putStrLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
+            Nothing -> do
+                putStrLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
+        -- Re-throw the exception after logging
+        throwIO e
+
+
 -- | Create the Ouroboros application with all mini-protocols.
 --
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
@@ -362,20 +381,25 @@ mkApplication codecs peer publishEvent =
                     mkMiniProtocolCbFromPeerPipelined $
                         \_ ->
                             let codec = cChainSyncCodec codecs
+                                -- Note: Exception logging added inside chainSyncClientImpl via Effect
                                 client = chainSyncClientImpl peer publishEvent
                                 -- Use a tracer to see protocol messages
                                 tracer = (("[ChainSync] " <>) . show) >$< stdoutTracer
                             in  (tracer, codec, client)
             }
-        , -- BlockFetch mini-protocol (stub)
+        , -- BlockFetch mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol
             { miniProtocolNum = blockFetchMiniProtocolNum
             , miniProtocolLimits = blockFetchLimits
             , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
-                -- Stub: For Ticket #1, just return immediately
-                putStrLn "[DEBUG] BlockFetch protocol stub started"
-                pure ((), Nothing)
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
+                withExceptionLogging "BlockFetch" $ do
+                    putStrLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
+                    -- Sleep forever instead of terminating immediately
+                    -- This prevents the stub from signaling connection termination
+                    threadDelay maxBound
+                    putStrLn "[DEBUG] BlockFetch stub woke up (should never happen)"
+                    pure ((), Nothing)
             }
         , -- KeepAlive mini-protocol
           MiniProtocol
@@ -387,9 +411,10 @@ mkApplication codecs peer publishEvent =
                     mkMiniProtocolCbFromPeer $
                         \_ ->
                             let codec = cKeepAliveCodec codecs
-                                wrappedPeer = Peer.Effect $ do
-                                    putStrLn "[DEBUG] KeepAlive protocol started"
-                                    pure (keepAliveClientPeer keepAliveClientImpl)
+                                wrappedPeer = Peer.Effect $
+                                    withExceptionLogging "KeepAlive" $ do
+                                        putStrLn "[DEBUG] KeepAlive protocol started"
+                                        pure (keepAliveClientPeer keepAliveClientImpl)
                                 tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
@@ -405,24 +430,29 @@ mkApplication codecs peer publishEvent =
                             let client = peerSharingClientImpl peer publishEvent
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
-                                wrappedPeer = Peer.Effect $ do
-                                    timestamp <- getCurrentTime
-                                    publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                    putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                    putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
-                                    pure (peerSharingClientPeer client)
+                                wrappedPeer = Peer.Effect $
+                                    withExceptionLogging "PeerSharing" $ do
+                                        timestamp <- getCurrentTime
+                                        publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
+                                        putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                        putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                        pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
-        , -- TxSubmission mini-protocol (stub, not needed for hoarding)
+        , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol
             { miniProtocolNum = txSubmissionMiniProtocolNum
             , miniProtocolLimits = txSubmissionLimits
             , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel -> do
-                -- Stub: For Ticket #1, just return immediately
-                putStrLn "[DEBUG] TxSubmission protocol stub started"
-                pure ((), Nothing)
+            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
+                withExceptionLogging "TxSubmission" $ do
+                    putStrLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
+                    -- Sleep forever instead of terminating immediately
+                    -- This prevents the stub from signaling connection termination
+                    threadDelay maxBound
+                    putStrLn "[DEBUG] TxSubmission stub woke up (should never happen)"
+                    pure ((), Nothing)
             }
         ]
   where
@@ -502,13 +532,15 @@ chainSyncClientImpl
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerPipelined (ChainSync Header' Point' Tip') AsClient ChainSync.StIdle IO ()
 chainSyncClientImpl peer publishEvent =
-    ClientPipelined $ Effect $ do
-        -- Publish started event
-        timestamp <- getCurrentTime
-        publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-        putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
-        putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
-        pure findIntersect
+    ClientPipelined $
+        Effect $
+            withExceptionLogging "ChainSync" $ do
+                -- Publish started event
+                timestamp <- getCurrentTime
+                publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
+                putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
+                putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+                pure findIntersect
   where
     findIntersect :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
@@ -591,11 +623,19 @@ chainSyncClientImpl peer publishEvent =
 -- | KeepAlive client implementation.
 --
 -- This client sends periodic keepalive messages to maintain the connection
--- and detect network failures. It sends a message every 10 seconds.
+-- and detect network failures. It sends a message immediately, then waits 10
+-- seconds before sending the next one.
 keepAliveClientImpl :: KeepAliveClient IO ()
-keepAliveClientImpl = KeepAliveClient go
+keepAliveClientImpl = KeepAliveClient sendFirst
   where
-    go = do
-        putStrLn "[DEBUG] KeepAlive: Sending keepalive message"
+    -- Send the first message immediately
+    sendFirst = do
+        putStrLn "[DEBUG] KeepAlive: Sending first keepalive message"
+        pure $ SendMsgKeepAlive (Cookie 42) sendNext
+
+    -- Wait 10 seconds before sending subsequent messages
+    sendNext = do
+        putStrLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
         threadDelay 10_000_000 -- 10 seconds in microseconds
-        pure $ SendMsgKeepAlive (Cookie 42) go
+        putStrLn "[DEBUG] KeepAlive: Sending keepalive message"
+        pure $ SendMsgKeepAlive (Cookie 42) sendNext
