@@ -25,21 +25,38 @@ module Hoard.Network.Events
     , BlockReceivedData (..)
     , BlockFetchFailedData (..)
     , BlockBatchCompletedData (..)
+    , PeerSharingEvent (..)
+    , PeerSharingStartedData (..)
+    , PeersReceivedData (..)
+    , PeerSharingFailedData (..)
+
+      -- * Type aliases for Cardano block types
+    , CardanoBlock'
+    , Header'
+    , Point'
+    , Tip'
     ) where
 
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Typeable (Typeable)
+import Ouroboros.Consensus.Cardano.Block (CardanoBlock, Header, StandardCrypto)
+import Ouroboros.Network.Block (Point, Tip)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
 import Hoard.Data.Peer (Peer)
 
 
--- Note: We'll use placeholder types for now since we don't have Cardano block types yet
--- These will be replaced with proper types from ouroboros-consensus
-type CardanoBlock = ()
-type Header = ()
-type Point = ()
+-- | Type aliases for Cardano block types used throughout the network events.
+--
+-- These use StandardCrypto which is the standard cryptographic primitives
+-- used in the Cardano mainnet and testnets.
+type CardanoBlock' = CardanoBlock StandardCrypto
+
+
+type Header' = Header CardanoBlock'
+type Point' = Point CardanoBlock'
+type Tip' = Tip CardanoBlock'
 
 
 --------------------------------------------------------------------------------
@@ -104,7 +121,7 @@ data ChainSyncEvent
     | RollBackward RollBackwardData
     | RollForward RollForwardData
     | ChainSyncIntersectionFound ChainSyncIntersectionFoundData
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data ChainSyncStartedData = ChainSyncStartedData
@@ -116,37 +133,40 @@ data ChainSyncStartedData = ChainSyncStartedData
 
 data HeaderReceivedData = HeaderReceivedData
     { peer :: Peer
-    , header :: Header
-    , point :: Point
+    , header :: Header'
+    , point :: Point'
+    , tip :: Tip'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data RollBackwardData = RollBackwardData
     { peer :: Peer
-    , point :: Point
-    , blocksRolledBack :: Int
+    , point :: Point'
+    , tip :: Tip'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data RollForwardData = RollForwardData
     { peer :: Peer
-    , header :: Header
-    , point :: Point
+    , header :: Header'
+    , point :: Point'
+    , tip :: Tip'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
     { peer :: Peer
-    , point :: Point
+    , point :: Point'
+    , tip :: Tip'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 --------------------------------------------------------------------------------
@@ -163,7 +183,7 @@ data BlockFetchEvent
     | BlockReceived BlockReceivedData
     | BlockFetchFailed BlockFetchFailedData
     | BlockBatchCompleted BlockBatchCompletedData
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data BlockFetchStartedData = BlockFetchStartedData
@@ -175,32 +195,71 @@ data BlockFetchStartedData = BlockFetchStartedData
 
 data BlockRequestedData = BlockRequestedData
     { peer :: Peer
-    , point :: Point
+    , point :: Point'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data BlockReceivedData = BlockReceivedData
     { peer :: Peer
-    , block :: CardanoBlock
+    , block :: CardanoBlock'
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data BlockFetchFailedData = BlockFetchFailedData
     { peer :: Peer
-    , point :: Point
+    , point :: Point'
     , errorMessage :: Text
     , timestamp :: UTCTime
     }
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 
 data BlockBatchCompletedData = BlockBatchCompletedData
     { peer :: Peer
     , blockCount :: Int
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+--------------------------------------------------------------------------------
+-- PeerSharing Protocol Events
+--------------------------------------------------------------------------------
+
+-- | Events from the PeerSharing mini-protocol.
+--
+-- PeerSharing allows nodes to discover new peers by requesting peer addresses
+-- from connected nodes.
+data PeerSharingEvent
+    = PeerSharingStarted PeerSharingStartedData
+    | PeersReceived PeersReceivedData
+    | PeerSharingFailed PeerSharingFailedData
+    deriving (Show, Typeable)
+
+
+data PeerSharingStartedData = PeerSharingStartedData
+    { peer :: Peer
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+data PeersReceivedData = PeersReceivedData
+    { peer :: Peer -- The peer we requested from
+    , peerAddresses :: [Text] -- The peer addresses we received
+    , peerCount :: Int
+    , timestamp :: UTCTime
+    }
+    deriving (Show, Typeable)
+
+
+data PeerSharingFailedData = PeerSharingFailedData
+    { peer :: Peer
+    , errorMessage :: Text
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)

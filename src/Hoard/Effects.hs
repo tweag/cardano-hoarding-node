@@ -38,7 +38,6 @@ import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Network (Network, runNetwork)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
-import Hoard.Network.Config (defaultNetworkConfig)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.HoardState (HoardState)
 import Hoard.Types.QuietSnake (QuietSnake (..))
@@ -58,6 +57,7 @@ data Config = Config
     , dbPools :: DBPools
     , inChan :: InChan Dynamic
     , server :: ServerConfig
+    , protocolConfigPath :: FilePath
     }
 
 
@@ -100,7 +100,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager defaultNetworkConfig
+                    . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . evalState def
@@ -124,7 +124,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager defaultNetworkConfig
+                    . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runState def

@@ -5,6 +5,9 @@ server:
 # Path to secrets file (can be relative or absolute)
 secrets_file: secrets/dev.yaml
 
+# Path to Cardano protocol config file
+protocol_config_path: config/preview/config.json
+
 database:
   host: /home/cgeorgii/code/cardano-hoarding-node/postgres-data
   port: 5432
