@@ -28,6 +28,7 @@ data ConfigFile = ConfigFile
     { server :: ServerConfig
     , database :: DatabaseConfig
     , secretsFile :: String
+    , protocolConfigPath :: FilePath
     }
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON)
@@ -119,6 +120,7 @@ loadConfig ioManager env = do
             , dbPools
             , inChan
             , server = configFile.server
+            , protocolConfigPath = configFile.protocolConfigPath
             }
 
 

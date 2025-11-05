@@ -134,10 +134,11 @@ runNetwork
     :: (Error Text :> es, IOE :> es, Pub :> es)
     => IOManager
     -> InChan Dyn.Dynamic
+    -> FilePath
     -> Eff (Network : es) a
     -> Eff es a
-runNetwork ioManager chan = interpret $ \_ -> \case
-    ConnectToPeer config peer -> connectToPeerImpl ioManager chan config peer
+runNetwork ioManager chan protocolConfigPath = interpret $ \_ -> \case
+    ConnectToPeer config peer -> connectToPeerImpl ioManager chan protocolConfigPath config peer
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
 
@@ -159,10 +160,11 @@ connectToPeerImpl
     :: (Error Text :> es, IOE :> es, Pub :> es)
     => IOManager
     -> InChan Dyn.Dynamic
+    -> FilePath
     -> NetworkConfig
     -> Peer
     -> Eff es Connection
-connectToPeerImpl ioManager chan config peer = do
+connectToPeerImpl ioManager chan protocolConfigPath config peer = do
     -- Resolve address
     liftIO $ putStrLn "[DEBUG] Resolving peer address..."
     addr <- liftIO $ resolvePeerAddress peer
@@ -179,7 +181,7 @@ connectToPeerImpl ioManager chan config peer = do
 
     -- Load protocol info and create codecs
     liftIO $ putStrLn "[DEBUG] Loading protocol configuration..."
-    protocolInfo <- liftIO $ loadProtocolInfo "config/preview"
+    protocolInfo <- liftIO $ loadProtocolInfo protocolConfigPath
     let codecConfig = configCodec (pInfoConfig protocolInfo)
 
     -- Get all supported versions
@@ -318,8 +320,8 @@ resolvePeerAddress peer = do
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
 loadProtocolInfo :: FilePath -> IO (ProtocolInfo (CardanoBlock StandardCrypto))
-loadProtocolInfo configDir = do
-    let configFile = File (configDir <> "/config.json")
+loadProtocolInfo configPath = do
+    let configFile = File configPath
 
     -- Load NodeConfig
     nodeConfigResult <- runExceptT $ readNodeConfig configFile

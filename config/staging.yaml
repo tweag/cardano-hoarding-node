@@ -6,6 +6,9 @@ server:
 # In production, this could be: /run/secrets/hoard-staging
 secrets_file: secrets/staging.yaml
 
+# Path to Cardano protocol config file
+protocol_config_path: config/preview/config.json
+
 database:
   host: staging-db.example.com
   port: 5432

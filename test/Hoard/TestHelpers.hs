@@ -93,7 +93,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
-    let config = Config {ioManager, dbPools, inChan, server = serverConfig}
+    let config = Config {ioManager, dbPools, inChan, server = serverConfig, protocolConfigPath = "config/preview/config.json"}
     wireTapOutput <- newIORef []
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, state) <-

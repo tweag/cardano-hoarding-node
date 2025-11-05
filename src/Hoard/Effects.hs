@@ -57,6 +57,7 @@ data Config = Config
     , dbPools :: DBPools
     , inChan :: InChan Dynamic
     , server :: ServerConfig
+    , protocolConfigPath :: FilePath
     }
 
 
@@ -99,7 +100,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager config.inChan
+                    . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . evalState def
@@ -123,7 +124,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager config.inChan
+                    . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runState def

@@ -59,7 +59,7 @@ main = withIOManager $ \ioManager -> do
                 . runErrorNoCallStack @Text
                 . runSub inChan
                 . runPub inChan
-                . runNetwork ioManager inChan
+                . runNetwork ioManager inChan "config/preview/config.json"
                 $ testConnection
 
     case result of
