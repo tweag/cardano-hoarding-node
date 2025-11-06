@@ -23,7 +23,6 @@ import Data.Text (Text)
 import Data.Word (Word16)
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Effectful.Console.ByteString (Console, runConsole)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, evalState, runState)
@@ -35,6 +34,7 @@ import Data.Text qualified as T
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
+import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Network (Network, runNetwork)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
@@ -64,7 +64,7 @@ data Config = Config
 -- | Constraint alias for application effects
 type AppEff es =
     ( IOE :> es
-    , Console :> es
+    , Log :> es
     , FileSystem :> es
     , Concurrent :> es
     , Conc :> es
@@ -83,7 +83,7 @@ type a ::> b = a Effectful.:> b
 
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, DBWrite, DBRead, Network, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Console, IOE]
+type AppEffects = '[State HoardState, DBWrite, DBRead, Network, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Log, IOE]
 
 
 -- | Run the full effect stack for the application
@@ -91,7 +91,7 @@ runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
 runEffectStack config action = liftIO $ do
     result <-
         runEff
-            . runConsole
+            . runLog
             . runFileSystem
             . runConcurrent
             . scoped
@@ -115,7 +115,7 @@ runEffectStackReturningState :: (MonadIO m) => Config -> Eff AppEffects a -> m (
 runEffectStackReturningState config action = liftIO $ do
     result <-
         runEff
-            . runConsole
+            . runLog
             . runFileSystem
             . runConcurrent
             . scoped

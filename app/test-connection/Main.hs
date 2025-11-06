@@ -26,12 +26,14 @@ import Data.UUID qualified as UUID
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Conc (Conc, scoped)
+import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Events
 
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
 
 
 main :: IO ()
@@ -51,6 +53,7 @@ main = withIOManager $ \ioManager -> do
 
     -- Run the test
     result <- runEff
+        . runLog
         . runConcurrent
         . scoped
         $ \scope -> do
@@ -87,12 +90,11 @@ mkPreviewRelay = do
 
 -- | Test connection to Preview testnet
 testConnection
-    :: (Conc :> es, IOE :> es, Network :> es, Sub :> es)
+    :: (Conc :> es, IOE :> es, Log :> es, Network :> es, Sub :> es)
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
-    liftIO $ putStrLn $ "Connecting to " <> T.unpack (address previewRelay) <> ":" <> show (port previewRelay)
-    liftIO $ hFlush stdout
+    Log.info $ "Connecting to " <> (address previewRelay) <> ":" <> T.pack (show (port previewRelay))
 
     -- Start event listeners in background
     Conc.fork_ networkEventListener
@@ -102,72 +104,72 @@ testConnection = do
     -- Connect to peer
     conn <- connectToPeer previewRelay
 
-    liftIO $ putStrLn "✓ Connection established!"
+    Log.info "✓ Connection established!"
 
     -- Check connection status
     isAlive <- isConnected conn
     if isAlive
-        then liftIO $ putStrLn "✓ Connection is alive"
-        else liftIO $ putStrLn "✗ Connection appears dead"
+        then Log.info "✓ Connection is alive"
+        else Log.info "✗ Connection appears dead"
 
     -- Keep connection alive for 60 seconds to receive headers
-    liftIO $ putStrLn "Keeping connection alive for 60 seconds to receive headers..."
+    Log.info "Keeping connection alive for 60 seconds to receive headers..."
     liftIO $ threadDelay (60 * 1000000)
 
     -- Check status again
     isAlive' <- isConnected conn
     if isAlive'
-        then liftIO $ putStrLn "✓ Connection still alive after 30 seconds"
-        else liftIO $ putStrLn "✗ Connection died"
+        then Log.info "✓ Connection still alive after 30 seconds"
+        else Log.info "✗ Connection died"
 
 
 -- | Listen for and print network events
 networkEventListener
-    :: (IOE :> es, Sub :> es)
+    :: (IOE :> es, Log :> es, Sub :> es)
     => Eff es Void
 networkEventListener = listen $ \event -> do
-    liftIO $ case event of
+    case event of
         ConnectionEstablished dat -> do
-            putStrLn $ "🔗 Connection established with peer at " <> show dat.timestamp
+            Log.info $ "🔗 Connection established with peer at " <> T.pack (show dat.timestamp)
         ConnectionLost dat -> do
-            putStrLn $ "💔 Connection lost: " <> T.unpack dat.reason <> " at " <> show dat.timestamp
+            Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> T.pack (show dat.timestamp)
         HandshakeCompleted dat -> do
-            putStrLn $ "🤝 Handshake completed with version " <> show dat.version
+            Log.info $ "🤝 Handshake completed with version " <> T.pack (show dat.version)
         ProtocolError dat -> do
-            putStrLn $ "❌ Protocol error: " <> T.unpack dat.errorMessage
+            Log.warn $ "❌ Protocol error: " <> dat.errorMessage
     liftIO $ hFlush stdout
 
 
 -- | Listen for and print peer sharing events
 peerSharingEventListener
-    :: (IOE :> es, Sub :> es)
+    :: (IOE :> es, Log :> es, Sub :> es)
     => Eff es Void
 peerSharingEventListener = listen $ \event -> do
-    liftIO $ case event of
+    case event of
         PeerSharingStarted dat -> do
-            putStrLn $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
+            Log.info $ "🔍 PeerSharing protocol started at " <> T.pack (show dat.timestamp)
         PeersReceived dat -> do
-            putStrLn $ "📡 Received " <> show dat.peerCount <> " peer addresses from remote peer:"
-            mapM_ (\addr -> putStrLn $ "   - " <> T.unpack addr) dat.peerAddresses
+            Log.info $ "📡 Received " <> T.pack (show dat.peerCount) <> " peer addresses from remote peer:"
+            mapM_ (\addr -> Log.debug $ "   - " <> addr) dat.peerAddresses
         PeerSharingFailed dat -> do
-            putStrLn $ "❌ PeerSharing failed: " <> T.unpack dat.errorMessage
+            Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
     liftIO $ hFlush stdout
 
 
 -- | Listen for and print chain sync events
 chainSyncEventListener
-    :: (IOE :> es, Sub :> es)
+    :: (IOE :> es, Log :> es, Sub :> es)
     => Eff es Void
 chainSyncEventListener = listen $ \event -> do
-    liftIO $ case event of
+    case event of
         ChainSyncStarted dat -> do
-            putStrLn $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
+            Log.info $ "⛓️  ChainSync protocol started at " <> T.pack (show dat.timestamp)
         HeaderReceived _dat -> do
-            putStrLn "📦 Header received!"
+            Log.info "📦 Header received!"
         RollBackward _dat -> do
-            putStrLn "⏪ Rollback occurred"
+            Log.info "⏪ Rollback occurred"
         RollForward _dat -> do
-            putStrLn "⏩ RollForward occurred"
+            Log.info "⏩ RollForward occurred"
         ChainSyncIntersectionFound _dat -> do
-            putStrLn "🎯 ChainSync intersection found"
+            Log.info "🎯 ChainSync intersection found"
     liftIO $ hFlush stdout

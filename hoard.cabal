@@ -27,6 +27,7 @@ library
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.Log
       Hoard.Effects.Network
       Hoard.Effects.Pub
       Hoard.Effects.Sub
