@@ -29,7 +29,6 @@ import Effectful
     , (:>)
     )
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Effectful.Console.ByteString (Console, runConsole)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, runState)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
@@ -46,6 +45,8 @@ import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
 import Hoard.Effects (Config (..), ServerConfig (..), runEffectStack)
+import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -98,7 +99,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, state) <-
         runEff
-            . runConsole
+            . runLog
             . runFileSystem
             . runConcurrent
             . runSub config.inChan
@@ -122,7 +123,7 @@ type TestAppEffs =
     , Sub
     , Concurrent
     , FileSystem
-    , Console
+    , Log
     , IOE
     ]
 
