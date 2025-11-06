@@ -18,12 +18,12 @@ module Hoard.Effects.Network
 import Cardano.Api.IO (File (..))
 import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
-import Control.Exception (AsyncException (..), catch, throwIO)
+import Control.Exception (AsyncException (..))
 import Control.Tracer (stdoutTracer)
 import Data.Time (getCurrentTime)
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
+import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
@@ -97,7 +97,9 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
+import Effectful.Exception (catch, throwIO)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Network.Codecs (hoistCodecs)
 import Hoard.Types.NodeIP (NodeIP (..))
 
 
@@ -127,7 +129,7 @@ makeEffect ''Network
 -- This handler establishes actual network connections and spawns protocol threads.
 -- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
-    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es)
+    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -153,7 +155,8 @@ runNetwork ioManager chan protocolConfigPath = interpret $ \_ -> \case
 -- 5. Connects using ouroboros-network's connectTo
 -- 6. Publishes connection events
 connectToPeerImpl
-    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es)
+    :: forall es
+     . (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -172,7 +175,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
 
     -- Load protocol info and create codecs
     Log.debug "Loading protocol configuration..."
-    protocolInfo <- liftIO $ loadProtocolInfo protocolConfigPath
+    protocolInfo <- loadProtocolInfo protocolConfigPath
     let codecConfig = configCodec (pInfoConfig protocolInfo)
     let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
@@ -191,29 +194,31 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
                 }
 
     -- Helper function to create application for a specific version
-    let mkVersionedApp :: NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-        mkVersionedApp nodeVersion blockVersion =
+    let strat = ConcUnlift Persistent Unlimited
+        mkVersionedApp :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
+        mkVersionedApp unlift nodeVersion blockVersion =
             let codecs =
-                    defaultCodecs
-                        codecConfig
-                        blockVersion
-                        encodeRemoteAddress
-                        (\v -> decodeRemoteAddress v)
-                        nodeVersion
-            in  mkApplication codecs peer publishIO
+                    hoistCodecs liftIO $
+                        defaultCodecs
+                            codecConfig
+                            blockVersion
+                            encodeRemoteAddress
+                            (\v -> decodeRemoteAddress v)
+                            nodeVersion
+            in  mkApplication unlift codecs peer publishIO
 
     -- Create versions for negotiation - offer all supported versions
     Log.debug "Creating protocol versions..."
-    let mkVersions version blockVersion =
+    let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
             simpleSingletonVersions
                 version
                 versionData
-                (\_ -> mkVersionedApp version blockVersion)
+                (\_ -> mkVersionedApp unlift version blockVersion)
 
     -- Create versions for all supported protocol versions
-    let versions =
+    let versions (unlift :: forall x. Eff es x -> IO x) =
             combineVersions
-                [ mkVersions nodeVersion blockVersion
+                [ mkVersions unlift nodeVersion blockVersion
                 | (nodeVersion, blockVersion) <- Map.toList supportedVersions
                 ]
 
@@ -226,11 +231,11 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
     -- Connect to the peer
     Log.debug "Calling connectTo..."
     result <-
-        liftIO $
+        withEffToIO strat $ \unlift ->
             connectTo
                 snocket
                 adhocTracers
-                versions
+                (versions unlift)
                 Nothing -- No local address binding
                 addr
     Log.debug "connectTo returned!"
@@ -303,7 +308,7 @@ isConnectedImpl _conn = do
 
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: FilePath -> IO (ProtocolInfo CardanoBlock)
+loadProtocolInfo :: (IOE :> es) => FilePath -> Eff es (ProtocolInfo CardanoBlock)
 loadProtocolInfo configPath = do
     let configFile = File configPath
 
@@ -329,19 +334,19 @@ loadProtocolInfo configPath = do
 --------------------------------------------------------------------------------
 
 -- | Wrap a protocol action with exception logging to debug cancellations.
-withExceptionLogging :: Text -> IO a -> IO a
+withExceptionLogging :: (IOE :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         case fromException e of
             Just ThreadKilled -> do
-                putTextLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
-                putTextLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
+                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
+                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
             Just UserInterrupt -> do
-                putTextLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
+                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
             Just (asyncEx :: AsyncException) -> do
-                putTextLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
+                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
             Nothing -> do
-                putTextLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
+                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
         -- Re-throw the exception after logging
         throwIO e
 
@@ -351,7 +356,9 @@ withExceptionLogging protocolName action =
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: Codecs
+    :: (Concurrent :> es, IOE :> es)
+    => (forall x. Eff es x -> IO x)
+    -> Codecs
         CardanoBlock
         SockAddr
         DeserialiseFailure
@@ -366,7 +373,7 @@ mkApplication
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication codecs peer publishEvent =
+mkApplication unlift codecs peer publishEvent =
     OuroborosApplication
         [ -- ChainSync mini-protocol (pipelined)
           MiniProtocol
@@ -379,7 +386,7 @@ mkApplication codecs peer publishEvent =
                         \_ ->
                             let codec = cChainSyncCodec codecs
                                 -- Note: Exception logging added inside chainSyncClientImpl via Effect
-                                client = chainSyncClientImpl peer publishEvent
+                                client = chainSyncClientImpl unlift peer publishEvent
                                 -- Use a tracer to see protocol messages
                                 tracer = (("[ChainSync] " <>) . show) >$< stdoutTracer
                             in  (tracer, codec, client)
@@ -390,12 +397,12 @@ mkApplication codecs peer publishEvent =
             , miniProtocolLimits = blockFetchLimits
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
-                withExceptionLogging "BlockFetch" $ do
-                    putTextLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
+                unlift $ withExceptionLogging "BlockFetch" $ do
+                    liftIO $ putTextLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    putTextLn "[DEBUG] BlockFetch stub woke up (should never happen)"
+                    liftIO $ putTextLn "[DEBUG] BlockFetch stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         , -- KeepAlive mini-protocol
@@ -409,10 +416,10 @@ mkApplication codecs peer publishEvent =
                         \_ ->
                             let codec = cKeepAliveCodec codecs
                                 wrappedPeer = Peer.Effect $
-                                    withExceptionLogging "KeepAlive" $
-                                        do
-                                            putTextLn "[DEBUG] KeepAlive protocol started"
-                                            pure (keepAliveClientPeer keepAliveClientImpl)
+                                    unlift $
+                                        withExceptionLogging "KeepAlive" $ do
+                                            liftIO $ putTextLn "[DEBUG] KeepAlive protocol started"
+                                            pure (keepAliveClientPeer $ keepAliveClientImpl unlift)
                                 tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
@@ -425,14 +432,14 @@ mkApplication codecs peer publishEvent =
                 InitiatorProtocolOnly $
                     mkMiniProtocolCbFromPeer $
                         \_ ->
-                            let client = peerSharingClientImpl peer publishEvent
+                            let client = peerSharingClientImpl unlift peer publishEvent
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
-                                wrappedPeer = Peer.Effect $ withExceptionLogging "PeerSharing" $ do
-                                    timestamp <- getCurrentTime
-                                    publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                    putTextLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                    putTextLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
+                                    timestamp <- liftIO getCurrentTime
+                                    liftIO $ publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
+                                    liftIO $ putTextLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                    liftIO $ putTextLn "[DEBUG] PeerSharing: About to run peer protocol..."
                                     pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
@@ -443,12 +450,12 @@ mkApplication codecs peer publishEvent =
             , miniProtocolLimits = txSubmissionLimits
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
-                withExceptionLogging "TxSubmission" $ do
-                    putTextLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
+                unlift $ withExceptionLogging "TxSubmission" $ do
+                    liftIO $ putTextLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    putTextLn "[DEBUG] TxSubmission stub woke up (should never happen)"
+                    liftIO $ putTextLn "[DEBUG] TxSubmission stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         ]
@@ -489,29 +496,32 @@ mkApplication codecs peer publishEvent =
 -- 3. Waits 1 hour
 -- 4. Loops
 peerSharingClientImpl
-    :: PeerAddress
+    :: (Concurrent :> es, IOE :> es)
+    => (forall x. Eff es x -> IO x)
+    -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerSharingClient SockAddr IO ()
-peerSharingClientImpl peer publishEvent =
+peerSharingClientImpl unlift peer publishEvent =
     Debug.Trace.trace "[DEBUG] PeerSharing: Creating SendMsgShareRequest..." $
         requestPeers withPeers
   where
     requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
-    withPeers peerAddrs = do
-        putTextLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        putTextLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
-        timestamp <- getCurrentTime
-        publishEvent $
-            PeersReceived
-                PeersReceivedData
-                    { peer
-                    , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
-                    , timestamp
-                    }
-        putTextLn "[DEBUG] PeerSharing: Published PeersReceived event"
-        putTextLn "[DEBUG] PeerSharing: Waiting 10 seconds"
+    withPeers peerAddrs = unlift do
+        liftIO $ putTextLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
+        liftIO $ putTextLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        timestamp <- liftIO getCurrentTime
+        liftIO $
+            publishEvent $
+                PeersReceived
+                    PeersReceivedData
+                        { peer
+                        , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
+                        , timestamp
+                        }
+        liftIO $ putTextLn "[DEBUG] PeerSharing: Published PeersReceived event"
+        liftIO $ putTextLn "[DEBUG] PeerSharing: Waiting 10 seconds"
         threadDelay oneHour
-        putTextLn "[DEBUG] PeerSharing: looping"
+        liftIO $ putTextLn "[DEBUG] PeerSharing: looping"
         pure $ requestPeers withPeers
     oneHour = 3_600_000_000
 
@@ -526,88 +536,68 @@ peerSharingClientImpl peer publishEvent =
 --
 -- Note: This runs forever, continuously requesting the next header.
 chainSyncClientImpl
-    :: PeerAddress
+    :: forall es
+     . (IOE :> es)
+    => (forall x. Eff es x -> IO x)
+    -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
-chainSyncClientImpl peer publishEvent =
+chainSyncClientImpl unlift peer publishEvent =
     ClientPipelined $
         Effect $
-            withExceptionLogging "ChainSync" $
-                do
-                    -- Publish started event
-                    timestamp <- getCurrentTime
-                    publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-                    putTextLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
-                    putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
-                    pure findIntersect
+            unlift $
+                withExceptionLogging "ChainSync" $
+                    do
+                        -- Publish started event
+                        timestamp <- liftIO $ getCurrentTime
+                        liftIO $ publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
+                        liftIO $ putTextLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
+                        liftIO $ putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+                        pure findIntersect
   where
     findIntersect :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
         Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
-            ChainSync.MsgIntersectNotFound {} -> Effect $ do
-                putTextLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
+            ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
+                liftIO $ putTextLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
                 pure requestNext
-            ChainSync.MsgIntersectFound point tip -> Effect $ do
-                putTextLn "[DEBUG] ChainSync: Intersection found"
-                timestamp <- getCurrentTime
-                publishEvent $
-                    ChainSyncIntersectionFound
-                        ChainSyncIntersectionFoundData
-                            { peer
-                            , point
-                            , tip
-                            , timestamp
-                            }
+            ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
+                liftIO $ putTextLn "[DEBUG] ChainSync: Intersection found"
+                timestamp <- liftIO getCurrentTime
+                liftIO $
+                    publishEvent $
+                        ChainSyncIntersectionFound
+                            ChainSyncIntersectionFoundData
+                                { peer
+                                , point
+                                , tip
+                                , timestamp
+                                }
                 pure requestNext
 
     requestNext :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
-            ChainSync.MsgRollForward header tip -> Effect $ do
-                putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
-                timestamp <- getCurrentTime
+            ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                liftIO $ putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
+                timestamp <- liftIO getCurrentTime
                 let point = castPoint $ headerPoint header
-                publishEvent $
-                    HeaderReceived
-                        HeaderReceivedData
-                            { peer
-                            , header
-                            , -- TODO point is derived, therefore redundant
-                              point
-                            , tip
-                            , timestamp
-                            }
-                pure requestNext
-            ChainSync.MsgRollBackward point tip -> Effect $ do
-                putTextLn "[DEBUG] ChainSync: Rollback"
-                timestamp <- getCurrentTime
-                publishEvent $
-                    RollBackward
-                        RollBackwardData
-                            { peer
-                            , point
-                            , tip
-                            , timestamp
-                            }
-                pure requestNext
-            ChainSync.MsgAwaitReply -> Await $ \case
-                ChainSync.MsgRollForward header tip -> Effect $ do
-                    putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
-                    timestamp <- getCurrentTime
-                    let point = castPoint $ headerPoint header
+                liftIO $
                     publishEvent $
                         HeaderReceived
                             HeaderReceivedData
                                 { peer
                                 , header
-                                , point
+                                , -- TODO point is derived, therefore redundant
+                                  point
                                 , tip
                                 , timestamp
                                 }
-                    pure requestNext
-                ChainSync.MsgRollBackward point tip -> Effect $ do
-                    putTextLn "[DEBUG] ChainSync: Rollback after await"
-                    timestamp <- getCurrentTime
+                pure requestNext
+            ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                liftIO $ putTextLn "[DEBUG] ChainSync: Rollback"
+                timestamp <- liftIO getCurrentTime
+                liftIO $
                     publishEvent $
                         RollBackward
                             RollBackwardData
@@ -616,6 +606,35 @@ chainSyncClientImpl peer publishEvent =
                                 , tip
                                 , timestamp
                                 }
+                pure requestNext
+            ChainSync.MsgAwaitReply -> Await $ \case
+                ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                    putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
+                    timestamp <- liftIO getCurrentTime
+                    let point = castPoint $ headerPoint header
+                    liftIO $
+                        publishEvent $
+                            HeaderReceived
+                                HeaderReceivedData
+                                    { peer
+                                    , header
+                                    , point
+                                    , tip
+                                    , timestamp
+                                    }
+                    pure requestNext
+                ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                    liftIO $ putTextLn "[DEBUG] ChainSync: Rollback after await"
+                    timestamp <- liftIO getCurrentTime
+                    liftIO $
+                        publishEvent $
+                            RollBackward
+                                RollBackwardData
+                                    { peer
+                                    , point
+                                    , tip
+                                    , timestamp
+                                    }
                     pure requestNext
 
 
@@ -624,17 +643,17 @@ chainSyncClientImpl peer publishEvent =
 -- This client sends periodic keepalive messages to maintain the connection
 -- and detect network failures. It sends a message immediately, then waits 10
 -- seconds before sending the next one.
-keepAliveClientImpl :: KeepAliveClient IO ()
-keepAliveClientImpl = KeepAliveClient sendFirst
+keepAliveClientImpl :: (IOE :> es, Concurrent :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
+keepAliveClientImpl unlift = KeepAliveClient sendFirst
   where
     -- Send the first message immediately
-    sendFirst = do
-        putTextLn "[DEBUG] KeepAlive: Sending first keepalive message"
+    sendFirst = unlift $ do
+        liftIO $ putTextLn "[DEBUG] KeepAlive: Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     -- Wait 10 seconds before sending subsequent messages
-    sendNext = do
-        putTextLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
+    sendNext = unlift $ do
+        liftIO $ putTextLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
         threadDelay 10_000_000 -- 10 seconds in microseconds
-        putTextLn "[DEBUG] KeepAlive: Sending keepalive message"
+        liftIO $ putTextLn "[DEBUG] KeepAlive: Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
