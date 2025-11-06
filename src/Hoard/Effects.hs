@@ -31,6 +31,7 @@ import Ouroboros.Network.IOManager (IOManager)
 
 import Data.Text qualified as T
 
+import Effectful.Prim (Prim, runPrim)
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
@@ -65,6 +66,7 @@ data Config = Config
 -- | Constraint alias for application effects
 type AppEff es =
     ( IOE :> es
+    , Prim :> es
     , Log :> es
     , Clock :> es
     , FileSystem :> es
@@ -98,6 +100,7 @@ type AppEffects =
      , FileSystem
      , Clock
      , Log
+     , Prim
      , IOE
      ]
 
@@ -107,6 +110,7 @@ runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
 runEffectStack config action = liftIO $ do
     result <-
         runEff
+            . runPrim
             . runLog
             . runClock
             . runFileSystem
@@ -132,6 +136,7 @@ runEffectStackReturningState :: (MonadIO m) => Config -> Eff AppEffects a -> m (
 runEffectStackReturningState config action = liftIO $ do
     result <-
         runEff
+            . runPrim
             . runLog
             . runClock
             . runFileSystem

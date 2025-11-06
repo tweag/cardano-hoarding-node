@@ -32,6 +32,7 @@ import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Events
 
+import Effectful.Prim (runPrim)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
 
@@ -53,6 +54,7 @@ main = withIOManager $ \ioManager -> do
 
     -- Run the test
     result <- runEff
+        . runPrim
         . runLog
         . runConcurrent
         . scoped

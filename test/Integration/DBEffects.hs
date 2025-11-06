@@ -11,6 +11,7 @@ import Hasql.Decoders qualified as D
 import Hasql.Encoders qualified as E
 import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
+import Hoard.Effects.Log (runLog)
 
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)

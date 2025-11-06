@@ -50,13 +50,16 @@ dependencies:
 - hasql
 - hasql-pool
 - hasql-transaction
+- io-classes
 - ki
 - network
 - network-uri
 - optparse-applicative
+- primitive
 - rel8
 - servant
 - servant-server
+- stm
 - string-conversions
 - text
 - time

@@ -15,6 +15,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Effectful.Instances
       Hoard.API
       Hoard.CLI.Options
       Hoard.Collector
@@ -30,6 +31,8 @@ library
       Hoard.Effects.DBWrite
       Hoard.Effects.Log
       Hoard.Effects.Network
+      Hoard.Effects.Network.Codecs
+      Hoard.Effects.Network.Versions
       Hoard.Effects.Pub
       Hoard.Effects.Sub
       Hoard.Events
@@ -88,6 +91,7 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , io-classes
     , ki
     , network
     , network-mux
@@ -100,9 +104,11 @@ library
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -160,6 +166,7 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , io-classes
     , ki
     , network
     , network-mux
@@ -172,9 +179,11 @@ executable hoard-exe
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -232,6 +241,7 @@ executable test-connection
     , hasql-pool
     , hasql-transaction
     , hoard
+    , io-classes
     , ki
     , network
     , network-mux
@@ -244,9 +254,11 @@ executable test-connection
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , primitive
     , rel8
     , servant
     , servant-server
+    , stm
     , string-conversions
     , text
     , time
@@ -316,6 +328,7 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
+    , io-classes
     , ki
     , network
     , network-mux
@@ -329,12 +342,14 @@ test-suite hoard-test
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , postgres-options
+    , primitive
     , process
     , rel8
     , servant
     , servant-client
     , servant-client-core
     , servant-server
+    , stm
     , string-conversions
     , tasty
     , tasty-discover
