@@ -37,6 +37,7 @@ import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Network (Network, runNetwork)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -75,6 +76,7 @@ type AppEff es =
     , Network :> es
     , DBRead :> es
     , DBWrite :> es
+    , PeerRepo :> es
     , Error Text :> es
     , State HoardState :> es
     )
@@ -87,6 +89,7 @@ type a ::> b = a Effectful.:> b
 -- | Full effect stack for the application
 type AppEffects =
     '[ State HoardState
+     , PeerRepo
      , DBWrite
      , DBRead
      , Network
@@ -120,6 +123,7 @@ runEffectStack config action = liftIO $ do
                     . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
+                    . runPeerRepo
                     . evalState def
                     $ action
     case result of
@@ -145,6 +149,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runNetwork config.ioManager config.inChan config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
+                    . runPeerRepo
                     . runState def
                     $ action
     case result of

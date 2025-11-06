@@ -24,6 +24,7 @@ import Control.Exception (AsyncException (..), SomeException, catch, fromExcepti
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Tracer (contramap, stdoutTracer)
 import Data.Functor.Contravariant ((>$<))
+import Data.Maybe (mapMaybe)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import Data.Time (getCurrentTime)
@@ -84,7 +85,7 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
-import Hoard.Data.Peer (Peer (..))
+import Hoard.Data.Peer (Peer (..), sockAddrToPeerAddress)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
@@ -519,14 +520,11 @@ peerSharingClientImpl peer publishEvent =
         putStrLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
         putStrLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
         timestamp <- getCurrentTime
-        let peerAddresses = map (T.pack . show) peerAddrs
-            peerCount = length peerAddrs
         publishEvent $
             PeersReceived
                 PeersReceivedData
                     { peer
-                    , peerAddresses
-                    , peerCount
+                    , peerAddresses = mapMaybe sockAddrToPeerAddress peerAddrs
                     , timestamp
                     }
         putStrLn "[DEBUG] PeerSharing: Published PeersReceived event"

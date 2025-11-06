@@ -24,7 +24,7 @@ import Data.Text qualified as T
 import Data.UUID qualified as UUID
 
 import Hoard.Data.ID (ID (..))
-import Hoard.Data.Peer (Peer (..))
+import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Conc (Conc, scoped)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
@@ -84,6 +84,7 @@ mkPreviewRelay = do
             , port = 3001 -- Correct port from Preview testnet topology.json
             , firstDiscovered = now
             , lastSeen = now
+            , lastConnected = Nothing
             , discoveredVia = "manual-test"
             }
 
@@ -94,7 +95,7 @@ testConnection
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
-    Log.info $ "Connecting to " <> (address previewRelay) <> ":" <> T.pack (show (port previewRelay))
+    Log.info $ "Connecting to " <> previewRelay.address <> ":" <> T.pack (show (previewRelay.port))
 
     -- Start event listeners in background
     Conc.fork_ networkEventListener
@@ -149,8 +150,8 @@ peerSharingEventListener = listen $ \event -> do
         PeerSharingStarted dat -> do
             Log.info $ "🔍 PeerSharing protocol started at " <> T.pack (show dat.timestamp)
         PeersReceived dat -> do
-            Log.info $ "📡 Received " <> T.pack (show dat.peerCount) <> " peer addresses from remote peer:"
-            mapM_ (\addr -> Log.debug $ "   - " <> addr) dat.peerAddresses
+            Log.info $ "📡 Received " <> T.pack (show (length dat.peerAddresses) <> " peer addresses from remote peer:")
+            mapM_ (\addr -> Log.debug $ "   - " <> addr.host <> ":" <> T.pack (show addr.port)) dat.peerAddresses
         PeerSharingFailed dat -> do
             Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
     liftIO $ hFlush stdout

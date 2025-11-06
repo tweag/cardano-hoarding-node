@@ -11,6 +11,7 @@ import Hoard.Config.Loader (loadConfig)
 import Hoard.Effects (Config (..), ServerConfig (..), runEffectStack)
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
+import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
 import Hoard.Types.Environment (Environment (..))
 
 import Hoard.Effects.Conc qualified as Conc
@@ -33,5 +34,6 @@ main = withIOManager $ \ioManager -> do
         -- Fork the HTTP server
         _ <- Conc.fork $ Server.runServer config
         _ <- Conc.fork $ listen headerReceivedListener
+        _ <- Conc.fork $ listen peersReceivedListener
 
         Conc.awaitAll
