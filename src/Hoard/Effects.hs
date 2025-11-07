@@ -31,6 +31,7 @@ import Ouroboros.Network.IOManager (IOManager)
 
 import Data.Text qualified as T
 
+import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
@@ -65,6 +66,7 @@ data Config = Config
 type AppEff es =
     ( IOE :> es
     , Log :> es
+    , Clock :> es
     , FileSystem :> es
     , Concurrent :> es
     , Conc :> es
@@ -83,7 +85,21 @@ type a ::> b = a Effectful.:> b
 
 
 -- | Full effect stack for the application
-type AppEffects = '[State HoardState, DBWrite, DBRead, Network, Error Text, Pub, Sub, Conc, Concurrent, FileSystem, Log, IOE]
+type AppEffects =
+    '[ State HoardState
+     , DBWrite
+     , DBRead
+     , Network
+     , Error Text
+     , Pub
+     , Sub
+     , Conc
+     , Concurrent
+     , FileSystem
+     , Clock
+     , Log
+     , IOE
+     ]
 
 
 -- | Run the full effect stack for the application
@@ -92,6 +108,7 @@ runEffectStack config action = liftIO $ do
     result <-
         runEff
             . runLog
+            . runClock
             . runFileSystem
             . runConcurrent
             . scoped
@@ -116,6 +133,7 @@ runEffectStackReturningState config action = liftIO $ do
     result <-
         runEff
             . runLog
+            . runClock
             . runFileSystem
             . runConcurrent
             . scoped
