@@ -14,6 +14,7 @@ import Hasql.Transaction qualified as TX
 
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
+import Hoard.Effects.Log (runLog)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
 
@@ -37,6 +38,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First write some data
             _ <-
                 runEff
+                    . runLog
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert-test"
@@ -58,6 +60,7 @@ spec_DBEffects = withCleanTestDatabase $ do
         it "can write to the database" $ \config -> do
             result <-
                 runEff
+                    . runLog
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert-test"
@@ -70,6 +73,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First insert
             _ <-
                 runEff
+                    . runLog
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert"
@@ -78,6 +82,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- Then delete
             result <-
                 runEff
+                    . runLog
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "delete"
