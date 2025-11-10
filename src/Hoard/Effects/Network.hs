@@ -468,14 +468,11 @@ mkApplication codecs peer publishEvent =
             }
         ]
   where
-    -- Get protocol parameters
     params = defaultMiniProtocolParameters
 
-    -- Protocol limits from parameters
-    -- Using chainSyncPipeliningHighMark as a reasonable default for all protocols
     chainSyncLimits =
         MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params
+            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params * 4
             }
     blockFetchLimits =
         MiniProtocolLimits
