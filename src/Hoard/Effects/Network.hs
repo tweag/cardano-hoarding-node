@@ -443,14 +443,12 @@ mkApplication codecs peer publishEvent =
                             let client = peerSharingClientImpl peer publishEvent
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
-                                wrappedPeer = Peer.Effect $
-                                    withExceptionLogging "PeerSharing" $
-                                        do
-                                            timestamp <- getCurrentTime
-                                            publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                            putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                            putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
-                                            pure (peerSharingClientPeer client)
+                                wrappedPeer = Peer.Effect $ withExceptionLogging "PeerSharing" $ do
+                                    timestamp <- getCurrentTime
+                                    publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
+                                    putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                    putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                    pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
             }
@@ -506,30 +504,37 @@ mkApplication codecs peer publishEvent =
 -- This client:
 -- 1. Requests up to 100 peer addresses from the remote peer
 -- 2. Publishes a PeersReceived event with the results
--- 3. Terminates after one request
+-- 3. Waits 1 hour
+-- 4. Loops
 peerSharingClientImpl
     :: Peer
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerSharingClient SockAddr IO ()
 peerSharingClientImpl peer publishEvent =
     Debug.Trace.trace "[DEBUG] PeerSharing: Creating SendMsgShareRequest..." $
-        PeerSharing.SendMsgShareRequest (PeerSharingAmount 100) $
-            \peerAddrs -> do
-                putStrLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-                putStrLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
-                timestamp <- getCurrentTime
-                let peerAddrTexts = map (T.pack . show) peerAddrs
-                    peerCount = length peerAddrs
-                publishEvent $
-                    PeersReceived
-                        PeersReceivedData
-                            { peer = peer
-                            , peerAddresses = peerAddrTexts
-                            , peerCount = peerCount
-                            , timestamp = timestamp
-                            }
-                putStrLn "[DEBUG] PeerSharing: Published PeersReceived event"
-                pure $ PeerSharing.SendMsgDone (pure ())
+        requestPeers withPeers
+  where
+    requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
+    withPeers peerAddrs = do
+        putStrLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
+        putStrLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        timestamp <- getCurrentTime
+        let peerAddresses = map (T.pack . show) peerAddrs
+            peerCount = length peerAddrs
+        publishEvent $
+            PeersReceived
+                PeersReceivedData
+                    { peer
+                    , peerAddresses
+                    , peerCount
+                    , timestamp
+                    }
+        putStrLn "[DEBUG] PeerSharing: Published PeersReceived event"
+        putStrLn "[DEBUG] PeerSharing: Waiting 10 seconds"
+        threadDelay oneHour
+        putStrLn "[DEBUG] PeerSharing: looping"
+        pure $ requestPeers withPeers
+    oneHour = 3_600_000_000
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).
