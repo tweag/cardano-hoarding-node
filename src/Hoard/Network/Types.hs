@@ -11,7 +11,7 @@ module Hoard.Network.Types
 import Data.Time (UTCTime)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (PeerAddress)
 
 
 --------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ import Hoard.Data.Peer (Peer)
 --   liftIO $ putStrLn $ "Protocol version: " <> show conn.version
 -- @
 data Connection = Connection
-    { peer :: Peer
+    { peer :: PeerAddress
     -- ^ The peer this connection is established with
     , version :: NodeToNodeVersion
     -- ^ The negotiated node-to-node protocol version

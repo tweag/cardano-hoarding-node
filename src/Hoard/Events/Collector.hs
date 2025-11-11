@@ -2,14 +2,14 @@ module Hoard.Events.Collector
     ( CollectorEvent (..)
     ) where
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (PeerAddress)
 
 
 data CollectorEvent
-    = CollectorStarted Peer
-    | ConnectingToPeer Peer
-    | ConnectedToPeer Peer
-    | ConnectionFailed Peer Text
-    | ChainSyncReceived Peer
-    | BlockFetchReceived Peer
+    = CollectorStarted PeerAddress
+    | ConnectingToPeer PeerAddress
+    | ConnectedToPeer PeerAddress
+    | ConnectionFailed PeerAddress Text
+    | ChainSyncReceived PeerAddress
+    | BlockFetchReceived PeerAddress
     deriving (Show, Typeable)

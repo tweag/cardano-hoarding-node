@@ -3,7 +3,7 @@ module Hoard.Collector (dispatchDiscoveredNodes, runCollector) where
 import Control.Concurrent (threadDelay)
 import Effectful (Eff, IOE, (:>))
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (PeerAddress)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Network (Network, connectToPeer)
 import Hoard.Effects.Pub (Pub, publish)
@@ -21,7 +21,7 @@ dispatchDiscoveredNodes = listen $ \(NodeDiscovered peer) ->
 
 runCollector
     :: (IOE :> es, Network :> es, Pub :> es)
-    => Peer
+    => PeerAddress
     -> Eff es Void
 runCollector peer = do
     publish $ CollectorStarted peer

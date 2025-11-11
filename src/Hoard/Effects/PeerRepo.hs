@@ -29,9 +29,9 @@ data PeerRepo :: Effect where
     -- For each peer address:
     -- - Insert into database, or update only lastSeen if the peer already exists
     UpsertPeers
-        :: [PeerAddress]
-        -- ^ List of structured peer addresses
-        -> Peer
+        :: Set PeerAddress
+        -- ^ Set of structured peer addresses
+        -> PeerAddress
         -- ^ The source peer that shared these addresses
         -> UTCTime
         -- ^ Timestamp when these peers were discovered
@@ -64,15 +64,15 @@ runPeerRepo = interpret $ \_ -> \case
 
 
 upsertPeersImpl
-    :: [PeerAddress]
-    -- ^ List of structured peer addresses
-    -> Peer
+    :: Set PeerAddress
+    -- ^ Set of structured peer addresses
+    -> PeerAddress
     -- ^ The source peer that shared these addresses
     -> UTCTime
     -- ^ Timestamp when these peers were discovered
     -> Transaction ()
 upsertPeersImpl peerAddresses sourcePeer timestamp = do
-    let discoveredVia = "PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port
+    let discoveredVia = "PeerSharing:" <> show sourcePeer.host <> ":" <> show sourcePeer.port
 
     -- Upsert all peers in a single statement
     TX.statement ()
@@ -82,7 +82,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                 { into = PeersSchema.schema
                 , rows =
                     Rel8.values $
-                        peerAddresses <&> \peerAddr ->
+                        toList peerAddresses <&> \peerAddr ->
                             PeersSchema.Row
                                 { PeersSchema.id = Rel8.unsafeDefault
                                 , PeersSchema.address = lit peerAddr.host
