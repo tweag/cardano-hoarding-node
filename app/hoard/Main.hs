@@ -12,6 +12,7 @@ import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
 import Hoard.Types.Environment (Environment (..))
 
+import Hoard.Collector (dispatchDiscoveredNodes)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Server qualified as Server
 
@@ -33,5 +34,6 @@ main = withIOManager $ \ioManager -> do
         _ <- Conc.fork $ Server.runServer config
         _ <- Conc.fork $ listen headerReceivedListener
         _ <- Conc.fork $ listen peersReceivedListener
+        _ <- Conc.fork dispatchDiscoveredNodes
 
         Conc.awaitAll
