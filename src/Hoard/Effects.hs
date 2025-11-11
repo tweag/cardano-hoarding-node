@@ -28,8 +28,6 @@ import Effectful.State.Static.Shared (State, evalState, runState)
 import Ouroboros.Network.IOManager (IOManager)
 import System.IO.Error (userError)
 
-import Data.Text qualified as T
-
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
@@ -126,7 +124,7 @@ runEffectStack config action = liftIO $ do
                     . evalState def
                     $ action
     case result of
-        Left err -> throwIO $ userError $ T.unpack err
+        Left err -> throwIO $ userError $ toString err
         Right value -> pure value
 
 
@@ -152,5 +150,5 @@ runEffectStackReturningState config action = liftIO $ do
                     . runState def
                     $ action
     case result of
-        Left err -> throwIO $ userError $ T.unpack err
+        Left err -> throwIO $ userError $ toString err
         Right value -> pure value

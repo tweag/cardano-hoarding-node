@@ -5,7 +5,6 @@ import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Test.Hspec
 
-import Data.Text qualified as T
 import Data.UUID.V4 qualified as UUID
 import Hasql.Statement (Statement)
 import Rel8 qualified
@@ -98,7 +97,7 @@ spec_PeerPersistence = do
                     -- firstDiscovered should still be the original time
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     -- discoveredVia should be unchanged
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port))
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port)
                 Left err -> expectationFailure $ "Peer query failed: " <> show err
 
         it "handles multiple peers in one batch" $ \config -> do
@@ -146,7 +145,7 @@ spec_PeerPersistence = do
                     -- Verify the peer data matches what we inserted
                     peer.address `shouldBe` testAddr.host
                     peer.port `shouldBe` testAddr.port
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port))
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port)
                     -- Timestamps should be close to what we inserted
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     abs (diffTime peer.lastSeen now) `shouldSatisfy` (< 1)

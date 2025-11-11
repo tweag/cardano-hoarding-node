@@ -6,9 +6,6 @@ where
 import Effectful (Eff)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant
-import Prelude hiding (putStrLn)
-
-import Data.Text qualified as T
 
 import Hoard.API (API, server)
 import Hoard.Effects (AppEff, Config (..), ServerConfig (..), runEffectStack)
@@ -21,9 +18,9 @@ runServer :: (AppEff es) => Config -> Eff es ()
 runServer config = do
     -- Log startup messages
     let ServerConfig {host = serverHost, port = serverPort} = config.server
-        host = T.unpack serverHost
+        host = toString serverHost
         port = fromIntegral serverPort
-    Log.debug $ "Starting Hoard server on " <> T.pack host <> ":" <> T.pack (show port)
+    Log.debug $ "Starting Hoard server on " <> toText host <> ":" <> show port
     Log.debug "Waiting for data..."
 
     -- Run Warp server (needs liftIO since Warp's runSettings is in IO)

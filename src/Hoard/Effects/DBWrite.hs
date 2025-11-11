@@ -11,7 +11,6 @@ import Effectful.Error.Static (Error, throwError)
 import Effectful.TH
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write), transaction)
 
-import Data.Text qualified as T
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
 
@@ -39,6 +38,6 @@ runDBWrite pool = interpret $ \_ -> \case
         result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
         case result of
             Left err -> do
-                Log.debug $ "DBWrite: " <> txName <> " failed: " <> T.pack (show err)
-                throwError $ "Transaction failed: " <> txName <> " - " <> T.pack (show err)
+                Log.debug $ "DBWrite: " <> txName <> " failed: " <> show err
+                throwError $ "Transaction failed: " <> txName <> " - " <> show err
             Right value -> pure value

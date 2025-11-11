@@ -1,7 +1,6 @@
 module Hoard.Listeners.PeersReceivedListener (peersReceivedListener) where
 
 import Effectful (Eff, (:>))
-import Prelude hiding (putStrLn)
 
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))

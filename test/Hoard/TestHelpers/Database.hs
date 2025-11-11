@@ -172,11 +172,11 @@ runSqitchMigrations config dbName = do
     -- Build sqitch connection string based on whether we're using TCP or socket
     let targetUri =
             "db:pg://"
-                <> Text.unpack config.user
+                <> toString config.user
                 <> "@/"
-                <> Text.unpack dbName
+                <> toString dbName
                 <> "?host="
-                <> Text.unpack config.host
+                <> toString config.host
                 <> "&port="
                 <> show config.port
         args = ["deploy", targetUri]

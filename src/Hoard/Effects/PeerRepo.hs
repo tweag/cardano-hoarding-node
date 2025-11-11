@@ -11,7 +11,6 @@ import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
 
-import Data.Text qualified as T
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
@@ -73,7 +72,7 @@ upsertPeersImpl
     -- ^ Timestamp when these peers were discovered
     -> Transaction ()
 upsertPeersImpl peerAddresses sourcePeer timestamp = do
-    let discoveredVia = "PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port)
+    let discoveredVia = "PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port
 
     -- Upsert all peers in a single statement
     TX.statement ()

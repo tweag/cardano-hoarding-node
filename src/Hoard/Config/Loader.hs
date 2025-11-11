@@ -12,7 +12,6 @@ import Ouroboros.Network.IOManager (IOManager)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
 
-import Data.Text qualified as T
 import Data.Yaml qualified as Yaml
 
 import Hoard.Effects (Config (..), ServerConfig (..))
@@ -94,7 +93,7 @@ toDBConfig dbCfg credentials =
 -- Loads both the public config YAML and the secrets YAML file
 loadConfig :: IOManager -> Environment -> IO Config
 loadConfig ioManager env = do
-    let envName = T.unpack $ environmentName env
+    let envName = toString $ environmentName env
 
     -- Load non-sensitive config from YAML
     configFile <- loadYaml @ConfigFile $ "config" </> envName <> ".yaml"

@@ -2,7 +2,6 @@ module Main (main) where
 
 import Ouroboros.Network.IOManager (withIOManager)
 
-import Data.Text qualified as T
 import Options.Applicative qualified as Opt
 
 import Hoard.CLI.Options (Options (..), optsParser)
@@ -24,11 +23,11 @@ main = withIOManager $ \ioManager -> do
     -- Determine environment: CLI flag > default to Dev
     let env = fromMaybe Dev options.environment
 
-    putStrLn $ "Loading configuration for environment: " <> show env
+    putTextLn $ "Loading configuration for environment: " <> show env
     config <- loadConfig ioManager env
 
     -- Start background threads in the effect stack
-    putStrLn $ "Starting Hoard on " <> T.unpack config.server.host <> ":" <> show config.server.port <> "..."
+    putTextLn $ "Starting Hoard on " <> config.server.host <> ":" <> show config.server.port <> "..."
     runEffectStack config $ do
         -- Fork the HTTP server
         _ <- Conc.fork $ Server.runServer config
