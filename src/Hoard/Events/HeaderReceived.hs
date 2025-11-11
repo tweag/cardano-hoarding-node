@@ -3,8 +3,6 @@ module Hoard.Events.HeaderReceived
     )
 where
 
-import Data.Typeable (Typeable)
-
 import Hoard.Types.Header (Header)
 
 

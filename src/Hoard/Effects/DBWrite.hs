@@ -5,7 +5,6 @@ module Hoard.Effects.DBWrite
     )
 where
 
-import Data.Text (Text)
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static (Error, throwError)

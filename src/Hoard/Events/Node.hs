@@ -1,7 +1,5 @@
 module Hoard.Events.Node (NodeDiscovered (..)) where
 
-import Data.Typeable (Typeable)
-
 import Hoard.Data.Peer (Peer)
 
 

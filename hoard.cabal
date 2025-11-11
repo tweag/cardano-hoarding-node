@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 2.0
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
@@ -50,6 +50,8 @@ library
       Hoard.Types.QuietSnake
   other-modules:
       Paths_hoard
+  autogen-modules:
+      Paths_hoard
   hs-source-dirs:
       src
   default-extensions:
@@ -72,7 +74,7 @@ library
   build-depends:
       aeson
     , async
-    , base >=4.7 && <5
+    , base
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -104,6 +106,7 @@ library
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , relude
     , servant
     , servant-server
     , string-conversions
@@ -116,11 +119,16 @@ library
     , uuid
     , warp
     , yaml
+  mixins:
+      base hiding (Prelude)
+    , relude (Relude as Prelude)
   default-language: GHC2021
 
 executable hoard-exe
   main-is: Main.hs
   other-modules:
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       app/hoard
@@ -144,7 +152,7 @@ executable hoard-exe
   build-depends:
       aeson
     , async
-    , base >=4.7 && <5
+    , base
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -177,6 +185,7 @@ executable hoard-exe
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , relude
     , servant
     , servant-server
     , string-conversions
@@ -189,11 +198,16 @@ executable hoard-exe
     , uuid
     , warp
     , yaml
+  mixins:
+      base hiding (Prelude)
+    , relude (Relude as Prelude)
   default-language: GHC2021
 
 executable test-connection
   main-is: Main.hs
   other-modules:
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       app/test-connection
@@ -217,7 +231,7 @@ executable test-connection
   build-depends:
       aeson
     , async
-    , base >=4.7 && <5
+    , base
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -250,6 +264,7 @@ executable test-connection
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
+    , relude
     , servant
     , servant-server
     , string-conversions
@@ -262,6 +277,9 @@ executable test-connection
     , uuid
     , warp
     , yaml
+  mixins:
+      base hiding (Prelude)
+    , relude (Relude as Prelude)
   default-language: GHC2021
 
 test-suite hoard-test
@@ -276,6 +294,8 @@ test-suite hoard-test
       Integration.Hoard.SchemaSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
+      Paths_hoard
+  autogen-modules:
       Paths_hoard
   hs-source-dirs:
       test
@@ -302,7 +322,7 @@ test-suite hoard-test
       QuickCheck
     , aeson
     , async
-    , base >=4.7 && <5
+    , base
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -339,6 +359,7 @@ test-suite hoard-test
     , postgres-options
     , process
     , rel8
+    , relude
     , servant
     , servant-client
     , servant-client-core
@@ -359,4 +380,7 @@ test-suite hoard-test
     , wai
     , warp
     , yaml
+  mixins:
+      base hiding (Prelude)
+    , relude (Relude as Prelude)
   default-language: GHC2021

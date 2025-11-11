@@ -20,17 +20,11 @@ import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig,
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
-import Control.Exception (AsyncException (..), SomeException, catch, fromException, throwIO)
-import Control.Monad.Trans.Except (runExceptT)
-import Control.Tracer (contramap, stdoutTracer)
-import Data.Functor.Contravariant ((>$<))
-import Data.Maybe (mapMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Text (Text)
+import Control.Exception (AsyncException (..), catch, throwIO)
+import Control.Tracer (stdoutTracer)
+import Data.String.Conversions (cs)
 import Data.Time (getCurrentTime)
-import Data.Typeable (Typeable)
-import Data.Void (Void)
-import Effectful (Eff, Effect, IOE, liftIO, (:>))
+import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
@@ -337,13 +331,13 @@ loadProtocolInfo configPath = do
     -- Load NodeConfig
     nodeConfigResult <- runExceptT $ readNodeConfig configFile
     nodeConfig <- case nodeConfigResult of
-        Left err -> Prelude.error $ "Failed to read node config: " <> T.unpack err
+        Left err -> Prelude.error $ cs @String @Text $ "Failed to read node config: " <> T.unpack err
         Right cfg -> pure cfg
 
     -- Load GenesisConfig
     genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
     genesisConfig <- case genesisConfigResult of
-        Left err -> Prelude.error $ "Failed to read genesis config: " <> show err
+        Left err -> Prelude.error $ cs @String @Text $ "Failed to read genesis config: " <> show err
         Right cfg -> pure cfg
 
     -- Create ProtocolInfo

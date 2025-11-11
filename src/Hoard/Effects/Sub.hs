@@ -6,10 +6,7 @@ module Hoard.Effects.Sub
 where
 
 import Control.Concurrent.Chan.Unagi (InChan, dupChan, readChan)
-import Control.Monad (forever)
-import Data.Typeable (Typeable)
-import Data.Void (Void)
-import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, liftIO, (:>))
+import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 
 import Data.Dynamic qualified as Dyn

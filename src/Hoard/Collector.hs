@@ -1,9 +1,7 @@
 module Hoard.Collector (dispatchDiscoveredNodes, runCollector) where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
-import Data.Void (Void)
-import Effectful (Eff, IOE, liftIO, (:>))
+import Effectful (Eff, IOE, (:>))
 
 import Hoard.Data.Peer (Peer)
 import Hoard.Effects.Conc (Conc, fork_)

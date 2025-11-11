@@ -7,9 +7,7 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.IP (fromSockAddr)
-import Data.Text (Text)
 import Data.Time (UTCTime)
-import GHC.Generics (Generic)
 import Network.Socket (SockAddr)
 
 import Data.Text qualified as T

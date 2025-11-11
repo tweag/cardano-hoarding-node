@@ -8,11 +8,9 @@ where
 import Control.Concurrent.Chan.Unagi (newChan)
 import Control.Exception (throwIO)
 import Data.Aeson (FromJSON (..))
-import Data.Text (Text)
-import Data.Word (Word16)
-import GHC.Generics (Generic)
 import Ouroboros.Network.IOManager (IOManager)
 import System.FilePath ((</>))
+import System.IO.Error (userError)
 
 import Data.Text qualified as T
 import Data.Yaml qualified as Yaml

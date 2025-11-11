@@ -4,8 +4,6 @@ module Hoard.Types.Header
 where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Text (Text)
-import GHC.Generics (Generic)
 
 
 -- | Simple header type for testing events

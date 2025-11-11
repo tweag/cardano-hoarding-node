@@ -6,7 +6,7 @@ module Hoard.Types.QuietSnake
 
 import Data.Aeson (FromJSON (..), GFromJSON, Zero, genericParseJSON)
 import Data.Aeson.Types (defaultOptions, fieldLabelModifier)
-import GHC.Generics (Generic, Rep)
+import GHC.Generics (Rep)
 import Text.Casing (quietSnake)
 
 

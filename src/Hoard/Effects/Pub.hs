@@ -7,10 +7,10 @@ module Hoard.Effects.Pub
     )
 where
 
+import Prelude hiding (modify, runState)
+
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
-import Data.Bifunctor (second)
-import Data.Typeable (Typeable)
-import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, liftIO, (:>))
+import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_, send)
 import Effectful.State.Static.Local (modify, runState)
 

@@ -5,7 +5,6 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.UUID (UUID)
-import GHC.Generics (Generic)
 import Rel8 (DBEq, DBOrd, DBType)
 
 

@@ -10,15 +10,11 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (newChan)
-import Data.Maybe (fromMaybe)
-import Data.Text (Text)
 import Data.Time (getCurrentTime)
-import Data.Void (Void)
-import Effectful (Eff, IOE, liftIO, runEff, (:>))
+import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Ouroboros.Network.IOManager (withIOManager)
-import System.IO (hFlush, stdout)
 
 import Data.Text qualified as T
 import Data.UUID qualified as UUID

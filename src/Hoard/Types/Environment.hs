@@ -6,8 +6,7 @@ module Hoard.Types.Environment
 where
 
 import Data.Aeson (FromJSON (..), withText)
-import Data.String (IsString (..))
-import Data.Text (Text)
+import Data.String.Conversions (cs)
 
 import Data.Text qualified as T
 
@@ -27,7 +26,7 @@ instance IsString Environment where
         "staging" -> Staging
         "prod" -> Prod
         "ci" -> CI
-        s -> error $ "Invalid environment: " <> s
+        s -> error $ "Invalid environment: " <> cs s
 
 
 instance FromJSON Environment where

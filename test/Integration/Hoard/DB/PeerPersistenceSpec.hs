@@ -1,7 +1,5 @@
 module Integration.Hoard.DB.PeerPersistenceSpec (spec_PeerPersistence) where
 
-import Data.Either (isRight)
-import Data.Text (Text)
 import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
