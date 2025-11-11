@@ -44,7 +44,7 @@ import Ouroboros.Consensus.Cardano.Block (CardanoBlock, Header, StandardCrypto)
 import Ouroboros.Network.Block (Point, Tip)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (Peer, PeerAddress)
 
 
 -- | Type aliases for Cardano block types used throughout the network events.
@@ -250,8 +250,7 @@ data PeerSharingStartedData = PeerSharingStartedData
 
 data PeersReceivedData = PeersReceivedData
     { peer :: Peer -- The peer we requested from
-    , peerAddresses :: [Text] -- The peer addresses we received
-    , peerCount :: Int
+    , peerAddresses :: [PeerAddress] -- The peer addresses we received
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)

@@ -30,6 +30,7 @@ library
       Hoard.Effects.DBWrite
       Hoard.Effects.Log
       Hoard.Effects.Network
+      Hoard.Effects.PeerRepo
       Hoard.Effects.Pub
       Hoard.Effects.Sub
       Hoard.Events
@@ -37,6 +38,7 @@ library
       Hoard.Events.HeaderReceived
       Hoard.Events.Node
       Hoard.Listeners.HeaderReceivedListener
+      Hoard.Listeners.PeersReceivedListener
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
@@ -88,6 +90,7 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , iproute
     , ki
     , network
     , network-mux
@@ -160,6 +163,7 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , iproute
     , ki
     , network
     , network-mux
@@ -232,6 +236,7 @@ executable test-connection
     , hasql-pool
     , hasql-transaction
     , hoard
+    , iproute
     , ki
     , network
     , network-mux
@@ -266,8 +271,10 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
+      Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
       Paths_hoard
   hs-source-dirs:
@@ -316,6 +323,7 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
+    , iproute
     , ki
     , network
     , network-mux

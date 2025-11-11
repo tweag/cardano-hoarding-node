@@ -29,6 +29,7 @@ data Row f = Row
     , port :: Column f Int32
     , firstDiscovered :: Column f UTCTime
     , lastSeen :: Column f UTCTime
+    , lastConnected :: Column f (Maybe UTCTime)
     , discoveredVia :: Column f Text
     }
     deriving stock (Generic)
@@ -55,6 +56,7 @@ peerFromRow row =
         , port = fromIntegral row.port
         , firstDiscovered = row.firstDiscovered
         , lastSeen = row.lastSeen
+        , lastConnected = row.lastConnected
         , discoveredVia = row.discoveredVia
         }
 
@@ -68,5 +70,6 @@ rowFromPeer peer =
         , port = fromIntegral peer.port
         , firstDiscovered = peer.firstDiscovered
         , lastSeen = peer.lastSeen
+        , lastConnected = peer.lastConnected
         , discoveredVia = peer.discoveredVia
         }
