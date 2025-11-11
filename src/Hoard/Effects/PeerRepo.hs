@@ -73,7 +73,7 @@ upsertPeersImpl
     -- ^ Timestamp when these peers were discovered
     -> Transaction ()
 upsertPeersImpl peerAddresses sourcePeer timestamp = do
-    let discoveredVia = "PeerSharing:" <> sourcePeer.address <> ":" <> T.pack (show sourcePeer.port)
+    let discoveredVia = "PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port)
 
     -- Upsert all peers in a single statement
     TX.statement ()

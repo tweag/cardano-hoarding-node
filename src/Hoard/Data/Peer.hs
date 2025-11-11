@@ -5,19 +5,19 @@ module Hoard.Data.Peer
     )
 where
 
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.IP (fromSockAddr)
 import Data.Time (UTCTime)
 import Network.Socket (SockAddr)
 
-import Data.Text qualified as T
-
 import Hoard.Data.ID (ID)
+import Hoard.Types.NodeIP (NodeIP (..))
+import Prelude hiding (id)
 
 
 -- | Represents a peer address (host:port)
 data PeerAddress = PeerAddress
-    { host :: Text
+    { host :: NodeIP
     , port :: Int
     }
     deriving stock (Eq, Generic, Show)
@@ -26,7 +26,7 @@ data PeerAddress = PeerAddress
 -- | Represents a peer in the P2P network
 data Peer = Peer
     { id :: ID Peer
-    , address :: Text
+    , address :: NodeIP
     , port :: Int
     , firstDiscovered :: UTCTime
     , lastSeen :: UTCTime
@@ -34,7 +34,7 @@ data Peer = Peer
     , discoveredVia :: Text
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON)
 
 
 -- | Convert a SockAddr to a PeerAddress
@@ -43,7 +43,7 @@ data Peer = Peer
 -- Returns Nothing for Unix domain sockets or invalid addresses.
 sockAddrToPeerAddress :: SockAddr -> Maybe PeerAddress
 sockAddrToPeerAddress sockAddr = do
-    (ip, portNum) <- fromSockAddr sockAddr
-    let host = T.pack $ show ip
-        port = fromIntegral portNum
+    (host', portNum) <- fromSockAddr sockAddr
+    let port = fromIntegral portNum
+        host = NodeIP host'
     pure PeerAddress {host, port}

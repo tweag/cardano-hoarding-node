@@ -10,10 +10,16 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (newChan)
+import Data.IP (IP)
+import Data.IP qualified as IP
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Maybe (fromMaybe)
 import Data.Time (getCurrentTime)
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
+import Network.Socket (PortNumber)
+import Network.Socket qualified as Socket
 import Ouroboros.Network.IOManager (withIOManager)
 
 import Data.Text qualified as T
@@ -27,6 +33,7 @@ import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Events
+import Hoard.Types.NodeIP (NodeIP (..))
 
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
@@ -73,11 +80,13 @@ mkPreviewRelay :: IO Peer
 mkPreviewRelay = do
     now <- getCurrentTime
     let id' = ID (fromMaybe (error "oi") $ UUID.fromString "2ea41d90-6357-4e4a-a99b-066fc271a691")
+    -- Correct port from Preview testnet topology.json
+    (ip, portNumber) <- resolvePeerAddress "preview-node.world.dev.cardano.org" 3001
     pure
         Peer
             { id = id'
-            , address = "preview-node.world.dev.cardano.org"
-            , port = 3001 -- Correct port from Preview testnet topology.json
+            , address = NodeIP ip
+            , port = fromIntegral portNumber
             , firstDiscovered = now
             , lastSeen = now
             , lastConnected = Nothing
@@ -91,7 +100,7 @@ testConnection
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
-    Log.info $ "Connecting to " <> previewRelay.address <> ":" <> T.pack (show (previewRelay.port))
+    Log.info $ "Connecting to " <> T.pack (show $ previewRelay.address) <> ":" <> T.pack (show $ previewRelay.port)
 
     -- Start event listeners in background
     Conc.fork_ networkEventListener
@@ -147,7 +156,7 @@ peerSharingEventListener = listen $ \event -> do
             Log.info $ "🔍 PeerSharing protocol started at " <> T.pack (show dat.timestamp)
         PeersReceived dat -> do
             Log.info $ "📡 Received " <> T.pack (show (length dat.peerAddresses) <> " peer addresses from remote peer:")
-            mapM_ (\addr -> Log.debug $ "   - " <> addr.host <> ":" <> T.pack (show addr.port)) dat.peerAddresses
+            mapM_ (\addr -> Log.debug $ "   - " <> T.pack (show $ addr.host) <> ":" <> T.pack (show addr.port)) dat.peerAddresses
         PeerSharingFailed dat -> do
             Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
     liftIO $ hFlush stdout
@@ -170,3 +179,14 @@ chainSyncEventListener = listen $ \event -> do
         ChainSyncIntersectionFound _dat -> do
             Log.info "🎯 ChainSync intersection found"
     liftIO $ hFlush stdout
+
+
+resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
+resolvePeerAddress address port = do
+    let hints = Socket.defaultHints {Socket.addrSocketType = Socket.Stream}
+    addrs <- Socket.getAddrInfo (Just hints) (Just $ show address) (Just $ show port)
+    case addrs of
+        (addr :| _) ->
+            maybe (error "Found address of preview relay is not an IP address") pure $
+                IP.fromSockAddr $
+                    Socket.addrAddress addr

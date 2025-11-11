@@ -28,7 +28,7 @@ import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
-import Network.Socket (AddrInfo (..), SockAddr, SocketType (Stream))
+import Network.Socket (SockAddr)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -73,7 +73,6 @@ import Data.Dynamic qualified as Dyn
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Debug.Trace qualified
-import Network.Socket qualified as Socket
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
@@ -100,7 +99,9 @@ import Hoard.Network.Events
     )
 import Hoard.Network.Types (Connection (..))
 
+import Data.IP qualified as IP
 import Hoard.Effects.Log qualified as Log
+import Hoard.Types.NodeIP (NodeIP (..))
 
 
 --------------------------------------------------------------------------------
@@ -162,13 +163,9 @@ connectToPeerImpl
     -> Peer
     -> Eff es Connection
 connectToPeerImpl ioManager chan protocolConfigPath peer = do
-    -- Resolve address
-    Log.debug "Resolving peer address..."
-    addr <- liftIO $ resolvePeerAddress peer
-    Log.debug $ "Resolved to: " <> (T.pack (show addr))
-
+    let addr = IP.toSockAddr (getNodeIP peer.address, fromIntegral peer.port)
     -- Create connection using ouroboros-network
-    Log.debug "Attempting connection..."
+    Log.debug $ "Attempting connection to " <> T.pack (show addr)
     -- Create a publish callback that can be called from IO
     let publishIO :: forall event. (Typeable event) => event -> IO ()
         publishIO event = writeChan chan (Dyn.toDyn event)
@@ -301,20 +298,6 @@ isConnectedImpl _conn = do
     -- For now, we'll assume connections are persistent
     -- In a full implementation, we'd track connection state
     pure True
-
-
---------------------------------------------------------------------------------
--- Helper Functions
---------------------------------------------------------------------------------
-
--- | Resolve peer address to socket address.
-resolvePeerAddress :: Peer -> IO SockAddr
-resolvePeerAddress peer = do
-    let hints = Socket.defaultHints {addrSocketType = Stream}
-    addrs <- Socket.getAddrInfo (Just hints) (Just $ T.unpack $ address peer) (Just $ show $ port peer)
-    case addrs of
-        [] -> error $ "Could not resolve address: " <> show peer
-        (addr : _) -> pure $ addrAddress addr
 
 
 --------------------------------------------------------------------------------
