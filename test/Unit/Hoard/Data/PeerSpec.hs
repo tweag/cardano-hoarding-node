@@ -22,16 +22,16 @@ spec_Peer = describe "Peer address conversion" $ do
                 sockAddr2 = SockAddrInet 6000 hostAddr2
             sockAddrToPeerAddress sockAddr2 `shouldBe` Just (PeerAddress "10.0.0.1" 6000)
 
-        it "converts IPv6 SockAddr correctly" $ do
-            -- [::1]:8080 (localhost IPv6)
+        it "converts IPv6 SockAddr correctly with RFC 5952 zero compression" $ do
+            -- ::1 (localhost IPv6) - should compress to ::1
             let hostAddr6 = Socket.tupleToHostAddress6 (0, 0, 0, 0, 0, 0, 0, 1)
                 sockAddr = SockAddrInet6 8080 0 hostAddr6 0
-            sockAddrToPeerAddress sockAddr `shouldBe` Just (PeerAddress "[0:0:0:0:0:0:0:1]" 8080)
+            sockAddrToPeerAddress sockAddr `shouldBe` Just (PeerAddress "::1" 8080)
 
-            -- [2a05:d014:1cfa:bc01::]:3001
+            -- 2a05:d014:1cfa:bc01:: - should compress trailing zeros
             let hostAddr6_2 = Socket.tupleToHostAddress6 (0x2a05, 0xd014, 0x1cfa, 0xbc01, 0, 0, 0, 0)
                 sockAddr2 = SockAddrInet6 3001 0 hostAddr6_2 0
-            sockAddrToPeerAddress sockAddr2 `shouldBe` Just (PeerAddress "[2a05:d014:1cfa:bc01:0:0:0:0]" 3001)
+            sockAddrToPeerAddress sockAddr2 `shouldBe` Just (PeerAddress "2a05:d014:1cfa:bc01::" 3001)
 
         it "returns Nothing for Unix domain sockets" $ do
             let sockAddr = SockAddrUnix "/tmp/socket"

@@ -90,6 +90,7 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , iproute
     , ki
     , network
     , network-mux
@@ -162,6 +163,7 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , iproute
     , ki
     , network
     , network-mux
@@ -234,6 +236,7 @@ executable test-connection
     , hasql-pool
     , hasql-transaction
     , hoard
+    , iproute
     , ki
     , network
     , network-mux
@@ -320,6 +323,7 @@ test-suite hoard-test
     , hoard
     , hspec
     , http-client
+    , iproute
     , ki
     , network
     , network-mux
