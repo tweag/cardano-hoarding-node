@@ -8,9 +8,6 @@ module Hoard.Types.DBConfig
 where
 
 import Data.Aeson (FromJSON)
-import Data.Text (Text)
-import Data.Word (Word16)
-import GHC.Generics (Generic)
 
 import Hasql.Connection.Setting qualified as Setting
 import Hasql.Connection.Setting.Connection qualified as Connection

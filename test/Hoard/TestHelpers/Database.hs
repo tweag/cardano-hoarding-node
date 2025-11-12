@@ -5,11 +5,7 @@ module Hoard.TestHelpers.Database
 where
 
 import Control.Exception (bracket)
-import Control.Monad (unless)
-import Data.Maybe (fromMaybe)
-import Data.Monoid (Last (..))
 import Data.String.Conversions (cs)
-import Data.Text (Text)
 import Database.PostgreSQL.Simple.Options (Options (..))
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))
@@ -184,17 +180,18 @@ runSqitchMigrations config dbName = do
                 <> "&port="
                 <> show config.port
         args = ["deploy", targetUri]
-    (exitCode, stdout, stderr) <- readProcessWithExitCode "sqitch" args ""
+    (exitCode, stdoutput, stderroutput) <- readProcessWithExitCode "sqitch" args ""
     case exitCode of
         ExitSuccess -> pure ()
         ExitFailure code ->
             error $
-                "Failed to run sqitch migrations: "
-                    <> show code
-                    <> "\nstdout: "
-                    <> stdout
-                    <> "\nstderr: "
-                    <> stderr
+                cs $
+                    "Failed to run sqitch migrations: "
+                        <> show code
+                        <> "\nstdout: "
+                        <> stdoutput
+                        <> "\nstderr: "
+                        <> stderroutput
 
 
 -- | Grant TRUNCATE privileges to hoard_writer for test cleanup

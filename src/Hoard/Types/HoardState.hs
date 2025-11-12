@@ -1,7 +1,6 @@
 module Hoard.Types.HoardState (HoardState (..)) where
 
 import Data.Default (Default (..))
-import Data.Set (Set)
 
 import Data.Set qualified as S
 

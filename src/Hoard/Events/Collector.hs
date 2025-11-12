@@ -2,9 +2,6 @@ module Hoard.Events.Collector
     ( CollectorEvent (..)
     ) where
 
-import Data.Text (Text)
-import Data.Typeable (Typeable)
-
 import Hoard.Data.Peer (Peer)
 
 

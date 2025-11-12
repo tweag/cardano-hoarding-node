@@ -13,21 +13,20 @@ module Hoard.Effects
     )
 where
 
+import Prelude hiding (State, evalState, runState)
+
 import Control.Concurrent.Chan.Unagi (InChan)
 import Control.Exception (throwIO)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
 import Data.Dynamic (Dynamic)
-import Data.Text (Text)
-import Data.Word (Word16)
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, evalState, runState)
-import GHC.Generics (Generic)
 import Ouroboros.Network.IOManager (IOManager)
+import System.IO.Error (userError)
 
 import Data.Text qualified as T
 

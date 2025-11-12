@@ -16,8 +16,9 @@ module Hoard.Effects.Conc
     )
 where
 
-import Data.Void (Void)
-import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), liftIO, withEffToIO, (:>))
+import Prelude hiding (atomically)
+
+import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent.STM (atomically, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret, localUnliftIO)
 import Effectful.TH (makeEffect)

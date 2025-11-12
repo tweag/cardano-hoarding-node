@@ -7,23 +7,19 @@ module Hoard.TestHelpers
     )
 where
 
+import Prelude hiding (State, atomicModifyIORef', newIORef, readIORef, runState)
+
 import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Chan.Unagi (OutChan, dupChan, newChan, readChan)
-import Control.Monad (forever)
 import Data.Default (def)
 import Data.Dynamic (Dynamic, fromDynamic)
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
-import Data.Maybe (mapMaybe)
-import Data.Proxy (Proxy (..))
-import Data.Typeable (Typeable)
+import Data.IORef (atomicModifyIORef', newIORef, readIORef)
 import Effectful
     ( Eff
     , IOE
     , Limit (..)
-    , MonadIO
     , Persistence (..)
     , UnliftStrategy (..)
-    , liftIO
     , runEff
     , withEffToIO
     , (:>)
@@ -96,7 +92,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     let config = Config {ioManager, dbPools, inChan, server = serverConfig, protocolConfigPath = "config/preview/config.json"}
     wireTapOutput <- newIORef []
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
-    (a, state) <-
+    (a, finalState) <-
         runEff
             . runLog
             . runFileSystem
@@ -107,7 +103,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             $ mkEff config
     killThread wireTapThreadID
     publishes <- fmap reverse $ readIORef wireTapOutput
-    pure (a, state, publishes)
+    pure (a, finalState, publishes)
 
 
 recordMessages :: IORef [a] -> OutChan a -> IO b

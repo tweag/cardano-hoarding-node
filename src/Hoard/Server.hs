@@ -3,8 +3,6 @@ module Hoard.Server
     )
 where
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.String (fromString)
 import Effectful (Eff)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant

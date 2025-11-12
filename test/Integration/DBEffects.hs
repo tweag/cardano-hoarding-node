@@ -1,8 +1,5 @@
 module Integration.DBEffects (spec_DBEffects) where
 
-import Data.Either (isLeft, isRight)
-import Data.Int (Int32)
-import Data.Text (Text)
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Test.Hspec

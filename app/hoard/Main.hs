@@ -1,6 +1,5 @@
 module Main (main) where
 
-import Data.Maybe (fromMaybe)
 import Ouroboros.Network.IOManager (withIOManager)
 
 import Data.Text qualified as T

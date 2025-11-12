@@ -6,10 +6,7 @@ module Hoard.DB.Schemas.Peers
     )
 where
 
-import Data.Int (Int32)
-import Data.Text (Text)
 import Data.Time (UTCTime)
-import GHC.Generics (Generic)
 import Rel8
     ( Column
     , Name

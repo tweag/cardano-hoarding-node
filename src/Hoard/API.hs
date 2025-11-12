@@ -6,7 +6,6 @@ module Hoard.API
 where
 
 import Effectful (Eff)
-import GHC.Generics (Generic)
 import Servant hiding (Header)
 import Servant.Server.Generic (AsServerT)
 import Prelude hiding (appendFile, readFile)

@@ -37,9 +37,7 @@ module Hoard.Network.Events
     , Tip'
     ) where
 
-import Data.Text (Text)
 import Data.Time (UTCTime)
-import Data.Typeable (Typeable)
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock, Header, StandardCrypto)
 import Ouroboros.Network.Block (Point, Tip)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)

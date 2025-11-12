@@ -1,7 +1,5 @@
 module Integration.Hoard.IntegrationSpec (spec_HeaderIntegration) where
 
-import Data.Either (isRight)
-import Effectful (liftIO)
 import Test.Hspec
 
 import Hoard.API (Routes (..))

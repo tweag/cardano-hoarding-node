@@ -1,6 +1,5 @@
 module Integration.Hoard.SchemaSpec (spec_Schema) where
 
-import Data.Text (Text)
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Test.Hspec

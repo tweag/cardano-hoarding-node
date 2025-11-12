@@ -10,8 +10,7 @@ module Hoard.Effects.Log
     , runLog
     ) where
 
-import Data.Text (Text)
-import Effectful (Eff, Effect, IOE, liftIO, (:>))
+import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 

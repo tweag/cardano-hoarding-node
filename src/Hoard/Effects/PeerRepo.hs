@@ -11,7 +11,6 @@ import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
 
-import Data.Functor ((<&>))
 import Data.Text qualified as T
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
