@@ -18,11 +18,12 @@ import Rel8
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Types.NodeIP (NodeIP)
 
 
 data Row f = Row
     { id :: Column f (ID Peer)
-    , address :: Column f Text
+    , address :: Column f NodeIP
     , port :: Column f Int32
     , firstDiscovered :: Column f UTCTime
     , lastSeen :: Column f UTCTime

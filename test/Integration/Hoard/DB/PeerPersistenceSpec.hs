@@ -19,6 +19,7 @@ import Hoard.Effects.Log (runLog)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
+import Text.Read (read)
 
 
 spec_PeerPersistence :: Spec
@@ -46,7 +47,7 @@ spec_PeerPersistence = do
             -- Insert peers
             result <-
                 runWrite config $ do
-                    upsertPeers [PeerAddress "192.168.1.1" 3001, PeerAddress "192.168.1.2" 3002] sourcePeer now
+                    upsertPeers [PeerAddress (read "192.168.1.1") 3001, PeerAddress (read "192.168.1.2") 3002] sourcePeer now
 
             result `shouldSatisfy` isRight
 
@@ -68,13 +69,13 @@ spec_PeerPersistence = do
             -- Insert peer first time
             _ <-
                 runWrite config $
-                    upsertPeers [PeerAddress "192.168.1.1" 3001] sourcePeer now
+                    upsertPeers [PeerAddress (read "192.168.1.1") 3001] sourcePeer now
 
             -- Wait a bit and insert same peer again with different timestamp
             let laterTime = addUTCTime 60 now -- 60 seconds later
             _ <-
                 runWrite config $
-                    upsertPeers [PeerAddress "192.168.1.1" 3001] sourcePeer laterTime
+                    upsertPeers [PeerAddress (read "192.168.1.1") 3001] sourcePeer laterTime
 
             -- Query to verify we still have only 1 peer
             queryResult <-
@@ -90,14 +91,14 @@ spec_PeerPersistence = do
 
             case peerResult of
                 Right peer -> do
-                    peer.address `shouldBe` "192.168.1.1"
+                    peer.address `shouldBe` read "192.168.1.1"
                     peer.port `shouldBe` 3001
                     -- lastSeen should be updated to laterTime (approximately)
                     abs (diffTime peer.lastSeen laterTime) `shouldSatisfy` (< 1)
                     -- firstDiscovered should still be the original time
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     -- discoveredVia should be unchanged
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> sourcePeer.address <> ":" <> T.pack (show sourcePeer.port))
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port))
                 Left err -> expectationFailure $ "Peer query failed: " <> show err
 
         it "handles multiple peers in one batch" $ \config -> do
@@ -108,10 +109,10 @@ spec_PeerPersistence = do
             result <-
                 runWrite config $
                     upsertPeers
-                        [ PeerAddress "192.168.1.1" 3001
-                        , PeerAddress "192.168.1.2" 3002
-                        , PeerAddress "192.168.1.3" 3003
-                        , PeerAddress "10.0.0.1" 6000
+                        [ PeerAddress (read "192.168.1.1") 3001
+                        , PeerAddress (read "192.168.1.2") 3002
+                        , PeerAddress (read "192.168.1.3") 3003
+                        , PeerAddress (read "10.0.0.1") 6000
                         ]
                         sourcePeer
                         now
@@ -128,7 +129,7 @@ spec_PeerPersistence = do
         it "can persist and fetch a peer (round-trip test)" $ \config -> do
             now <- getCurrentTime
             sourcePeer <- mkTestSourcePeer now
-            let testAddr = PeerAddress "10.20.30.40" 5000
+            let testAddr = PeerAddress (read "10.20.30.40") 5000
 
             -- Insert a peer
             insertResult <-
@@ -145,7 +146,7 @@ spec_PeerPersistence = do
                     -- Verify the peer data matches what we inserted
                     peer.address `shouldBe` testAddr.host
                     peer.port `shouldBe` testAddr.port
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> sourcePeer.address <> ":" <> T.pack (show sourcePeer.port))
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> T.pack (show sourcePeer.address) <> ":" <> T.pack (show sourcePeer.port))
                     -- Timestamps should be close to what we inserted
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     abs (diffTime peer.lastSeen now) `shouldSatisfy` (< 1)
@@ -161,7 +162,7 @@ mkTestSourcePeer now = do
     pure
         Peer
             { id = ID uuid
-            , address = "preview-node.world.dev.cardano.org"
+            , address = read "172.0.0.1"
             , port = 3001
             , firstDiscovered = now
             , lastSeen = now
@@ -180,7 +181,7 @@ getPeerByAddressStmt =
         Rel8.run $
             Rel8.select $ do
                 peer <- Rel8.each PeersSchema.schema
-                Rel8.where_ $ peer.address Rel8.==. Rel8.lit "192.168.1.1"
+                Rel8.where_ $ peer.address Rel8.==. Rel8.lit (read "192.168.1.1")
                 pure peer
   where
     extractSinglePeer rows = case rows of
