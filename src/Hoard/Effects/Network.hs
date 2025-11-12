@@ -22,7 +22,6 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
 import Control.Exception (AsyncException (..), catch, throwIO)
 import Control.Tracer (stdoutTracer)
-import Data.String.Conversions (cs)
 import Data.Time (getCurrentTime)
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
@@ -314,7 +313,7 @@ resolvePeerAddress peer = do
     let hints = Socket.defaultHints {addrSocketType = Stream}
     addrs <- Socket.getAddrInfo (Just hints) (Just $ T.unpack $ address peer) (Just $ show $ port peer)
     case addrs of
-        [] -> Prelude.error $ "Could not resolve address: " <> show peer
+        [] -> error $ "Could not resolve address: " <> show peer
         (addr : _) -> pure $ addrAddress addr
 
 
@@ -331,13 +330,13 @@ loadProtocolInfo configPath = do
     -- Load NodeConfig
     nodeConfigResult <- runExceptT $ readNodeConfig configFile
     nodeConfig <- case nodeConfigResult of
-        Left err -> Prelude.error $ cs @String @Text $ "Failed to read node config: " <> T.unpack err
+        Left err -> error $ "Failed to read node config: " <> err
         Right cfg -> pure cfg
 
     -- Load GenesisConfig
     genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
     genesisConfig <- case genesisConfigResult of
-        Left err -> Prelude.error $ cs @String @Text $ "Failed to read genesis config: " <> show err
+        Left err -> error $ "Failed to read genesis config: " <> show err
         Right cfg -> pure cfg
 
     -- Create ProtocolInfo
