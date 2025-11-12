@@ -41,15 +41,15 @@ import Hoard.Effects.Log qualified as Log
 
 main :: IO ()
 main = withIOManager $ \ioManager -> do
-    putStrLn "=== Cardano Peer Connection Test ==="
-    putStrLn ""
-    putStrLn "This program will:"
-    putStrLn "  1. Connect to a Preview testnet relay"
-    putStrLn "  2. Verify handshake completion"
-    putStrLn "  3. Request peer addresses via PeerSharing protocol"
-    putStrLn "  4. Receive headers via ChainSync protocol"
-    putStrLn "  5. Keep the connection alive for 60 seconds"
-    putStrLn ""
+    putTextLn "=== Cardano Peer Connection Test ==="
+    putTextLn ""
+    putTextLn "This program will:"
+    putTextLn "  1. Connect to a Preview testnet relay"
+    putTextLn "  2. Verify handshake completion"
+    putTextLn "  3. Request peer addresses via PeerSharing protocol"
+    putTextLn "  4. Receive headers via ChainSync protocol"
+    putTextLn "  5. Keep the connection alive for 60 seconds"
+    putTextLn ""
 
     -- Create event channel
     (inChan, _outChan) <- newChan
@@ -69,9 +69,9 @@ main = withIOManager $ \ioManager -> do
 
     case result of
         Left err -> do
-            putStrLn $ "\n❌ Test failed with error: " <> T.unpack err
+            putTextLn $ "\n❌ Test failed with error: " <> err
         Right () -> do
-            putStrLn "\n✅ Test completed successfully!"
+            putTextLn "\n✅ Test completed successfully!"
 
 
 -- | Preview testnet relay peer

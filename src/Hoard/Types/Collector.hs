@@ -3,4 +3,4 @@ module Hoard.Types.Collector
     ) where
 
 
-type Peer = String
+type Peer = Text

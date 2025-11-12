@@ -14,8 +14,6 @@ import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 
-import Data.Text.IO qualified as T
-
 
 data Log :: Effect where
     Debug :: Text -> Log m ()
@@ -29,7 +27,7 @@ makeEffect ''Log
 
 runLog :: (IOE :> es) => Eff (Log : es) a -> Eff es a
 runLog = interpret_ $ \case
-    Debug msg -> liftIO $ T.putStrLn $ "[DEBUG] " <> msg
-    Info msg -> liftIO $ T.putStrLn $ "[INFO] " <> msg
-    Warn msg -> liftIO $ T.putStrLn $ "[WARN] " <> msg
-    Err msg -> liftIO $ T.putStrLn $ "[ERROR] " <> msg
+    Debug msg -> liftIO $ putTextLn $ "[DEBUG] " <> msg
+    Info msg -> liftIO $ putTextLn $ "[INFO] " <> msg
+    Warn msg -> liftIO $ putTextLn $ "[WARN] " <> msg
+    Err msg -> liftIO $ putTextLn $ "[ERROR] " <> msg

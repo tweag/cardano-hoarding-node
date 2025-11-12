@@ -332,19 +332,19 @@ loadProtocolInfo configPath = do
 --------------------------------------------------------------------------------
 
 -- | Wrap a protocol action with exception logging to debug cancellations.
-withExceptionLogging :: String -> IO a -> IO a
+withExceptionLogging :: Text -> IO a -> IO a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         case fromException e of
             Just ThreadKilled -> do
-                putStrLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
-                putStrLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
+                putTextLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
+                putTextLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
             Just UserInterrupt -> do
-                putStrLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
+                putTextLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
             Just (asyncEx :: AsyncException) -> do
-                putStrLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
+                putTextLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
             Nothing -> do
-                putStrLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
+                putTextLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
         -- Re-throw the exception after logging
         throwIO e
 
@@ -383,11 +383,11 @@ mkApplication codecs peer publishEvent =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 withExceptionLogging "BlockFetch" $ do
-                    putStrLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
+                    putTextLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    putStrLn "[DEBUG] BlockFetch stub woke up (should never happen)"
+                    putTextLn "[DEBUG] BlockFetch stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         , -- KeepAlive mini-protocol
@@ -403,7 +403,7 @@ mkApplication codecs peer publishEvent =
                                 wrappedPeer = Peer.Effect $
                                     withExceptionLogging "KeepAlive" $
                                         do
-                                            putStrLn "[DEBUG] KeepAlive protocol started"
+                                            putTextLn "[DEBUG] KeepAlive protocol started"
                                             pure (keepAliveClientPeer keepAliveClientImpl)
                                 tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
@@ -423,8 +423,8 @@ mkApplication codecs peer publishEvent =
                                 wrappedPeer = Peer.Effect $ withExceptionLogging "PeerSharing" $ do
                                     timestamp <- getCurrentTime
                                     publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                    putStrLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                    putStrLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                    putTextLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
+                                    putTextLn "[DEBUG] PeerSharing: About to run peer protocol..."
                                     pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
@@ -436,11 +436,11 @@ mkApplication codecs peer publishEvent =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 withExceptionLogging "TxSubmission" $ do
-                    putStrLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
+                    putTextLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    putStrLn "[DEBUG] TxSubmission stub woke up (should never happen)"
+                    putTextLn "[DEBUG] TxSubmission stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         ]
@@ -490,8 +490,8 @@ peerSharingClientImpl peer publishEvent =
   where
     requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
     withPeers peerAddrs = do
-        putStrLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        putStrLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        putTextLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
+        putTextLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
         timestamp <- getCurrentTime
         publishEvent $
             PeersReceived
@@ -500,10 +500,10 @@ peerSharingClientImpl peer publishEvent =
                     , peerAddresses = mapMaybe sockAddrToPeerAddress peerAddrs
                     , timestamp
                     }
-        putStrLn "[DEBUG] PeerSharing: Published PeersReceived event"
-        putStrLn "[DEBUG] PeerSharing: Waiting 10 seconds"
+        putTextLn "[DEBUG] PeerSharing: Published PeersReceived event"
+        putTextLn "[DEBUG] PeerSharing: Waiting 10 seconds"
         threadDelay oneHour
-        putStrLn "[DEBUG] PeerSharing: looping"
+        putTextLn "[DEBUG] PeerSharing: looping"
         pure $ requestPeers withPeers
     oneHour = 3_600_000_000
 
@@ -529,18 +529,18 @@ chainSyncClientImpl peer publishEvent =
                     -- Publish started event
                     timestamp <- getCurrentTime
                     publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-                    putStrLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
-                    putStrLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+                    putTextLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
+                    putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
                     pure findIntersect
   where
     findIntersect :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
         Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ do
-                putStrLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
+                putTextLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
                 pure requestNext
             ChainSync.MsgIntersectFound intersectPt tip -> Effect $ do
-                putStrLn "[DEBUG] ChainSync: Intersection found"
+                putTextLn "[DEBUG] ChainSync: Intersection found"
                 timestamp <- getCurrentTime
                 publishEvent $
                     ChainSyncIntersectionFound
@@ -556,7 +556,7 @@ chainSyncClientImpl peer publishEvent =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward hdr tip -> Effect $ do
-                putStrLn "[DEBUG] ChainSync: Received header (RollForward)"
+                putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
                 timestamp <- getCurrentTime
                 let hdrPoint = castPoint $ headerPoint hdr
                 publishEvent $
@@ -571,7 +571,7 @@ chainSyncClientImpl peer publishEvent =
                             }
                 pure requestNext
             ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
-                putStrLn "[DEBUG] ChainSync: Rollback"
+                putTextLn "[DEBUG] ChainSync: Rollback"
                 timestamp <- getCurrentTime
                 publishEvent $
                     RollBackward
@@ -584,7 +584,7 @@ chainSyncClientImpl peer publishEvent =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward hdr tip -> Effect $ do
-                    putStrLn "[DEBUG] ChainSync: Received header after await (RollForward)"
+                    putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
                     timestamp <- getCurrentTime
                     let hdrPoint = castPoint $ headerPoint hdr
                     publishEvent $
@@ -598,7 +598,7 @@ chainSyncClientImpl peer publishEvent =
                                 }
                     pure requestNext
                 ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
-                    putStrLn "[DEBUG] ChainSync: Rollback after await"
+                    putTextLn "[DEBUG] ChainSync: Rollback after await"
                     timestamp <- getCurrentTime
                     publishEvent $
                         RollBackward
@@ -621,12 +621,12 @@ keepAliveClientImpl = KeepAliveClient sendFirst
   where
     -- Send the first message immediately
     sendFirst = do
-        putStrLn "[DEBUG] KeepAlive: Sending first keepalive message"
+        putTextLn "[DEBUG] KeepAlive: Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     -- Wait 10 seconds before sending subsequent messages
     sendNext = do
-        putStrLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
+        putTextLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
         threadDelay 10_000_000 -- 10 seconds in microseconds
-        putStrLn "[DEBUG] KeepAlive: Sending keepalive message"
+        putTextLn "[DEBUG] KeepAlive: Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

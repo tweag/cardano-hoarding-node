@@ -25,7 +25,7 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 data ConfigFile = ConfigFile
     { server :: ServerConfig
     , database :: DatabaseConfig
-    , secretsFile :: String
+    , secretsFile :: FilePath
     , protocolConfigPath :: FilePath
     }
     deriving stock (Eq, Generic, Show)
@@ -122,7 +122,7 @@ loadConfig ioManager env = do
             }
 
 
-loadYaml :: (FromJSON a) => String -> IO a
+loadYaml :: (FromJSON a) => FilePath -> IO a
 loadYaml path = do
     result <- Yaml.decodeFileEither path
     case result of
