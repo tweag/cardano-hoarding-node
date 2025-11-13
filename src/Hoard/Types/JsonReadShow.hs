@@ -1,0 +1,24 @@
+module Hoard.Types.JsonReadShow (JsonReadShow (..)) where
+
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withText)
+import Data.Typeable (typeRep)
+
+
+newtype JsonReadShow a = JsonReadShow {getJsonReadShow :: a}
+
+
+instance forall a. (Typeable a, Read a) => FromJSON (JsonReadShow a) where
+    parseJSON =
+        let
+            typeName = show $ typeRep $ Proxy @a
+        in
+            withText typeName $
+                maybe
+                    (fail $ "Failed to read " <> typeName)
+                    (pure . JsonReadShow)
+                    . readMaybe
+                    . show
+
+
+instance (Show a) => ToJSON (JsonReadShow a) where
+    toJSON = String . show . getJsonReadShow

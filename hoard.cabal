@@ -47,6 +47,7 @@ library
       Hoard.Types.Environment
       Hoard.Types.Header
       Hoard.Types.HoardState
+      Hoard.Types.JsonReadShow
       Hoard.Types.NodeIP
       Hoard.Types.QuietSnake
   other-modules:
