@@ -55,7 +55,7 @@
 
   outputs =
     inputs:
-    inputs.flake-utils.lib.eachDefaultSystem (
+    inputs.flake-utils.lib.eachSystem [ "x86_64-linux" ] (
       system:
       import ./nix/outputs.nix {
         inherit inputs system;
