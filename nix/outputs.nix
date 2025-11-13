@@ -119,8 +119,7 @@ in
   // (import ./postgres.nix { inherit pkgs; });
 
   # Checks
-  checks = {
+  checks = projectFlake.checks // {
     git-hooks = gitHooks;
-    hoard-test = project.hsPkgs.hoard.components.tests.hoard-test;
   };
 }

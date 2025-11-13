@@ -4,9 +4,11 @@
   nixConfig = {
     extra-substituters = [
       "https://cache.iog.io"
+      "https://cardano-hoarding-node.cachix.org"
     ];
     extra-trusted-public-keys = [
       "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
+      "cardano-hoarding-node.cachix.org-1:uHPjxqLDX30tBcYwNZ2orHdFUuADwG3RnBcRL55sa+o="
     ];
     allow-import-from-derivation = true;
   };
