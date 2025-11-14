@@ -5,7 +5,6 @@ module Hoard.CLI.Options
     )
 where
 
-import Data.Text qualified as T
 import Options.Applicative qualified as Opt
 
 import Hoard.Types.Environment (Environment, parseEnvironment)
@@ -32,7 +31,7 @@ parseOptions =
             )
   where
     readEnvironment = Opt.eitherReader $ \s ->
-        case parseEnvironment (T.pack s) of
+        case parseEnvironment (toText s) of
             Just env -> Right env
             Nothing -> Left $ "Invalid environment: " <> s <> ". Must be one of: dev, staging, prod, ci"
 

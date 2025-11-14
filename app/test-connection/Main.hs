@@ -12,8 +12,6 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (newChan)
 import Data.IP (IP)
 import Data.IP qualified as IP
-import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Maybe (fromMaybe)
 import Data.Time (getCurrentTime)
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
@@ -22,7 +20,6 @@ import Network.Socket (PortNumber)
 import Network.Socket qualified as Socket
 import Ouroboros.Network.IOManager (withIOManager)
 
-import Data.Text qualified as T
 import Data.UUID qualified as UUID
 
 import Hoard.Data.ID (ID (..))
@@ -41,15 +38,15 @@ import Hoard.Effects.Log qualified as Log
 
 main :: IO ()
 main = withIOManager $ \ioManager -> do
-    putStrLn "=== Cardano Peer Connection Test ==="
-    putStrLn ""
-    putStrLn "This program will:"
-    putStrLn "  1. Connect to a Preview testnet relay"
-    putStrLn "  2. Verify handshake completion"
-    putStrLn "  3. Request peer addresses via PeerSharing protocol"
-    putStrLn "  4. Receive headers via ChainSync protocol"
-    putStrLn "  5. Keep the connection alive for 60 seconds"
-    putStrLn ""
+    putTextLn "=== Cardano Peer Connection Test ==="
+    putTextLn ""
+    putTextLn "This program will:"
+    putTextLn "  1. Connect to a Preview testnet relay"
+    putTextLn "  2. Verify handshake completion"
+    putTextLn "  3. Request peer addresses via PeerSharing protocol"
+    putTextLn "  4. Receive headers via ChainSync protocol"
+    putTextLn "  5. Keep the connection alive for 60 seconds"
+    putTextLn ""
 
     -- Create event channel
     (inChan, _outChan) <- newChan
@@ -69,9 +66,9 @@ main = withIOManager $ \ioManager -> do
 
     case result of
         Left err -> do
-            putStrLn $ "\n❌ Test failed with error: " <> T.unpack err
+            putTextLn $ "\n❌ Test failed with error: " <> err
         Right () -> do
-            putStrLn "\n✅ Test completed successfully!"
+            putTextLn "\n✅ Test completed successfully!"
 
 
 -- | Preview testnet relay peer
@@ -100,7 +97,7 @@ testConnection
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
-    Log.info $ "Connecting to " <> T.pack (show $ previewRelay.address) <> ":" <> T.pack (show $ previewRelay.port)
+    Log.info $ "Connecting to " <> show previewRelay.address <> ":" <> show previewRelay.port
 
     -- Start event listeners in background
     Conc.fork_ networkEventListener
@@ -136,11 +133,11 @@ networkEventListener
 networkEventListener = listen $ \event -> do
     case event of
         ConnectionEstablished dat -> do
-            Log.info $ "🔗 Connection established with peer at " <> T.pack (show dat.timestamp)
+            Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp
         ConnectionLost dat -> do
-            Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> T.pack (show dat.timestamp)
+            Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> show dat.timestamp
         HandshakeCompleted dat -> do
-            Log.info $ "🤝 Handshake completed with version " <> T.pack (show dat.version)
+            Log.info $ "🤝 Handshake completed with version " <> show dat.version
         ProtocolError dat -> do
             Log.warn $ "❌ Protocol error: " <> dat.errorMessage
     liftIO $ hFlush stdout
@@ -153,10 +150,11 @@ peerSharingEventListener
 peerSharingEventListener = listen $ \event -> do
     case event of
         PeerSharingStarted dat -> do
-            Log.info $ "🔍 PeerSharing protocol started at " <> T.pack (show dat.timestamp)
+            Log.info $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
         PeersReceived dat -> do
-            Log.info $ "📡 Received " <> T.pack (show (length dat.peerAddresses) <> " peer addresses from remote peer:")
-            mapM_ (\addr -> Log.debug $ "   - " <> T.pack (show $ addr.host) <> ":" <> T.pack (show addr.port)) dat.peerAddresses
+            Log.info $ "📡 Received " <> show (length dat.peerAddresses) <> " peer addresses from remote peer:"
+            forM_ dat.peerAddresses $ \addr ->
+                Log.debug $ "   - " <> show addr.host <> ":" <> show addr.port
         PeerSharingFailed dat -> do
             Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
     liftIO $ hFlush stdout
@@ -169,7 +167,7 @@ chainSyncEventListener
 chainSyncEventListener = listen $ \event -> do
     case event of
         ChainSyncStarted dat -> do
-            Log.info $ "⛓️  ChainSync protocol started at " <> T.pack (show dat.timestamp)
+            Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
         HeaderReceived _dat -> do
             Log.info "📦 Header received!"
         RollBackward _dat -> do

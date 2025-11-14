@@ -7,7 +7,6 @@ where
 
 import Data.Aeson (FromJSON (..), withText)
 import Data.String.Conversions (cs)
-
 import Data.Text qualified as T
 
 
@@ -29,7 +28,7 @@ instance IsString Environment where
 instance FromJSON Environment where
     parseJSON = withText "Environment" $ \x -> case parseEnvironment x of
         Just env -> pure env
-        Nothing -> fail $ "Invalid environment: " <> T.unpack x
+        Nothing -> fail $ "Invalid environment: " <> toString x
 
 
 -- | Parse environment from a string

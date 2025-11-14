@@ -29,7 +29,11 @@ makeEffect ''Log
 
 runLog :: (IOE :> es) => Eff (Log : es) a -> Eff es a
 runLog = interpret_ $ \case
-    Debug msg -> liftIO $ T.putStrLn $ "[DEBUG] " <> msg
-    Info msg -> liftIO $ T.putStrLn $ "[INFO] " <> msg
-    Warn msg -> liftIO $ T.putStrLn $ "[WARN] " <> msg
-    Err msg -> liftIO $ T.putStrLn $ "[ERROR] " <> msg
+    Debug msg -> log "DEBUG" msg
+    Info msg -> log "INFO" msg
+    Warn msg -> log "WARN" msg
+    Err msg -> log "ERROR" msg
+  where
+    log kind msg = liftIO $ do
+        T.hPutStrLn stdout $ "[" <> kind <> "] " <> msg
+        hFlush stdout

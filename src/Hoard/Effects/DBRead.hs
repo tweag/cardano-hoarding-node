@@ -11,7 +11,6 @@ import Effectful.Error.Static (Error, throwError)
 import Effectful.TH
 import Hasql.Statement (Statement)
 
-import Data.Text qualified as T
 import Hasql.Pool qualified as Pool
 import Hasql.Session qualified as Session
 
@@ -34,5 +33,5 @@ runDBRead pool = interpret $ \_ -> \case
     RunQuery queryName stmt -> do
         result <- liftIO $ Pool.use pool (Session.statement () stmt)
         case result of
-            Left err -> throwError $ "Query failed: " <> queryName <> " - " <> T.pack (show err)
+            Left err -> throwError $ "Query failed: " <> queryName <> " - " <> show err
             Right value -> pure value
