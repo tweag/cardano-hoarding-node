@@ -182,7 +182,7 @@ chainSyncEventListener = listen $ \event -> do
 resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
 resolvePeerAddress address port = do
     let hints = Socket.defaultHints {Socket.addrSocketType = Socket.Stream}
-    addrs <- Socket.getAddrInfo (Just hints) (Just $ show address) (Just $ show port)
+    addrs <- Socket.getAddrInfo (Just hints) (Just $ toString address) (Just $ show port)
     case addrs of
         (addr :| _) ->
             maybe (error "Found address of preview relay is not an IP address") pure $
