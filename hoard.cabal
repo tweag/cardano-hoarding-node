@@ -1,4 +1,4 @@
-cabal-version: 2.0
+cabal-version: 3.0
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
@@ -22,6 +22,7 @@ library
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.Clock
