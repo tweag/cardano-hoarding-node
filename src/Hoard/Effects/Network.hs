@@ -101,6 +101,7 @@ import Data.Set qualified as S
 import Effectful.Exception (catch, throwIO)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network.Codecs (hoistCodecs)
+import Hoard.Types.Header (CardanoHeader)
 import Hoard.Types.NodeIP (NodeIP (..))
 
 

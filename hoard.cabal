@@ -23,8 +23,10 @@ library
       Hoard.Data.Peer
       Hoard.DB.Schema
       Hoard.DB.Schemas.Blocks
+      Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
       Hoard.Effects
+      Hoard.Effects.BlockRepo
       Hoard.Effects.Clock
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
@@ -54,6 +56,7 @@ library
       Hoard.Types.Cardano
       Hoard.Types.Collector
       Hoard.Types.DBConfig
+      Hoard.Types.DBHash
       Hoard.Types.Environment
       Hoard.Types.Eras
       Hoard.Types.Header
@@ -88,8 +91,12 @@ library
       aeson
     , async
     , base
+    , binary
     , bytestring
     , cardano-api
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-binary
     , cardano-ledger-core
     , casing
     , cborg
@@ -169,8 +176,12 @@ executable hoard-exe
       aeson
     , async
     , base
+    , binary
     , bytestring
     , cardano-api
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-binary
     , cardano-ledger-core
     , casing
     , cborg
@@ -251,8 +262,12 @@ executable test-connection
       aeson
     , async
     , base
+    , binary
     , bytestring
     , cardano-api
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-binary
     , cardano-ledger-core
     , casing
     , cborg
@@ -346,8 +361,12 @@ test-suite hoard-test
     , aeson
     , async
     , base
+    , binary
     , bytestring
     , cardano-api
+    , cardano-binary
+    , cardano-crypto-class
+    , cardano-ledger-binary
     , cardano-ledger-core
     , casing
     , cborg

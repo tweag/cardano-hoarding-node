@@ -31,8 +31,12 @@ dependencies:
     - '' # Required to make the rest of relude importable
 - aeson
 - async
+- binary
 - bytestring
 - cardano-api
+- cardano-binary
+- cardano-ledger-binary
+- cardano-crypto-class
 - cborg
 - contra-tracer
 - ouroboros-network

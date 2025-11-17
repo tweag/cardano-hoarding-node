@@ -36,7 +36,9 @@ import Ouroboros.Consensus.Shelley.Ledger
     )
 
 import Hoard.Types.Crypto (Crypto)
+import Hoard.Types.DBHash (DBHash (..), HashKind (..))
 import Hoard.Types.Eras (BlockEra (..))
+import Ouroboros.Consensus.Block.Abstract (blockHash, toRawHash)
 
 
 -- | Type aliases for Cardano block types used throughout the network events.
@@ -100,3 +102,7 @@ decodeCardanoBlock blockEra block = do
         -- The result of `decodeByronBlock` expects the original ByteString
         -- the block was deserialised from for verification purposes.
         pure $ mkBlock lazyBs
+
+
+bodyHashFromBlock :: CardanoBlock -> DBHash HashForBlock
+bodyHashFromBlock = DBHash . toRawHash (Proxy :: Proxy CardanoBlock) . blockHash
