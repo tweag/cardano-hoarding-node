@@ -4,14 +4,14 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 
-name:           hoard
-version:        0.1.0.0
-synopsis:       TODO write a short description
-description:    TODO write a long description
-author:         Christian Georgii
-maintainer:     christian.georgii@moduscreate.com
-license:        MIT
-build-type:     Simple
+name:          hoard
+version:       0.1.0.0
+synopsis:      TODO write a short description
+description:   TODO write a long description
+author:        Christian Georgii
+maintainer:    christian.georgii@moduscreate.com
+license:       MIT
+build-type:    Simple
 
 library
   exposed-modules:
@@ -42,9 +42,12 @@ library
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Types.Block
       Hoard.Types.Collector
+      Hoard.Types.Crypto
       Hoard.Types.DBConfig
       Hoard.Types.Environment
+      Hoard.Types.Eras
       Hoard.Types.Header
       Hoard.Types.HoardState
       Hoard.Types.JsonReadShow
@@ -103,6 +106,7 @@ library
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -183,6 +187,7 @@ executable hoard-exe
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -263,6 +268,7 @@ executable test-connection
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -299,6 +305,7 @@ test-suite hoard-test
       Integration.Hoard.SchemaSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
+      Unit.Hoard.Types.BlockSpec
       Paths_hoard
   autogen-modules:
       Paths_hoard
@@ -356,7 +363,11 @@ test-suite hoard-test
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
+    , ouroboros-consensus-cardano:unstable-byron-testlib
+    , ouroboros-consensus-cardano:unstable-shelley-testlib
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
+    , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
