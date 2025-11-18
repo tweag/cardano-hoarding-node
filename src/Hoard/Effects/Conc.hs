@@ -13,6 +13,9 @@ module Hoard.Effects.Conc
 
       -- * Interpreters
     , runConcWithKi
+
+      -- * Unlift Strategy
+    , concStrat
     )
 where
 
