@@ -17,7 +17,7 @@ import Rel8
 
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer (..))
+import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Types.NodeIP (NodeIP)
 
 
@@ -50,8 +50,7 @@ peerFromRow :: Row Result -> Peer
 peerFromRow row =
     Peer
         { id = row.id
-        , address = row.address
-        , port = fromIntegral row.port
+        , address = PeerAddress row.address (fromIntegral row.port)
         , firstDiscovered = row.firstDiscovered
         , lastSeen = row.lastSeen
         , lastConnected = row.lastConnected
@@ -64,8 +63,8 @@ rowFromPeer :: Peer -> Row Result
 rowFromPeer peer =
     Row
         { id = peer.id
-        , address = peer.address
-        , port = fromIntegral peer.port
+        , address = peer.address.host
+        , port = fromIntegral peer.address.port
         , firstDiscovered = peer.firstDiscovered
         , lastSeen = peer.lastSeen
         , lastConnected = peer.lastConnected

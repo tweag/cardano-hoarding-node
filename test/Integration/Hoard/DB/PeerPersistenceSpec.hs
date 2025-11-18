@@ -46,7 +46,14 @@ spec_PeerPersistence = do
             -- Insert peers
             result <-
                 runWrite config $ do
-                    upsertPeers [PeerAddress (read "192.168.1.1") 3001, PeerAddress (read "192.168.1.2") 3002] sourcePeer now
+                    upsertPeers
+                        ( fromList
+                            [ PeerAddress (read "192.168.1.1") 3001
+                            , PeerAddress (read "192.168.1.2") 3002
+                            ]
+                        )
+                        sourcePeer.address
+                        now
 
             result `shouldSatisfy` isRight
 
@@ -68,13 +75,19 @@ spec_PeerPersistence = do
             -- Insert peer first time
             _ <-
                 runWrite config $
-                    upsertPeers [PeerAddress (read "192.168.1.1") 3001] sourcePeer now
+                    upsertPeers
+                        (fromList [PeerAddress (read "192.168.1.1") 3001])
+                        sourcePeer.address
+                        now
 
             -- Wait a bit and insert same peer again with different timestamp
             let laterTime = addUTCTime 60 now -- 60 seconds later
             _ <-
                 runWrite config $
-                    upsertPeers [PeerAddress (read "192.168.1.1") 3001] sourcePeer laterTime
+                    upsertPeers
+                        (fromList [PeerAddress (read "192.168.1.1") 3001])
+                        sourcePeer.address
+                        laterTime
 
             -- Query to verify we still have only 1 peer
             queryResult <-
@@ -90,14 +103,14 @@ spec_PeerPersistence = do
 
             case peerResult of
                 Right peer -> do
-                    peer.address `shouldBe` read "192.168.1.1"
-                    peer.port `shouldBe` 3001
+                    peer.address.host `shouldBe` read "192.168.1.1"
+                    peer.address.port `shouldBe` 3001
                     -- lastSeen should be updated to laterTime (approximately)
                     abs (diffTime peer.lastSeen laterTime) `shouldSatisfy` (< 1)
                     -- firstDiscovered should still be the original time
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     -- discoveredVia should be unchanged
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port)
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address.host <> ":" <> show sourcePeer.address.port)
                 Left err -> expectationFailure $ "Peer query failed: " <> show err
 
         it "handles multiple peers in one batch" $ \config -> do
@@ -108,12 +121,14 @@ spec_PeerPersistence = do
             result <-
                 runWrite config $
                     upsertPeers
-                        [ PeerAddress (read "192.168.1.1") 3001
-                        , PeerAddress (read "192.168.1.2") 3002
-                        , PeerAddress (read "192.168.1.3") 3003
-                        , PeerAddress (read "10.0.0.1") 6000
-                        ]
-                        sourcePeer
+                        ( fromList
+                            [ PeerAddress (read "192.168.1.1") 3001
+                            , PeerAddress (read "192.168.1.2") 3002
+                            , PeerAddress (read "192.168.1.3") 3003
+                            , PeerAddress (read "10.0.0.1") 6000
+                            ]
+                        )
+                        sourcePeer.address
                         now
 
             result `shouldSatisfy` isRight
@@ -133,7 +148,7 @@ spec_PeerPersistence = do
             -- Insert a peer
             insertResult <-
                 runWrite config $
-                    upsertPeers [testAddr] sourcePeer now
+                    upsertPeers (fromList [testAddr]) sourcePeer.address now
 
             insertResult `shouldSatisfy` isRight
 
@@ -143,9 +158,9 @@ spec_PeerPersistence = do
             case fetchResult of
                 Right (Just peer) -> do
                     -- Verify the peer data matches what we inserted
-                    peer.address `shouldBe` testAddr.host
-                    peer.port `shouldBe` testAddr.port
-                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address <> ":" <> show sourcePeer.port)
+                    peer.address.host `shouldBe` testAddr.host
+                    peer.address.port `shouldBe` testAddr.port
+                    peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address.host <> ":" <> show sourcePeer.address.port)
                     -- Timestamps should be close to what we inserted
                     abs (diffTime peer.firstDiscovered now) `shouldSatisfy` (< 1)
                     abs (diffTime peer.lastSeen now) `shouldSatisfy` (< 1)
@@ -161,8 +176,7 @@ mkTestSourcePeer now = do
     pure
         Peer
             { id = ID uuid
-            , address = read "172.0.0.1"
-            , port = 3001
+            , address = PeerAddress (read "172.0.0.1") 3001
             , firstDiscovered = now
             , lastSeen = now
             , lastConnected = Nothing

@@ -42,7 +42,7 @@ import Ouroboros.Consensus.Cardano.Block (CardanoBlock, Header, StandardCrypto)
 import Ouroboros.Network.Block (Point, Tip)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
-import Hoard.Data.Peer (Peer, PeerAddress)
+import Hoard.Data.Peer (PeerAddress)
 
 
 -- | Type aliases for Cardano block types used throughout the network events.
@@ -74,7 +74,7 @@ data NetworkEvent
 
 
 data ConnectionEstablishedData = ConnectionEstablishedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , version :: NodeToNodeVersion
     , timestamp :: UTCTime
     }
@@ -82,7 +82,7 @@ data ConnectionEstablishedData = ConnectionEstablishedData
 
 
 data ConnectionLostData = ConnectionLostData
-    { peer :: Peer
+    { peer :: PeerAddress
     , reason :: Text
     , timestamp :: UTCTime
     }
@@ -90,7 +90,7 @@ data ConnectionLostData = ConnectionLostData
 
 
 data HandshakeCompletedData = HandshakeCompletedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , version :: NodeToNodeVersion
     , timestamp :: UTCTime
     }
@@ -98,7 +98,7 @@ data HandshakeCompletedData = HandshakeCompletedData
 
 
 data ProtocolErrorData = ProtocolErrorData
-    { peer :: Peer
+    { peer :: PeerAddress
     , errorMessage :: Text
     , timestamp :: UTCTime
     }
@@ -123,14 +123,14 @@ data ChainSyncEvent
 
 
 data ChainSyncStartedData = ChainSyncStartedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data HeaderReceivedData = HeaderReceivedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , header :: Header'
     , point :: Point'
     , tip :: Tip'
@@ -140,7 +140,7 @@ data HeaderReceivedData = HeaderReceivedData
 
 
 data RollBackwardData = RollBackwardData
-    { peer :: Peer
+    { peer :: PeerAddress
     , point :: Point'
     , tip :: Tip'
     , timestamp :: UTCTime
@@ -149,7 +149,7 @@ data RollBackwardData = RollBackwardData
 
 
 data RollForwardData = RollForwardData
-    { peer :: Peer
+    { peer :: PeerAddress
     , header :: Header'
     , point :: Point'
     , tip :: Tip'
@@ -159,7 +159,7 @@ data RollForwardData = RollForwardData
 
 
 data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
-    { peer :: Peer
+    { peer :: PeerAddress
     , point :: Point'
     , tip :: Tip'
     , timestamp :: UTCTime
@@ -185,14 +185,14 @@ data BlockFetchEvent
 
 
 data BlockFetchStartedData = BlockFetchStartedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data BlockRequestedData = BlockRequestedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , point :: Point'
     , timestamp :: UTCTime
     }
@@ -200,7 +200,7 @@ data BlockRequestedData = BlockRequestedData
 
 
 data BlockReceivedData = BlockReceivedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , block :: CardanoBlock'
     , timestamp :: UTCTime
     }
@@ -208,7 +208,7 @@ data BlockReceivedData = BlockReceivedData
 
 
 data BlockFetchFailedData = BlockFetchFailedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , point :: Point'
     , errorMessage :: Text
     , timestamp :: UTCTime
@@ -217,7 +217,7 @@ data BlockFetchFailedData = BlockFetchFailedData
 
 
 data BlockBatchCompletedData = BlockBatchCompletedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , blockCount :: Int
     , timestamp :: UTCTime
     }
@@ -240,22 +240,22 @@ data PeerSharingEvent
 
 
 data PeerSharingStartedData = PeerSharingStartedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data PeersReceivedData = PeersReceivedData
-    { peer :: Peer -- The peer we requested from
-    , peerAddresses :: [PeerAddress] -- The peer addresses we received
+    { peer :: PeerAddress -- The peer we requested from
+    , peerAddresses :: Set PeerAddress -- The peer addresses we received
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data PeerSharingFailedData = PeerSharingFailedData
-    { peer :: Peer
+    { peer :: PeerAddress
     , errorMessage :: Text
     , timestamp :: UTCTime
     }

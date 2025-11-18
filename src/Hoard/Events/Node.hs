@@ -1,7 +1,7 @@
 module Hoard.Events.Node (NodeDiscovered (..)) where
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (PeerAddress)
 
 
-newtype NodeDiscovered = NodeDiscovered Peer
+newtype NodeDiscovered = NodeDiscovered PeerAddress
     deriving (Show, Typeable)

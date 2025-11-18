@@ -4,12 +4,12 @@ import Data.Default (Default (..))
 
 import Data.Set qualified as S
 
-import Hoard.Types.Collector (Peer)
+import Hoard.Data.Peer (PeerAddress)
 
 
 -- | Application state
 data HoardState = HoardState
-    { peers :: Set Peer
+    { connectedPeers :: Set PeerAddress
     }
     deriving (Eq, Show)
 
@@ -17,5 +17,5 @@ data HoardState = HoardState
 instance Default HoardState where
     def =
         HoardState
-            { peers = S.empty
+            { connectedPeers = S.empty
             }

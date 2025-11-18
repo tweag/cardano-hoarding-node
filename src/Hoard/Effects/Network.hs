@@ -76,7 +76,7 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
-import Hoard.Data.Peer (Peer (..), sockAddrToPeerAddress)
+import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
@@ -99,6 +99,7 @@ import Hoard.Network.Events
 import Hoard.Network.Types (Connection (..))
 
 import Data.IP qualified as IP
+import Data.Set qualified as S
 import Hoard.Effects.Log qualified as Log
 import Hoard.Types.NodeIP (NodeIP (..))
 
@@ -111,7 +112,7 @@ import Hoard.Types.NodeIP (NodeIP (..))
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data Network :: Effect where
-    ConnectToPeer :: Peer -> Network m Connection
+    ConnectToPeer :: PeerAddress -> Network m Connection
     DisconnectPeer :: Connection -> Network m ()
     IsConnected :: Connection -> Network m Bool
 
@@ -159,10 +160,10 @@ connectToPeerImpl
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
-    -> Peer
+    -> PeerAddress
     -> Eff es Connection
 connectToPeerImpl ioManager chan protocolConfigPath peer = do
-    let addr = IP.toSockAddr (getNodeIP peer.address, fromIntegral peer.port)
+    let addr = IP.toSockAddr (getNodeIP peer.host, fromIntegral peer.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
     -- Create a publish callback that can be called from IO
@@ -354,7 +355,7 @@ withExceptionLogging protocolName action =
 -- an application that runs over the multiplexed connection.
 mkApplication
     :: Codecs (CardanoBlock StandardCrypto) SockAddr DeserialiseFailure IO LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString
-    -> Peer
+    -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
 mkApplication codecs peer publishEvent =
@@ -480,7 +481,7 @@ mkApplication codecs peer publishEvent =
 -- 3. Waits 1 hour
 -- 4. Loops
 peerSharingClientImpl
-    :: Peer
+    :: PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerSharingClient SockAddr IO ()
 peerSharingClientImpl peer publishEvent =
@@ -496,7 +497,7 @@ peerSharingClientImpl peer publishEvent =
             PeersReceived
                 PeersReceivedData
                     { peer
-                    , peerAddresses = mapMaybe sockAddrToPeerAddress peerAddrs
+                    , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                     , timestamp
                     }
         putTextLn "[DEBUG] PeerSharing: Published PeersReceived event"
@@ -517,7 +518,7 @@ peerSharingClientImpl peer publishEvent =
 --
 -- Note: This runs forever, continuously requesting the next header.
 chainSyncClientImpl
-    :: Peer
+    :: PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> PeerPipelined (ChainSync Header' Point' Tip') AsClient ChainSync.StIdle IO ()
 chainSyncClientImpl peer publishEvent =

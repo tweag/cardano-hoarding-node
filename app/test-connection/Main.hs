@@ -82,8 +82,7 @@ mkPreviewRelay = do
     pure
         Peer
             { id = id'
-            , address = NodeIP ip
-            , port = fromIntegral portNumber
+            , address = PeerAddress (NodeIP ip) (fromIntegral portNumber)
             , firstDiscovered = now
             , lastSeen = now
             , lastConnected = Nothing
@@ -97,7 +96,7 @@ testConnection
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
-    Log.info $ "Connecting to " <> show previewRelay.address <> ":" <> show previewRelay.port
+    Log.info $ "Connecting to " <> show previewRelay.address.host <> ":" <> show previewRelay.address.port
 
     -- Start event listeners in background
     Conc.fork_ networkEventListener
@@ -105,7 +104,7 @@ testConnection = do
     Conc.fork_ chainSyncEventListener
 
     -- Connect to peer
-    conn <- connectToPeer previewRelay
+    conn <- connectToPeer previewRelay.address
 
     Log.info "✓ Connection established!"
 
