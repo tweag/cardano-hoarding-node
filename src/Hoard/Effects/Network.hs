@@ -86,15 +86,15 @@ import Hoard.Network.Events
     , ConnectionEstablishedData (..)
     , ConnectionLostData (..)
     , HandshakeCompletedData (..)
-    , Header'
+    , Header
     , HeaderReceivedData (..)
     , NetworkEvent (..)
     , PeerSharingEvent (..)
     , PeerSharingStartedData (..)
     , PeersReceivedData (..)
-    , Point'
+    , Point
     , RollBackwardData (..)
-    , Tip'
+    , Tip
     )
 import Hoard.Network.Types (Connection (..))
 
@@ -520,7 +520,7 @@ peerSharingClientImpl peer publishEvent =
 chainSyncClientImpl
     :: PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
-    -> PeerPipelined (ChainSync Header' Point' Tip') AsClient ChainSync.StIdle IO ()
+    -> PeerPipelined (ChainSync Header Point Tip) AsClient ChainSync.StIdle IO ()
 chainSyncClientImpl peer publishEvent =
     ClientPipelined $
         Effect $
@@ -533,7 +533,7 @@ chainSyncClientImpl peer publishEvent =
                     putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
                     pure findIntersect
   where
-    findIntersect :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
+    findIntersect :: forall c. Client (ChainSync Header Point Tip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
         Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ do
@@ -552,7 +552,7 @@ chainSyncClientImpl peer publishEvent =
                             }
                 pure requestNext
 
-    requestNext :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
+    requestNext :: forall c. Client (ChainSync Header Point Tip) (Pipelined Z c) ChainSync.StIdle IO ()
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ do

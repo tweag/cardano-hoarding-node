@@ -31,15 +31,15 @@ module Hoard.Network.Events
     , PeerSharingFailedData (..)
 
       -- * Type aliases for Cardano block types
-    , CardanoBlock'
-    , Header'
-    , Point'
-    , Tip'
+    , CardanoBlock
+    , Header
+    , Point
+    , Tip
     ) where
 
 import Data.Time (UTCTime)
-import Ouroboros.Consensus.Cardano.Block (CardanoBlock, Header, StandardCrypto)
-import Ouroboros.Network.Block (Point, Tip)
+import Ouroboros.Consensus.Cardano.Block qualified as Block
+import Ouroboros.Network.Block qualified as Block
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
 import Hoard.Data.Peer (PeerAddress)
@@ -49,12 +49,12 @@ import Hoard.Data.Peer (PeerAddress)
 --
 -- These use StandardCrypto which is the standard cryptographic primitives
 -- used in the Cardano mainnet and testnets.
-type CardanoBlock' = CardanoBlock StandardCrypto
+type CardanoBlock = Block.CardanoBlock Block.StandardCrypto
 
 
-type Header' = Header CardanoBlock'
-type Point' = Point CardanoBlock'
-type Tip' = Tip CardanoBlock'
+type Header = Block.Header CardanoBlock
+type Point = Block.Point CardanoBlock
+type Tip = Block.Tip CardanoBlock
 
 
 --------------------------------------------------------------------------------
@@ -131,9 +131,9 @@ data ChainSyncStartedData = ChainSyncStartedData
 
 data HeaderReceivedData = HeaderReceivedData
     { peer :: PeerAddress
-    , header :: Header'
-    , point :: Point'
-    , tip :: Tip'
+    , header :: Header
+    , point :: Point
+    , tip :: Tip
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -141,8 +141,8 @@ data HeaderReceivedData = HeaderReceivedData
 
 data RollBackwardData = RollBackwardData
     { peer :: PeerAddress
-    , point :: Point'
-    , tip :: Tip'
+    , point :: Point
+    , tip :: Tip
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -150,9 +150,9 @@ data RollBackwardData = RollBackwardData
 
 data RollForwardData = RollForwardData
     { peer :: PeerAddress
-    , header :: Header'
-    , point :: Point'
-    , tip :: Tip'
+    , header :: Header
+    , point :: Point
+    , tip :: Tip
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -160,8 +160,8 @@ data RollForwardData = RollForwardData
 
 data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
     { peer :: PeerAddress
-    , point :: Point'
-    , tip :: Tip'
+    , point :: Point
+    , tip :: Tip
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -193,7 +193,7 @@ data BlockFetchStartedData = BlockFetchStartedData
 
 data BlockRequestedData = BlockRequestedData
     { peer :: PeerAddress
-    , point :: Point'
+    , point :: Point
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -201,7 +201,7 @@ data BlockRequestedData = BlockRequestedData
 
 data BlockReceivedData = BlockReceivedData
     { peer :: PeerAddress
-    , block :: CardanoBlock'
+    , block :: CardanoBlock
     , timestamp :: UTCTime
     }
     deriving (Typeable)
@@ -209,7 +209,7 @@ data BlockReceivedData = BlockReceivedData
 
 data BlockFetchFailedData = BlockFetchFailedData
     { peer :: PeerAddress
-    , point :: Point'
+    , point :: Point
     , errorMessage :: Text
     , timestamp :: UTCTime
     }
