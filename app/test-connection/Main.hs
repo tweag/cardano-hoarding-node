@@ -19,6 +19,7 @@ import Effectful.Error.Static (runErrorNoCallStack)
 import Network.Socket (PortNumber)
 import Network.Socket qualified as Socket
 import Ouroboros.Network.IOManager (withIOManager)
+import Prelude hiding (State, evalState)
 
 import Data.UUID qualified as UUID
 
@@ -32,8 +33,14 @@ import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Events
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Data.Default (def)
+import Effectful.State.Static.Shared (State, evalState)
+import Hoard.Collector (dispatchDiscoveredNodes)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Pub (Pub)
+import Hoard.Events.Collector (CollectorEvent (..))
+import Hoard.Types.HoardState (HoardState)
 
 
 main :: IO ()
@@ -62,6 +69,7 @@ main = withIOManager $ \ioManager -> do
                 . runSub inChan
                 . runPub inChan
                 . runNetwork ioManager inChan "config/preview/config.json"
+                . evalState @HoardState def
                 $ testConnection
 
     case result of
@@ -92,7 +100,14 @@ mkPreviewRelay = do
 
 -- | Test connection to Preview testnet
 testConnection
-    :: (Conc :> es, IOE :> es, Log :> es, Network :> es, Sub :> es)
+    :: ( Conc :> es
+       , IOE :> es
+       , Log :> es
+       , Network :> es
+       , Sub :> es
+       , Pub :> es
+       , State HoardState :> es
+       )
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
@@ -102,6 +117,8 @@ testConnection = do
     Conc.fork_ networkEventListener
     Conc.fork_ peerSharingEventListener
     Conc.fork_ chainSyncEventListener
+    Conc.fork_ collectorEventListener
+    Conc.fork_ dispatchDiscoveredNodes
 
     -- Connect to peer
     conn <- connectToPeer previewRelay.address
@@ -175,6 +192,18 @@ chainSyncEventListener = listen $ \event -> do
             Log.info "⏩ RollForward occurred"
         ChainSyncIntersectionFound _dat -> do
             Log.info "🎯 ChainSync intersection found"
+    liftIO $ hFlush stdout
+
+
+collectorEventListener :: (Log :> es, Sub :> es, IOE :> es) => Eff es Void
+collectorEventListener = listen $ \event -> do
+    case event of
+        CollectorStarted addr -> Log.info $ "Collector: started for " <> show addr.host
+        ConnectingToPeer addr -> Log.info $ "Collector: connecting to peer " <> show addr.host
+        ConnectedToPeer addr -> Log.info $ "Collector: connected to peer " <> show addr.host
+        ConnectionFailed addr reason -> Log.info $ "Collector: failed to connect to peer " <> show addr.host <> ": " <> reason
+        ChainSyncReceived addr -> Log.info $ "Collector: chain sync received from " <> show addr.host
+        BlockFetchReceived addr -> Log.info $ "Collector: block fetch received from " <> show addr.host
     liftIO $ hFlush stdout
 
 

@@ -255,8 +255,8 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
             -- Create connection record
             let conn =
                     Connection
-                        { peer = peer
-                        , version = version
+                        { peer
+                        , version
                         , started = timestamp
                         }
 
@@ -539,74 +539,74 @@ chainSyncClientImpl peer publishEvent =
             ChainSync.MsgIntersectNotFound {} -> Effect $ do
                 putTextLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
                 pure requestNext
-            ChainSync.MsgIntersectFound intersectPt tip -> Effect $ do
+            ChainSync.MsgIntersectFound point tip -> Effect $ do
                 putTextLn "[DEBUG] ChainSync: Intersection found"
                 timestamp <- getCurrentTime
                 publishEvent $
                     ChainSyncIntersectionFound
                         ChainSyncIntersectionFoundData
-                            { peer = peer
-                            , point = intersectPt
-                            , tip = tip
-                            , timestamp = timestamp
+                            { peer
+                            , point
+                            , tip
+                            , timestamp
                             }
                 pure requestNext
 
     requestNext :: forall c. Client (ChainSync Header' Point' Tip') (Pipelined Z c) ChainSync.StIdle IO ()
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
-            ChainSync.MsgRollForward hdr tip -> Effect $ do
+            ChainSync.MsgRollForward header tip -> Effect $ do
                 putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
                 timestamp <- getCurrentTime
-                let hdrPoint = castPoint $ headerPoint hdr
+                let point = castPoint $ headerPoint header
                 publishEvent $
                     HeaderReceived
                         HeaderReceivedData
-                            { peer = peer
-                            , header = hdr
+                            { peer
+                            , header
                             , -- TODO point is derived, therefore redundant
-                              point = hdrPoint
-                            , tip = tip
-                            , timestamp = timestamp
+                              point
+                            , tip
+                            , timestamp
                             }
                 pure requestNext
-            ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
+            ChainSync.MsgRollBackward point tip -> Effect $ do
                 putTextLn "[DEBUG] ChainSync: Rollback"
                 timestamp <- getCurrentTime
                 publishEvent $
                     RollBackward
                         RollBackwardData
-                            { peer = peer
-                            , point = rollbackPt
-                            , tip = tip
-                            , timestamp = timestamp
+                            { peer
+                            , point
+                            , tip
+                            , timestamp
                             }
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
-                ChainSync.MsgRollForward hdr tip -> Effect $ do
+                ChainSync.MsgRollForward header tip -> Effect $ do
                     putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
                     timestamp <- getCurrentTime
-                    let hdrPoint = castPoint $ headerPoint hdr
+                    let point = castPoint $ headerPoint header
                     publishEvent $
                         HeaderReceived
                             HeaderReceivedData
-                                { peer = peer
-                                , header = hdr
-                                , point = hdrPoint
-                                , tip = tip
-                                , timestamp = timestamp
+                                { peer
+                                , header
+                                , point
+                                , tip
+                                , timestamp
                                 }
                     pure requestNext
-                ChainSync.MsgRollBackward rollbackPt tip -> Effect $ do
+                ChainSync.MsgRollBackward point tip -> Effect $ do
                     putTextLn "[DEBUG] ChainSync: Rollback after await"
                     timestamp <- getCurrentTime
                     publishEvent $
                         RollBackward
                             RollBackwardData
-                                { peer = peer
-                                , point = rollbackPt
-                                , tip = tip
-                                , timestamp = timestamp
+                                { peer
+                                , point
+                                , tip
+                                , timestamp
                                 }
                     pure requestNext
 
