@@ -6,8 +6,7 @@ import Test.Hspec
 
 import Data.ByteString.Char8 qualified as BS
 
-import Hoard.Events.HeaderReceived (HeaderReceived (..))
-import Hoard.Types.Header (Header (..))
+import Hoard.Events.HeaderReceived (Header (..), HeaderReceived (..))
 
 
 -- | Run listener with Writer effect instead of Console

@@ -1,14 +1,11 @@
 module Hoard.Types.Header
-    ( Header (..)
+    ( Header
     )
 where
 
-import Data.Aeson (FromJSON, ToJSON)
+import Ouroboros.Consensus.Cardano.Block qualified as Block
+
+import Hoard.Types.Crypto (Crypto)
 
 
--- | Simple header type for testing events
-data Header = Header
-    { info :: Text
-    }
-    deriving (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+type Header = Block.Header Crypto
