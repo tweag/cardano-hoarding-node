@@ -1,4 +1,4 @@
-cabal-version: 2.0
+cabal-version: 3.0
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
@@ -49,10 +49,12 @@ library
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Types.Block
       Hoard.Types.Cardano
       Hoard.Types.Collector
       Hoard.Types.DBConfig
       Hoard.Types.Environment
+      Hoard.Types.Eras
       Hoard.Types.Header
       Hoard.Types.HoardState
       Hoard.Types.JsonReadShow
@@ -310,6 +312,7 @@ test-suite hoard-test
       Integration.Hoard.SchemaSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
+      Unit.Hoard.Types.BlockSpec
       Paths_hoard
   autogen-modules:
       Paths_hoard
@@ -368,7 +371,10 @@ test-suite hoard-test
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
+    , ouroboros-consensus-cardano:unstable-byron-testlib
+    , ouroboros-consensus-cardano:unstable-shelley-testlib
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework

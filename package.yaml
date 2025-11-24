@@ -126,6 +126,9 @@ tests:
     - tasty-discover
     - servant-client
     - servant-client-core
+    - "ouroboros-consensus:unstable-consensus-testlib"
+    - "ouroboros-consensus-cardano:unstable-shelley-testlib"
+    - "ouroboros-consensus-cardano:unstable-byron-testlib"
     - http-client
     - wai
     - warp
