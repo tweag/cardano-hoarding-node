@@ -3,8 +3,9 @@ module Integration.Hoard.IntegrationSpec (spec_HeaderIntegration) where
 import Test.Hspec
 
 import Hoard.API (Routes (..))
-import Hoard.Events.HeaderReceived (Header (..), HeaderReceived (..))
+import Hoard.Events.HeaderReceived (HeaderReceived (..))
 import Hoard.TestHelpers (client, filterEvents, withEffectStackServer)
+import Hoard.Types.Header (Header (..))
 
 
 spec_HeaderIntegration :: Spec

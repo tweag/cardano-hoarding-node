@@ -10,34 +10,37 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Chan.Unagi (newChan)
-import Data.Default (def)
 import Data.IP (IP)
 import Data.IP qualified as IP
 import Data.Time (getCurrentTime)
-import Data.UUID qualified as UUID
 import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
-import Effectful.State.Static.Shared (State, evalState)
 import Network.Socket (PortNumber)
 import Network.Socket qualified as Socket
 import Ouroboros.Network.IOManager (withIOManager)
 import Prelude hiding (State, evalState)
 
-import Hoard.Collector (dispatchDiscoveredNodes)
+import Data.UUID qualified as UUID
+
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Conc (Conc, scoped)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log, runLog)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
-import Hoard.Effects.Pub (Pub, runPub)
+import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
-import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events
-import Hoard.Types.HoardState (HoardState)
 import Hoard.Types.NodeIP (NodeIP (..))
+
+import Data.Default (def)
+import Effectful.State.Static.Shared (State, evalState)
+import Hoard.Collector (dispatchDiscoveredNodes)
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Pub (Pub)
+import Hoard.Events.Collector (CollectorEvent (..))
+import Hoard.Types.HoardState (HoardState)
 
 
 main :: IO ()
