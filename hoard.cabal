@@ -1,17 +1,17 @@
-cabal-version: 2.0
+cabal-version: 3.0
 
 -- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
-name:           hoard
-version:        0.1.0.0
-synopsis:       TODO write a short description
-description:    TODO write a long description
-author:         Christian Georgii
-maintainer:     christian.georgii@moduscreate.com
-license:        MIT
-build-type:     Simple
+name:          hoard
+version:       0.1.0.0
+synopsis:      TODO write a short description
+description:   TODO write a long description
+author:        Christian Georgii
+maintainer:    christian.georgii@moduscreate.com
+license:       MIT
+build-type:    Simple
 
 library
   exposed-modules:
@@ -20,11 +20,15 @@ library
       Hoard.Collector
       Hoard.Config.Loader
       Hoard.Control.Exception
+      Hoard.Data.Block
+      Hoard.Data.BlockHash
+      Hoard.Data.Eras
       Hoard.Data.Header
       Hoard.Data.Header.Extract
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
@@ -122,12 +126,14 @@ library
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
     , relude
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -204,12 +210,14 @@ executable hoard-exe
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
     , relude
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -286,12 +294,14 @@ executable test-connection
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
     , rel8
     , relude
+    , serialise
     , servant
     , servant-server
     , string-conversions
@@ -321,6 +331,7 @@ test-suite hoard-test
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
+      Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
       Paths_hoard
@@ -382,7 +393,11 @@ test-suite hoard-test
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
+    , ouroboros-consensus-cardano:unstable-byron-testlib
+    , ouroboros-consensus-cardano:unstable-shelley-testlib
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
+    , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -391,6 +406,7 @@ test-suite hoard-test
     , process
     , rel8
     , relude
+    , serialise
     , servant
     , servant-client
     , servant-client-core

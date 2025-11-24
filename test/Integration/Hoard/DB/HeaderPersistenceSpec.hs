@@ -11,7 +11,8 @@ import Rel8 qualified
 import Data.UUID.V4 qualified as UUID
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
-import Hoard.Data.Header (BlockHash (..), Header (..))
+import Hoard.Data.BlockHash (BlockHash (..))
+import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (runDBRead, runQuery)

@@ -10,7 +10,7 @@
   ({
     flags = {};
     package = {
-      specVersion = "2.0";
+      specVersion = "3.0";
       identifier = { name = "hoard"; version = "0.1.0.0"; };
       license = "MIT";
       copyright = "";
@@ -64,12 +64,14 @@
           (hsPkgs."ouroboros-consensus" or (errorHandler.buildDepError "ouroboros-consensus"))
           (hsPkgs."ouroboros-consensus-cardano" or (errorHandler.buildDepError "ouroboros-consensus-cardano"))
           (hsPkgs."ouroboros-consensus-diffusion" or (errorHandler.buildDepError "ouroboros-consensus-diffusion"))
+          (hsPkgs."ouroboros-consensus-protocol" or (errorHandler.buildDepError "ouroboros-consensus-protocol"))
           (hsPkgs."ouroboros-network" or (errorHandler.buildDepError "ouroboros-network"))
           (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
           (hsPkgs."ouroboros-network-framework" or (errorHandler.buildDepError "ouroboros-network-framework"))
           (hsPkgs."ouroboros-network-protocols" or (errorHandler.buildDepError "ouroboros-network-protocols"))
           (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
           (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
+          (hsPkgs."serialise" or (errorHandler.buildDepError "serialise"))
           (hsPkgs."servant" or (errorHandler.buildDepError "servant"))
           (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
           (hsPkgs."string-conversions" or (errorHandler.buildDepError "string-conversions"))
@@ -122,12 +124,14 @@
             (hsPkgs."ouroboros-consensus" or (errorHandler.buildDepError "ouroboros-consensus"))
             (hsPkgs."ouroboros-consensus-cardano" or (errorHandler.buildDepError "ouroboros-consensus-cardano"))
             (hsPkgs."ouroboros-consensus-diffusion" or (errorHandler.buildDepError "ouroboros-consensus-diffusion"))
+            (hsPkgs."ouroboros-consensus-protocol" or (errorHandler.buildDepError "ouroboros-consensus-protocol"))
             (hsPkgs."ouroboros-network" or (errorHandler.buildDepError "ouroboros-network"))
             (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
             (hsPkgs."ouroboros-network-framework" or (errorHandler.buildDepError "ouroboros-network-framework"))
             (hsPkgs."ouroboros-network-protocols" or (errorHandler.buildDepError "ouroboros-network-protocols"))
             (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
             (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
+            (hsPkgs."serialise" or (errorHandler.buildDepError "serialise"))
             (hsPkgs."servant" or (errorHandler.buildDepError "servant"))
             (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
             (hsPkgs."string-conversions" or (errorHandler.buildDepError "string-conversions"))
@@ -180,12 +184,14 @@
             (hsPkgs."ouroboros-consensus" or (errorHandler.buildDepError "ouroboros-consensus"))
             (hsPkgs."ouroboros-consensus-cardano" or (errorHandler.buildDepError "ouroboros-consensus-cardano"))
             (hsPkgs."ouroboros-consensus-diffusion" or (errorHandler.buildDepError "ouroboros-consensus-diffusion"))
+            (hsPkgs."ouroboros-consensus-protocol" or (errorHandler.buildDepError "ouroboros-consensus-protocol"))
             (hsPkgs."ouroboros-network" or (errorHandler.buildDepError "ouroboros-network"))
             (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
             (hsPkgs."ouroboros-network-framework" or (errorHandler.buildDepError "ouroboros-network-framework"))
             (hsPkgs."ouroboros-network-protocols" or (errorHandler.buildDepError "ouroboros-network-protocols"))
             (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
             (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
+            (hsPkgs."serialise" or (errorHandler.buildDepError "serialise"))
             (hsPkgs."servant" or (errorHandler.buildDepError "servant"))
             (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
             (hsPkgs."string-conversions" or (errorHandler.buildDepError "string-conversions"))
@@ -242,7 +248,11 @@
             (hsPkgs."optparse-applicative" or (errorHandler.buildDepError "optparse-applicative"))
             (hsPkgs."ouroboros-consensus" or (errorHandler.buildDepError "ouroboros-consensus"))
             (hsPkgs."ouroboros-consensus-cardano" or (errorHandler.buildDepError "ouroboros-consensus-cardano"))
+            (hsPkgs."ouroboros-consensus-cardano".components.sublibs.unstable-byron-testlib or (errorHandler.buildDepError "ouroboros-consensus-cardano:unstable-byron-testlib"))
+            (hsPkgs."ouroboros-consensus-cardano".components.sublibs.unstable-shelley-testlib or (errorHandler.buildDepError "ouroboros-consensus-cardano:unstable-shelley-testlib"))
             (hsPkgs."ouroboros-consensus-diffusion" or (errorHandler.buildDepError "ouroboros-consensus-diffusion"))
+            (hsPkgs."ouroboros-consensus-protocol" or (errorHandler.buildDepError "ouroboros-consensus-protocol"))
+            (hsPkgs."ouroboros-consensus".components.sublibs.unstable-consensus-testlib or (errorHandler.buildDepError "ouroboros-consensus:unstable-consensus-testlib"))
             (hsPkgs."ouroboros-network" or (errorHandler.buildDepError "ouroboros-network"))
             (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
             (hsPkgs."ouroboros-network-framework" or (errorHandler.buildDepError "ouroboros-network-framework"))
@@ -251,6 +261,7 @@
             (hsPkgs."process" or (errorHandler.buildDepError "process"))
             (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
             (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
+            (hsPkgs."serialise" or (errorHandler.buildDepError "serialise"))
             (hsPkgs."servant" or (errorHandler.buildDepError "servant"))
             (hsPkgs."servant-client" or (errorHandler.buildDepError "servant-client"))
             (hsPkgs."servant-client-core" or (errorHandler.buildDepError "servant-client-core"))
