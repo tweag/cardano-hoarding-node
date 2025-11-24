@@ -4,14 +4,14 @@ cabal-version: 3.0
 --
 -- see: https://github.com/sol/hpack
 
-name:           hoard
-version:        0.1.0.0
-synopsis:       TODO write a short description
-description:    TODO write a long description
-author:         Christian Georgii
-maintainer:     christian.georgii@moduscreate.com
-license:        MIT
-build-type:     Simple
+name:          hoard
+version:       0.1.0.0
+synopsis:      TODO write a short description
+description:   TODO write a long description
+author:        Christian Georgii
+maintainer:    christian.georgii@moduscreate.com
+license:       MIT
+build-type:    Simple
 
 library
   exposed-modules:
@@ -22,6 +22,7 @@ library
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.Clock
@@ -114,6 +115,7 @@ library
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -195,6 +197,7 @@ executable hoard-exe
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -276,6 +279,7 @@ executable test-connection
     , ouroboros-consensus
     , ouroboros-consensus-cardano
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-network
     , ouroboros-network-api
     , ouroboros-network-framework
@@ -374,6 +378,7 @@ test-suite hoard-test
     , ouroboros-consensus-cardano:unstable-byron-testlib
     , ouroboros-consensus-cardano:unstable-shelley-testlib
     , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
     , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network
     , ouroboros-network-api

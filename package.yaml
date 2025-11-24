@@ -42,6 +42,7 @@ dependencies:
 - ouroboros-consensus
 - ouroboros-consensus-cardano
 - ouroboros-consensus-diffusion
+- ouroboros-consensus-protocol
 - cardano-ledger-core
 - network-mux
 - typed-protocols
