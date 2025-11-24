@@ -43,6 +43,7 @@ library
       Hoard.Network.Types
       Hoard.Server
       Hoard.Types.Collector
+      Hoard.Types.Crypto
       Hoard.Types.DBConfig
       Hoard.Types.Environment
       Hoard.Types.Header
