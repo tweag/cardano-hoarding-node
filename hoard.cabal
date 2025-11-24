@@ -29,10 +29,12 @@ library
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.Network
       Hoard.Effects.Network.Codecs
       Hoard.Effects.NodeToClient
+      Hoard.Effects.Output
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub
       Hoard.Effects.Sub
