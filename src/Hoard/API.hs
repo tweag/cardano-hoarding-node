@@ -12,8 +12,7 @@ import Prelude hiding (appendFile, readFile)
 
 import Hoard.Effects (AppEff)
 import Hoard.Effects.Pub (publish)
-import Hoard.Events.HeaderReceived (HeaderReceived (..))
-import Hoard.Types.Header (Header)
+import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 
 
 -- | Named routes for the API
