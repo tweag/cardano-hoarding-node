@@ -124,6 +124,7 @@ library
   mixins:
       base hiding (Prelude)
     , relude (Relude as Prelude)
+    , relude 
   default-language: GHC2021
 
 executable hoard-exe
@@ -203,6 +204,7 @@ executable hoard-exe
   mixins:
       base hiding (Prelude)
     , relude (Relude as Prelude)
+    , relude 
   default-language: GHC2021
 
 executable test-connection
@@ -282,6 +284,7 @@ executable test-connection
   mixins:
       base hiding (Prelude)
     , relude (Relude as Prelude)
+    , relude 
   default-language: GHC2021
 
 test-suite hoard-test
@@ -385,4 +388,5 @@ test-suite hoard-test
   mixins:
       base hiding (Prelude)
     , relude (Relude as Prelude)
+    , relude 
   default-language: GHC2021
