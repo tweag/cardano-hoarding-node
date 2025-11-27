@@ -144,67 +144,59 @@ testConnection = do
 
 -- | Listen for and print network events
 networkEventListener
-    :: (IOE :> es, Log :> es, Sub :> es)
+    :: (Log :> es, Sub :> es)
     => Eff es Void
-networkEventListener = listen $ \event -> do
-    case event of
-        ConnectionEstablished dat -> do
-            Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp
-        ConnectionLost dat -> do
-            Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> show dat.timestamp
-        HandshakeCompleted dat -> do
-            Log.info $ "🤝 Handshake completed with version " <> show dat.version
-        ProtocolError dat -> do
-            Log.warn $ "❌ Protocol error: " <> dat.errorMessage
-    liftIO $ hFlush stdout
+networkEventListener = listen $ \case
+    ConnectionEstablished dat -> do
+        Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp
+    ConnectionLost dat -> do
+        Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> show dat.timestamp
+    HandshakeCompleted dat -> do
+        Log.info $ "🤝 Handshake completed with version " <> show dat.version
+    ProtocolError dat -> do
+        Log.warn $ "❌ Protocol error: " <> dat.errorMessage
 
 
 -- | Listen for and print peer sharing events
 peerSharingEventListener
-    :: (IOE :> es, Log :> es, Sub :> es)
+    :: (Log :> es, Sub :> es)
     => Eff es Void
-peerSharingEventListener = listen $ \event -> do
-    case event of
-        PeerSharingStarted dat -> do
-            Log.info $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
-        PeersReceived dat -> do
-            Log.info $ "📡 Received " <> show (length dat.peerAddresses) <> " peer addresses from remote peer:"
-            forM_ dat.peerAddresses $ \addr ->
-                Log.debug $ "   - " <> show addr.host <> ":" <> show addr.port
-        PeerSharingFailed dat -> do
-            Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
-    liftIO $ hFlush stdout
+peerSharingEventListener = listen $ \case
+    PeerSharingStarted dat -> do
+        Log.info $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
+    PeersReceived dat -> do
+        Log.info $ "📡 Received " <> show (length dat.peerAddresses) <> " peer addresses from remote peer:"
+        forM_ dat.peerAddresses $ \addr ->
+            Log.debug $ "   - " <> show addr.host <> ":" <> show addr.port
+    PeerSharingFailed dat -> do
+        Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
 
 
 -- | Listen for and print chain sync events
 chainSyncEventListener
-    :: (IOE :> es, Log :> es, Sub :> es)
+    :: (Log :> es, Sub :> es)
     => Eff es Void
-chainSyncEventListener = listen $ \event -> do
-    case event of
-        ChainSyncStarted dat -> do
-            Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
-        HeaderReceived _dat -> do
-            Log.info "📦 Header received!"
-        RollBackward _dat -> do
-            Log.info "⏪ Rollback occurred"
-        RollForward _dat -> do
-            Log.info "⏩ RollForward occurred"
-        ChainSyncIntersectionFound _dat -> do
-            Log.info "🎯 ChainSync intersection found"
-    liftIO $ hFlush stdout
+chainSyncEventListener = listen $ \case
+    ChainSyncStarted dat -> do
+        Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
+    HeaderReceived _dat -> do
+        Log.info "📦 Header received!"
+    RollBackward _dat -> do
+        Log.info "⏪ Rollback occurred"
+    RollForward _dat -> do
+        Log.info "⏩ RollForward occurred"
+    ChainSyncIntersectionFound _dat -> do
+        Log.info "🎯 ChainSync intersection found"
 
 
-collectorEventListener :: (Log :> es, Sub :> es, IOE :> es) => Eff es Void
-collectorEventListener = listen $ \event -> do
-    case event of
-        CollectorStarted addr -> Log.info $ "Collector: started for " <> show addr.host
-        ConnectingToPeer addr -> Log.info $ "Collector: connecting to peer " <> show addr.host
-        ConnectedToPeer addr -> Log.info $ "Collector: connected to peer " <> show addr.host
-        ConnectionFailed addr reason -> Log.info $ "Collector: failed to connect to peer " <> show addr.host <> ": " <> reason
-        ChainSyncReceived addr -> Log.info $ "Collector: chain sync received from " <> show addr.host
-        BlockFetchReceived addr -> Log.info $ "Collector: block fetch received from " <> show addr.host
-    liftIO $ hFlush stdout
+collectorEventListener :: (Log :> es, Sub :> es) => Eff es Void
+collectorEventListener = listen $ \case
+    CollectorStarted addr -> Log.info $ "Collector: started for " <> show addr.host
+    ConnectingToPeer addr -> Log.info $ "Collector: connecting to peer " <> show addr.host
+    ConnectedToPeer addr -> Log.info $ "Collector: connected to peer " <> show addr.host
+    ConnectionFailed addr reason -> Log.info $ "Collector: failed to connect to peer " <> show addr.host <> ": " <> reason
+    ChainSyncReceived addr -> Log.info $ "Collector: chain sync received from " <> show addr.host
+    BlockFetchReceived addr -> Log.info $ "Collector: block fetch received from " <> show addr.host
 
 
 resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
