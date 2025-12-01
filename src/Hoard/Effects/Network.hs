@@ -32,7 +32,6 @@ import Network.Socket (SockAddr)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
-import Ouroboros.Consensus.Cardano.Block (CardanoBlock, StandardCrypto)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
@@ -86,17 +85,15 @@ import Hoard.Network.Events
     , ConnectionEstablishedData (..)
     , ConnectionLostData (..)
     , HandshakeCompletedData (..)
-    , Header
     , HeaderReceivedData (..)
     , NetworkEvent (..)
     , PeerSharingEvent (..)
     , PeerSharingStartedData (..)
     , PeersReceivedData (..)
-    , Point
     , RollBackwardData (..)
-    , Tip
     )
 import Hoard.Network.Types (Connection (..))
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
@@ -180,7 +177,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
     let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
     -- Get all supported versions
-    let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy (CardanoBlock StandardCrypto))
+    let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
     Log.debug "Creating version-specific codecs and applications..."
 
@@ -194,7 +191,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
                 }
 
     -- Helper function to create application for a specific version
-    let mkVersionedApp :: NodeToNodeVersion -> BlockNodeToNodeVersion (CardanoBlock StandardCrypto) -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
+    let mkVersionedApp :: NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
         mkVersionedApp nodeVersion blockVersion =
             let codecs =
                     defaultCodecs
@@ -306,7 +303,7 @@ isConnectedImpl _conn = do
 
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: FilePath -> IO (ProtocolInfo (CardanoBlock StandardCrypto))
+loadProtocolInfo :: FilePath -> IO (ProtocolInfo CardanoBlock)
 loadProtocolInfo configPath = do
     let configFile = File configPath
 
@@ -354,7 +351,18 @@ withExceptionLogging protocolName action =
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: Codecs (CardanoBlock StandardCrypto) SockAddr DeserialiseFailure IO LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString LBS.ByteString
+    :: Codecs
+        CardanoBlock
+        SockAddr
+        DeserialiseFailure
+        IO
+        LBS.ByteString
+        LBS.ByteString
+        LBS.ByteString
+        LBS.ByteString
+        LBS.ByteString
+        LBS.ByteString
+        LBS.ByteString
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
@@ -520,7 +528,7 @@ peerSharingClientImpl peer publishEvent =
 chainSyncClientImpl
     :: PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
-    -> PeerPipelined (ChainSync Header Point Tip) AsClient ChainSync.StIdle IO ()
+    -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
 chainSyncClientImpl peer publishEvent =
     ClientPipelined $
         Effect $
@@ -533,7 +541,7 @@ chainSyncClientImpl peer publishEvent =
                     putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
                     pure findIntersect
   where
-    findIntersect :: forall c. Client (ChainSync Header Point Tip) (Pipelined Z c) ChainSync.StIdle IO ()
+    findIntersect :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
         Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ do
@@ -552,7 +560,7 @@ chainSyncClientImpl peer publishEvent =
                             }
                 pure requestNext
 
-    requestNext :: forall c. Client (ChainSync Header Point Tip) (Pipelined Z c) ChainSync.StIdle IO ()
+    requestNext :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ do
