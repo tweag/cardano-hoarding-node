@@ -33,6 +33,7 @@ import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, runNetwork)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
@@ -57,6 +58,7 @@ data Config = Config
     , inChan :: InChan Dynamic
     , server :: ServerConfig
     , protocolConfigPath :: FilePath
+    , logging :: Log.Config
     }
 
 

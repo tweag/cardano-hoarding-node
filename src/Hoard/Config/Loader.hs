@@ -15,6 +15,7 @@ import System.IO.Error (userError)
 import Data.Yaml qualified as Yaml
 
 import Hoard.Effects (Config (..), ServerConfig (..))
+import Hoard.Effects.Log qualified as Log
 import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment (Environment, environmentName)
 import Hoard.Types.QuietSnake (QuietSnake (..))
@@ -26,6 +27,7 @@ data ConfigFile = ConfigFile
     , database :: DatabaseConfig
     , secretsFile :: String
     , protocolConfigPath :: FilePath
+    , logging :: LoggingConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON)
@@ -89,6 +91,13 @@ toDBConfig dbCfg credentials =
         }
 
 
+data LoggingConfig = LoggingConfig
+    { minimumSeverity :: Log.Severity
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake LoggingConfig
+
+
 -- | Load the full application configuration for a given environment
 -- Loads both the public config YAML and the secrets YAML file
 loadConfig :: IOManager -> Environment -> IO Config
@@ -108,6 +117,15 @@ loadConfig ioManager env = do
     -- Acquire database pools
     dbPools <- acquireDatabasePools readerConfig writerConfig
 
+    logging <- do
+        log <- (>>= readMaybe) <$> lookupEnv "LOG"
+        logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
+        debug <-
+            (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
+                <$> lookupEnv "DEBUG"
+        let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
+        pure $ Log.defaultConfig {Log.minimumSeverity}
+
     -- Create pub/sub channel
     (inChan, _) <- newChan
 
@@ -118,6 +136,7 @@ loadConfig ioManager env = do
             , inChan
             , server = configFile.server
             , protocolConfigPath = configFile.protocolConfigPath
+            , logging
             }
 
 

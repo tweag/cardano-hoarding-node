@@ -5,6 +5,7 @@ This directory contains database schema migrations managed by [Sqitch](https://s
 ## Overview
 
 Sqitch provides a robust way to manage database schema changes with:
+
 - **deploy** scripts: Apply changes to the database
 - **revert** scripts: Undo changes (rollback)
 - **verify** scripts: Test that changes were applied correctly
@@ -46,11 +47,13 @@ sqitch add <migration_name> -n "Description of the change"
 ```
 
 Example:
+
 ```bash
 sqitch add add_blocks_table -n "Add blocks table for storing Cardano blocks"
 ```
 
 This creates three files:
+
 - `deploy/add_blocks_table.sql` - SQL to apply the change
 - `revert/add_blocks_table.sql` - SQL to undo the change
 - `verify/add_blocks_table.sql` - SQL to verify the change
@@ -147,6 +150,7 @@ src/Hoard/
 ### Example: Peers Table
 
 **1. Domain Type** (`src/Hoard/Data/Peer.hs`):
+
 ```haskell
 data Peer = Peer
   { peerId :: ID Peer,
@@ -159,6 +163,7 @@ data Peer = Peer
 ```
 
 **2. Rel8 Schema** (`src/Hoard/DB/Schemas/Peers.hs`):
+
 ```haskell
 data Row f = Row
   { id :: Column f (ID Peer),
@@ -178,6 +183,7 @@ rowFromPeer :: Peer -> Row Result
 ```
 
 **3. Migration** (`db/deploy/create_peers_table.sql`):
+
 ```sql
 CREATE TABLE hoard.peers (
     peer_id UUID PRIMARY KEY,
@@ -199,12 +205,14 @@ it "is correctly mapped" $ \config -> do
 ```
 
 This verifies:
+
 - Table exists in the database
 - Column names match (Haskell camelCase → SQL snake_case)
 - Column types are compatible
 - Schema can be queried without errors
 
 **Test Database Lifecycle:**
+
 - A temporary test database is created once before the integration test suite runs
 - All migrations are applied automatically via sqitch
 - The database is reused across all test cases for performance
@@ -226,6 +234,7 @@ db/
 ## Example Migration Files
 
 ### deploy/init_schema.sql
+
 ```sql
 BEGIN;
 CREATE SCHEMA IF NOT EXISTS hoard;
@@ -239,6 +248,7 @@ COMMIT;
 ```
 
 ### revert/init_schema.sql
+
 ```sql
 BEGIN;
 DROP TABLE IF EXISTS hoard.schema_metadata;
@@ -247,6 +257,7 @@ COMMIT;
 ```
 
 ### verify/init_schema.sql
+
 ```sql
 BEGIN;
 SELECT pg_catalog.has_schema_privilege('hoard', 'usage');
@@ -275,6 +286,7 @@ sqitch deploy prod
 ### Connection Issues
 
 If sqitch can't connect to the database:
+
 1. Ensure the PostgreSQL dev server is running (`nix run .#postgres`)
 2. Check that `PGHOST` environment variable is set correctly
 3. Verify connection with: `psql -U postgres hoard_dev`
@@ -282,6 +294,7 @@ If sqitch can't connect to the database:
 ### Migration Conflicts
 
 If you need to modify a migration that's already been deployed:
+
 1. **Never** edit deployed migrations directly
 2. Instead, create a new migration to make the additional changes
 3. If in development and not yet pushed: revert, edit, redeploy
