@@ -42,8 +42,8 @@ library
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Types.Cardano
       Hoard.Types.Collector
-      Hoard.Types.Crypto
       Hoard.Types.DBConfig
       Hoard.Types.Environment
       Hoard.Types.Header
