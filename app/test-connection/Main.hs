@@ -65,7 +65,7 @@ connectionInfo =
           -- and https://github.com/IntersectMBO/cardano-node/blob/master/nix/workbench/profile/presets/mainnet/genesis/genesis-shelley.json#L62
           localConsensusModeParams = CardanoModeParams $ EpochSlots $ 432000
         , localNodeNetworkId = Testnet $ NetworkMagic $ 1
-        , localNodeSocketPath = File "/tmp/preprod.socket"
+        , localNodeSocketPath = File "preprod.socket"
         }
 
 
