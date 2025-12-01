@@ -33,14 +33,40 @@ import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Network.Events
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Cardano.Api
+    ( ConsensusModeParams (CardanoModeParams)
+    , EpochSlots (EpochSlots)
+    , File (File)
+    , LocalNodeConnectInfo (..)
+    , NetworkId (Testnet)
+    , NetworkMagic (NetworkMagic)
+    )
 import Data.Default (def)
+import Effectful.Exception (tryIf)
 import Effectful.State.Static.Shared (State, evalState)
 import Hoard.Collector (dispatchDiscoveredNodes)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToClient (immutableTip, runNodeToClient)
 import Hoard.Effects.Pub (Pub)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Types.HoardState (HoardState)
+import System.IO.Error (isDoesNotExistError)
+
+
+connectionInfo :: LocalNodeConnectInfo
+connectionInfo =
+    LocalNodeConnectInfo
+        { -- according to
+          -- https://cardano-api.cardano.intersectmbo.org/cardano-api/Cardano-Api-Network-IPC.html#g:2,
+          -- https://book.world.dev.cardano.org/environments/preprod/shelley-genesis.json,
+          -- https://book.world.dev.cardano.org/environments/mainnet/shelley-genesis.json,
+          -- https://github.com/IntersectMBO/cardano-node/blob/master/configuration/cardano/mainnet-shelley-genesis.json#L62,
+          -- and https://github.com/IntersectMBO/cardano-node/blob/master/nix/workbench/profile/presets/mainnet/genesis/genesis-shelley.json#L62
+          localConsensusModeParams = CardanoModeParams $ EpochSlots $ 432000
+        , localNodeNetworkId = Testnet $ NetworkMagic $ 1
+        , localNodeSocketPath = File "preprod.socket"
+        }
 
 
 main :: IO ()
@@ -119,6 +145,15 @@ testConnection = do
     Conc.fork_ chainSyncEventListener
     Conc.fork_ collectorEventListener
     Conc.fork_ dispatchDiscoveredNodes
+
+    -- query immutable tip
+    (=<<) (either (Log.warn . toText . displayException) pure)
+        . tryIf isDoesNotExistError
+        . runNodeToClient connectionInfo
+        $ do
+            Log.debug =<< show <$> immutableTip
+            liftIO $ threadDelay (5 * 1000000)
+            Log.debug =<< show <$> immutableTip
 
     -- Connect to peer
     conn <- connectToPeer previewRelay.address
