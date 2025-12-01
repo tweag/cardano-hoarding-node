@@ -56,17 +56,17 @@ import System.IO.Error (isDoesNotExistError)
 
 connectionInfo :: LocalNodeConnectInfo
 connectionInfo =
-    ( LocalNodeConnectInfo
-        -- according to
-        -- https://cardano-api.cardano.intersectmbo.org/cardano-api/Cardano-Api-Network-IPC.html#g:2,
-        -- https://book.world.dev.cardano.org/environments/preprod/shelley-genesis.json,
-        -- https://book.world.dev.cardano.org/environments/mainnet/shelley-genesis.json,
-        -- https://github.com/IntersectMBO/cardano-node/blob/master/configuration/cardano/mainnet-shelley-genesis.json#L62,
-        -- and https://github.com/IntersectMBO/cardano-node/blob/master/nix/workbench/profile/presets/mainnet/genesis/genesis-shelley.json#L62
-        (CardanoModeParams $ EpochSlots $ 432000)
-        (Testnet $ NetworkMagic $ 1)
-        (File "/home/rednaz/tweag/preprod/.run/preprod/cardano-node/node.socket")
-    )
+    LocalNodeConnectInfo
+        { -- according to
+          -- https://cardano-api.cardano.intersectmbo.org/cardano-api/Cardano-Api-Network-IPC.html#g:2,
+          -- https://book.world.dev.cardano.org/environments/preprod/shelley-genesis.json,
+          -- https://book.world.dev.cardano.org/environments/mainnet/shelley-genesis.json,
+          -- https://github.com/IntersectMBO/cardano-node/blob/master/configuration/cardano/mainnet-shelley-genesis.json#L62,
+          -- and https://github.com/IntersectMBO/cardano-node/blob/master/nix/workbench/profile/presets/mainnet/genesis/genesis-shelley.json#L62
+          localConsensusModeParams = CardanoModeParams $ EpochSlots $ 432000
+        , localNodeNetworkId = Testnet $ NetworkMagic $ 1
+        , localNodeSocketPath = File "/tmp/preprod.socket"
+        }
 
 
 main :: IO ()
