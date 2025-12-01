@@ -1,7 +1,6 @@
 module Hoard.Effects.NodeToClient
     ( runNodeToClient
-    , queryImmutableTip
-    , NodeToClient (QueryImmutableTip)
+    , immutableTip
     ) where
 
 import Cardano.Api
@@ -17,9 +16,9 @@ import Cardano.Api
     , LocalNodeConnectInfo
     , LocalStateQueryClient (LocalStateQueryClient)
     , QueryInMode (QueryChainPoint)
-    , Target (ImmutableTip)
     , connectToLocalNode
     )
+import Cardano.Api qualified as C
 import Control.Concurrent.Chan.Unagi
     ( OutChan
     , newChan
@@ -41,7 +40,7 @@ import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 
 
 data NodeToClient :: Effect where
-    QueryImmutableTip :: NodeToClient m ChainPoint
+    ImmutableTip :: NodeToClient m ChainPoint
 
 
 makeEffect ''NodeToClient
@@ -49,41 +48,41 @@ makeEffect ''NodeToClient
 
 runNodeToClient :: (IOE :> es) => LocalNodeConnectInfo -> Eff (NodeToClient : es) a -> Eff es a
 runNodeToClient connectionInfo nodeToClient = do
-    (queriesIn, queriesOut) <- liftIO newChan
+    (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     withEffToIO concStrat $ \unlift ->
         liftIO $ Ki.scoped $ \scope -> do
-            _ <- Ki.fork scope $ localNodeClient connectionInfo queriesOut
+            _ <- Ki.fork scope $ localNodeClient connectionInfo immutableTipQueriesOut
             unlift $
                 interpret_
                     ( \case
-                        QueryImmutableTip -> liftIO $ do
+                        ImmutableTip -> liftIO $ do
                             resultVar <- newEmptyMVar
-                            writeChan queriesIn resultVar
+                            writeChan immutableTipQueriesIn resultVar
                             readMVar resultVar
                     )
                     nodeToClient
 
 
 localNodeClient :: LocalNodeConnectInfo -> OutChan (MVar ChainPoint) -> IO ()
-localNodeClient connectionInfo queries = do
+localNodeClient connectionInfo immutableTipQueries = do
     connectToLocalNode
         connectionInfo
         LocalNodeClientProtocols
             { localChainSyncClient = NoLocalChainSyncClient
-            , localStateQueryClient = Just (LocalStateQueryClient singleQuery)
+            , localStateQueryClient = Just (LocalStateQueryClient queryImmutableTip)
             , localTxSubmissionClient = Nothing
             , localTxMonitoringClient = Nothing
             }
   where
-    singleQuery = do
-        resultVar <- readChan queries
+    queryImmutableTip = do
+        resultVar <- readChan immutableTipQueries
         pure
-            . Q.SendMsgAcquire ImmutableTip
+            . Q.SendMsgAcquire C.ImmutableTip
             $ Q.ClientStAcquiring
                 { recvMsgAcquired =
                     pure
                         . Q.SendMsgQuery QueryChainPoint
                         . Q.ClientStQuerying
-                        $ \result -> putMVar resultVar result $> Q.SendMsgRelease singleQuery
+                        $ \result -> putMVar resultVar result $> Q.SendMsgRelease queryImmutableTip
                 , recvMsgFailure = error "`ImmutableTip` should never fail to be acquired."
                 }

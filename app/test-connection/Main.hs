@@ -47,7 +47,7 @@ import Effectful.State.Static.Shared (State, evalState)
 import Hoard.Collector (dispatchDiscoveredNodes)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToClient (queryImmutableTip, runNodeToClient)
+import Hoard.Effects.NodeToClient (immutableTip, runNodeToClient)
 import Hoard.Effects.Pub (Pub)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Types.HoardState (HoardState)
@@ -151,9 +151,9 @@ testConnection = do
         . tryIf isDoesNotExistError
         . runNodeToClient connectionInfo
         $ do
-            Log.debug =<< show <$> queryImmutableTip
+            Log.debug =<< show <$> immutableTip
             liftIO $ threadDelay (5 * 1000000)
-            Log.debug =<< show <$> queryImmutableTip
+            Log.debug =<< show <$> immutableTip
 
     -- Connect to peer
     conn <- connectToPeer previewRelay.address
