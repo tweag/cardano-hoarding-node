@@ -11,7 +11,7 @@
     flags = {};
     package = {
       specVersion = "1.10";
-      identifier = { name = "parallel"; version = "3.2.2.0"; };
+      identifier = { name = "parallel"; version = "3.3.0.0"; };
       license = "BSD-3-Clause";
       copyright = "";
       maintainer = "libraries@haskell.org";
@@ -29,15 +29,15 @@
           (hsPkgs."base" or (errorHandler.buildDepError "base"))
           (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
           (hsPkgs."deepseq" or (errorHandler.buildDepError "deepseq"))
-        ] ++ pkgs.lib.optional (compiler.isGhc && compiler.version.ge "7.2.1") (hsPkgs."ghc-prim" or (errorHandler.buildDepError "ghc-prim"));
+        ];
         buildable = true;
       };
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/parallel-3.2.2.0.tar.gz";
-      sha256 = "170453a71a2a8b31cca63125533f7771d7debeb639700bdabdd779c34d8a6ef6";
+      url = "http://hackage.haskell.org/package/parallel-3.3.0.0.tar.gz";
+      sha256 = "47c21e778d8e8ebf657aa72fd30e189e71ffddb188660e9d09ca9062d7541791";
     });
   }) // {
-    package-description-override = "cabal-version:  >=1.10\r\nname:           parallel\r\nversion:        3.2.2.0\r\nx-revision: 10\r\n-- NOTE: Don't forget to update ./changelog.md\r\nlicense:        BSD3\r\nlicense-file:   LICENSE\r\nmaintainer:     libraries@haskell.org\r\nbug-reports:    https://github.com/haskell/parallel/issues\r\nsynopsis:       Parallel programming library\r\ncategory:       Control, Parallelism\r\nbuild-type:     Simple\r\n\r\ntested-with:\r\n  GHC == 9.12.0\r\n  GHC == 9.10.1\r\n  GHC == 9.8.2\r\n  GHC == 9.6.6\r\n  GHC == 9.4.8\r\n  GHC == 9.2.8\r\n  GHC == 9.0.2\r\n  GHC == 8.10.7\r\n  GHC == 8.8.4\r\n  GHC == 8.6.5\r\n  GHC == 8.4.4\r\n  GHC == 8.2.2\r\n  GHC == 8.0.2\r\n  -- Drop these old GHCs from CI:\r\n  -- GHC == 7.10.3\r\n  -- GHC == 7.8.4\r\n  -- GHC == 7.6.3\r\n  -- GHC == 7.4.2\r\n  -- GHC == 7.2.2\r\n  -- GHC == 7.0.4\r\n\r\ndescription:\r\n    This package provides a library for parallel programming.\r\n    .\r\n    For documentation, start from the \"Control.Parallel.Strategies\"\r\n    module below.\r\n    .\r\n    For more tutorial documentation, see the book <https://simonmar.github.io/pages/pcph.html Parallel and Concurrent Programming in Haskell>.\r\n    .\r\n    To understand the principles behind the library, see\r\n    <https://simonmar.github.io/bib/papers/strategies.pdf Seq no more: Better Strategies for Parallel Haskell>.\r\n\r\n\r\nextra-source-files: changelog.md\r\n\r\nsource-repository head\r\n    type:     git\r\n    location: https://github.com/haskell/parallel.git\r\n\r\nlibrary\r\n    default-language: Haskell2010\r\n    other-extensions:\r\n        BangPatterns\r\n        CPP\r\n        MagicHash\r\n        UnboxedTuples\r\n\r\n    exposed-modules:\r\n        Control.Seq\r\n        Control.Parallel\r\n        Control.Parallel.Strategies\r\n\r\n    build-depends:\r\n        array      >= 0.3 && < 0.6,\r\n        base       >= 4.3 && < 4.22,\r\n        containers >= 0.4 && < 0.9,\r\n        deepseq    >= 1.1 && < 1.6\r\n\r\n    ghc-options: -Wall\r\n\r\n    if impl(ghc >= 6.11)\r\n        -- To improve parallel performance:\r\n        ghc-options: -feager-blackholing\r\n\r\n    if impl(ghc >= 7.2.1)\r\n        build-depends: ghc-prim\r\n";
+    package-description-override = "cabal-version:  >=1.10\nname:           parallel\nversion:        3.3.0.0\n-- NOTE: Don't forget to update ./changelog.md\nlicense:        BSD3\nlicense-file:   LICENSE\nmaintainer:     libraries@haskell.org\nbug-reports:    https://github.com/haskell/parallel/issues\nsynopsis:       Parallel programming library\ncategory:       Control, Parallelism\nbuild-type:     Simple\n\ntested-with:\n  GHC == 9.12.2\n  GHC == 9.10.1\n  GHC == 9.8.4\n  GHC == 9.6.7\n  GHC == 9.4.8\n  GHC == 9.2.8\n  GHC == 9.0.2\n  GHC == 8.10.7\n  GHC == 8.8.4\n  GHC == 8.6.5\n  GHC == 8.4.4\n  GHC == 8.2.2\n  GHC == 8.0.2\n  MHS\n\ndescription:\n    This package provides a library for parallel programming.\n    .\n    For documentation, start from the \"Control.Parallel.Strategies\"\n    module below.\n    .\n    For more tutorial documentation, see the book <https://simonmar.github.io/pages/pcph.html Parallel and Concurrent Programming in Haskell>.\n    .\n    To understand the principles behind the library, see\n    <https://simonmar.github.io/bib/papers/strategies.pdf Seq no more: Better Strategies for Parallel Haskell>.\n\n\nextra-source-files: changelog.md\n\nsource-repository head\n    type:     git\n    location: https://github.com/haskell/parallel.git\n\nlibrary\n    default-language: Haskell2010\n    other-extensions:\n        BangPatterns\n        CPP\n        MagicHash\n        UnboxedTuples\n\n    exposed-modules:\n        Control.Seq\n        Control.Parallel\n        Control.Parallel.Strategies\n\n    build-depends:\n        array      >= 0.3 && < 0.6,\n        base       >= 4.3 && < 4.22,\n        containers >= 0.4 && < 0.9,\n        deepseq    >= 1.1 && < 1.6\n\n    ghc-options: -Wall\n\n    if impl(ghc >= 6.11)\n        -- To improve parallel performance:\n        ghc-options: -feager-blackholing\n";
   }

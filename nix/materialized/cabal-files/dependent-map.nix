@@ -10,9 +10,9 @@
   ({
     flags = {};
     package = {
-      specVersion = "1.6";
-      identifier = { name = "dependent-map"; version = "0.4.0.0"; };
-      license = "LicenseRef-OtherLicense";
+      specVersion = "3.0";
+      identifier = { name = "dependent-map"; version = "0.4.0.1"; };
+      license = "BSD-3-Clause";
       copyright = "";
       maintainer = "Obsidian Systems, LLC <maintainer@obsidian.systems>";
       author = "James Cook <mokus@deepbondi.net>";
@@ -35,9 +35,9 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/dependent-map-0.4.0.0.tar.gz";
-      sha256 = "53ce0b52d8be1b85fc6489fb27656f16d837bee4fbe0ddf39c844e3ea8871f2c";
+      url = "http://hackage.haskell.org/package/dependent-map-0.4.0.1.tar.gz";
+      sha256 = "4da32e3c57a8afb1e61664bac9e79c3b410e31e839ffd78e0c7716be415a2cde";
     });
   }) // {
-    package-description-override = "name:                   dependent-map\r\nversion:                0.4.0.0\r\nx-revision: 2\r\nstability:              provisional\r\n\r\ncabal-version:          >= 1.6\r\nbuild-type:             Simple\r\n\r\nauthor:                 James Cook <mokus@deepbondi.net>\r\nmaintainer:             Obsidian Systems, LLC <maintainer@obsidian.systems>\r\nlicense:                OtherLicense\r\nlicense-file:           LICENSE\r\nhomepage:               https://github.com/obsidiansystems/dependent-map\r\n\r\ncategory:               Data, Dependent Types\r\nsynopsis:               Dependent finite maps (partial dependent products)\r\ndescription:            Provides a type called @DMap@ which generalizes\r\n                        @Data.Map.Map@, allowing keys to specify the type\r\n                        of value that can be associated with them.\r\n\r\nextra-source-files: ChangeLog.md\r\n                    README.md\r\n\r\ntested-with:            GHC == 8.0.2,\r\n                        GHC == 8.2.2,\r\n                        GHC == 8.4.4,\r\n                        GHC == 8.6.5,\r\n                        GHC == 8.8.3\r\n\r\nsource-repository head\r\n  type:     git\r\n  location: https://github.com/obsidiansystems/dependent-map\r\n\r\nLibrary\r\n  hs-source-dirs:       src\r\n  ghc-options:          -fwarn-unused-imports -fwarn-unused-binds\r\n  exposed-modules:      Data.Dependent.Map,\r\n                        Data.Dependent.Map.Lens,\r\n                        Data.Dependent.Map.Internal\r\n  other-modules:        Data.Dependent.Map.PtrEquality\r\n  build-depends:        base >= 4.9 && < 5,\r\n                        containers >= 0.5.7.1 && <0.8,\r\n                        dependent-sum >= 0.6.1 && < 0.8,\r\n                        constraints-extras >= 0.2.3.0 && < 0.5\r\n";
+    package-description-override = "cabal-version:          3.0\nname:                   dependent-map\nversion:                0.4.0.1\nstability:              provisional\n\nbuild-type:             Simple\n\nauthor:                 James Cook <mokus@deepbondi.net>\nmaintainer:             Obsidian Systems, LLC <maintainer@obsidian.systems>\nlicense:                BSD-3-Clause\nlicense-file:           LICENSE\nhomepage:               https://github.com/obsidiansystems/dependent-map\n\ncategory:               Data, Dependent Types\nsynopsis:               Dependent finite maps (partial dependent products)\ndescription:            Provides a type called @DMap@ which generalizes\n                        @Data.Map.Map@, allowing keys to specify the type\n                        of value that can be associated with them.\n\nextra-source-files: ChangeLog.md\n                    README.md\n\ntested-with:            GHC == 8.4.4,\n                        GHC == 8.6.5,\n                        GHC == 8.8.4,\n                        GHC == 8.10.7,\n                        GHC == 9.0.2,\n                        GHC == 9.2.8,\n                        GHC == 9.4.8,\n                        GHC == 9.6.5,\n                        GHC == 9.8.2,\n                        GHC == 9.10.1\n\nsource-repository head\n  type:     git\n  location: https://github.com/obsidiansystems/dependent-map\n\nLibrary\n  hs-source-dirs:       src\n  ghc-options:          -fwarn-unused-imports -fwarn-unused-binds\n  exposed-modules:      Data.Dependent.Map,\n                        Data.Dependent.Map.Lens,\n                        Data.Dependent.Map.Internal\n  other-modules:        Data.Dependent.Map.PtrEquality\n  build-depends:        base >= 4.11 && < 5,\n                        containers >= 0.5.7.1 && <0.8,\n                        dependent-sum >= 0.6.1 && < 0.8,\n                        constraints-extras >= 0.2.3.0 && < 0.5\n  default-language:     Haskell2010\n";
   }
