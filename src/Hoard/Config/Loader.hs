@@ -28,7 +28,7 @@ data ConfigFile = ConfigFile
     , protocolConfigPath :: FilePath
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via QuietSnake ConfigFile
 
 
 -- | Database configuration (non-sensitive connection details)
