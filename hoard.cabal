@@ -74,7 +74,7 @@ library
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin
   build-depends:
       aeson
     , async
@@ -90,6 +90,7 @@ library
     , directory
     , effectful
     , effectful-core
+    , effectful-plugin
     , effectful-th
     , filepath
     , hashable
@@ -153,7 +154,7 @@ executable hoard-exe
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin
   build-depends:
       aeson
     , async
@@ -169,6 +170,7 @@ executable hoard-exe
     , directory
     , effectful
     , effectful-core
+    , effectful-plugin
     , effectful-th
     , filepath
     , hashable
@@ -233,7 +235,7 @@ executable test-connection
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin
   build-depends:
       aeson
     , async
@@ -249,6 +251,7 @@ executable test-connection
     , directory
     , effectful
     , effectful-core
+    , effectful-plugin
     , effectful-th
     , filepath
     , hashable
@@ -322,7 +325,7 @@ test-suite hoard-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
@@ -341,6 +344,7 @@ test-suite hoard-test
     , directory
     , effectful
     , effectful-core
+    , effectful-plugin
     , effectful-th
     , filepath
     , hashable
