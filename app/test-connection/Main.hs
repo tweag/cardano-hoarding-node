@@ -30,7 +30,6 @@ import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
-import Hoard.Network.Events
 import Hoard.Types.NodeIP (NodeIP (..))
 
 import Cardano.Api
@@ -49,7 +48,10 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
 import Hoard.Effects.Pub (Pub)
-import Hoard.Events.Collector (CollectorEvent (..))
+import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
+import Hoard.Listeners.CollectorEventListener (collectorEventListener)
+import Hoard.Listeners.NetworkEventListener (networkEventListener)
+import Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener)
 import Hoard.Types.HoardState (HoardState)
 import System.IO.Error (isDoesNotExistError)
 
@@ -140,11 +142,11 @@ testConnection = do
     Log.info $ "Connecting to " <> show previewRelay.address.host <> ":" <> show previewRelay.address.port
 
     -- Start event listeners in background
-    Conc.fork_ networkEventListener
-    Conc.fork_ peerSharingEventListener
-    Conc.fork_ chainSyncEventListener
-    Conc.fork_ collectorEventListener
-    Conc.fork_ dispatchDiscoveredNodes
+    Conc.fork_ $ listen networkEventListener
+    Conc.fork_ $ listen peerSharingEventListener
+    Conc.fork_ $ listen chainSyncEventListener
+    Conc.fork_ $ listen collectorEventListener
+    Conc.fork_ $ listen dispatchDiscoveredNodes
 
     -- query immutable tip
     (=<<) (either (Log.warn . toText . displayException) pure)
@@ -179,63 +181,6 @@ testConnection = do
     if isAlive'
         then Log.info "✓ Connection still alive after 30 seconds"
         else Log.info "✗ Connection died"
-
-
--- | Listen for and print network events
-networkEventListener
-    :: (Log :> es, Sub :> es)
-    => Eff es Void
-networkEventListener = listen $ \case
-    ConnectionEstablished dat -> do
-        Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp
-    ConnectionLost dat -> do
-        Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> show dat.timestamp
-    HandshakeCompleted dat -> do
-        Log.info $ "🤝 Handshake completed with version " <> show dat.version
-    ProtocolError dat -> do
-        Log.warn $ "❌ Protocol error: " <> dat.errorMessage
-
-
--- | Listen for and print peer sharing events
-peerSharingEventListener
-    :: (Log :> es, Sub :> es)
-    => Eff es Void
-peerSharingEventListener = listen $ \case
-    PeerSharingStarted dat -> do
-        Log.info $ "🔍 PeerSharing protocol started at " <> show dat.timestamp
-    PeersReceived dat -> do
-        Log.info $ "📡 Received " <> show (length dat.peerAddresses) <> " peer addresses from remote peer:"
-        forM_ dat.peerAddresses $ \addr ->
-            Log.debug $ "   - " <> show addr.host <> ":" <> show addr.port
-    PeerSharingFailed dat -> do
-        Log.warn $ "❌ PeerSharing failed: " <> dat.errorMessage
-
-
--- | Listen for and print chain sync events
-chainSyncEventListener
-    :: (Log :> es, Sub :> es)
-    => Eff es Void
-chainSyncEventListener = listen $ \case
-    ChainSyncStarted dat -> do
-        Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
-    HeaderReceived _dat -> do
-        Log.info "📦 Header received!"
-    RollBackward _dat -> do
-        Log.info "⏪ Rollback occurred"
-    RollForward _dat -> do
-        Log.info "⏩ RollForward occurred"
-    ChainSyncIntersectionFound _dat -> do
-        Log.info "🎯 ChainSync intersection found"
-
-
-collectorEventListener :: (Log :> es, Sub :> es) => Eff es Void
-collectorEventListener = listen $ \case
-    CollectorStarted addr -> Log.info $ "Collector: started for " <> show addr.host
-    ConnectingToPeer addr -> Log.info $ "Collector: connecting to peer " <> show addr.host
-    ConnectedToPeer addr -> Log.info $ "Collector: connected to peer " <> show addr.host
-    ConnectionFailed addr reason -> Log.info $ "Collector: failed to connect to peer " <> show addr.host <> ": " <> reason
-    ChainSyncReceived addr -> Log.info $ "Collector: chain sync received from " <> show addr.host
-    BlockFetchReceived addr -> Log.info $ "Collector: block fetch received from " <> show addr.host
 
 
 resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)

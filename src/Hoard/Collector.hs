@@ -9,7 +9,6 @@ import Hoard.Data.Peer (PeerAddress)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Network (Network, connectToPeer)
 import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Effects.Sub (Sub, listen)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 import Hoard.Types.HoardState (HoardState, connectedPeers)
@@ -21,11 +20,11 @@ dispatchDiscoveredNodes
        , IOE :> es
        , Network :> es
        , Pub :> es
-       , Sub :> es
        , State HoardState :> es
        )
-    => Eff es Void
-dispatchDiscoveredNodes = listen $ \case
+    => PeerSharingEvent
+    -> Eff es ()
+dispatchDiscoveredNodes = \case
     (PeersReceived (PeersReceivedData {peerAddresses})) -> do
         currPeers <- gets connectedPeers
         let peersToConnect = S.difference peerAddresses currPeers

@@ -38,7 +38,11 @@ library
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
       Hoard.Events.Node
+      Hoard.Listeners.ChainSyncEventListener
+      Hoard.Listeners.CollectorEventListener
       Hoard.Listeners.HeaderReceivedListener
+      Hoard.Listeners.NetworkEventListener
+      Hoard.Listeners.PeerSharingEventListener
       Hoard.Listeners.PeersReceivedListener
       Hoard.Network.Events
       Hoard.Network.Types
