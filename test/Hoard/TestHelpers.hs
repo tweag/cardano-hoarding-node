@@ -42,6 +42,7 @@ import Hasql.Pool.Config qualified as Pool
 import Hoard.API (API, Routes, server)
 import Hoard.Effects (Config (..), ServerConfig (..), runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -89,7 +90,15 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
-    let config = Config {ioManager, dbPools, inChan, server = serverConfig, protocolConfigPath = "config/preview/config.json"}
+    let config =
+            Config
+                { ioManager
+                , dbPools
+                , inChan
+                , server = serverConfig
+                , protocolConfigPath = "config/preview/config.json"
+                , logging = Log.defaultConfig
+                }
     wireTapOutput <- newIORef []
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, finalState) <-

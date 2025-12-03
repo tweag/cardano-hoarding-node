@@ -17,3 +17,6 @@ database:
     acquisition_timeout_seconds: 5
     aging_timeout_seconds: 600
     idleness_timeout_seconds: 300
+
+logging:
+  minimumSeverity: DEBUG
