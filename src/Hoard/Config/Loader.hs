@@ -30,7 +30,7 @@ data ConfigFile = ConfigFile
     , logging :: LoggingConfig
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via QuietSnake ConfigFile
 
 
 -- | Database configuration (non-sensitive connection details)
