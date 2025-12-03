@@ -35,6 +35,7 @@ import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, runNetwork)
+import Hoard.Effects.NodeToClient (NodeToClient, runNodeToClient)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
@@ -58,6 +59,7 @@ data Config = Config
     , inChan :: InChan Dynamic
     , server :: ServerConfig
     , protocolConfigPath :: FilePath
+    , localNodeSocketPath :: FilePath
     , logging :: Log.Config
     }
 
@@ -70,6 +72,7 @@ type AppEff es =
     , FileSystem :> es
     , Concurrent :> es
     , Conc :> es
+    , NodeToClient :> es
     , Sub :> es
     , Pub :> es
     , Network :> es
@@ -95,6 +98,7 @@ type AppEffects =
      , Error Text
      , Pub
      , Sub
+     , NodeToClient
      , Conc
      , Concurrent
      , FileSystem
@@ -116,6 +120,7 @@ runEffectStack config action = liftIO $ do
             . scoped
             $ \scope ->
                 runConcWithKi scope
+                    . runNodeToClient config
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
@@ -142,6 +147,7 @@ runEffectStackReturningState config action = liftIO $ do
             . scoped
             $ \scope ->
                 runConcWithKi scope
+                    . runNodeToClient config
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text

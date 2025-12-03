@@ -5,6 +5,9 @@ server:
 # Path to secrets file (can be relative or absolute)
 secrets_file: secrets/ci.yaml
 
+# Path to local node socket file
+local_node_socket_path: preview.socket
+
 # Path to Cardano protocol config file
 protocol_config_path: config/preview/config.json
 

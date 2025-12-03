@@ -13,10 +13,12 @@ module Hoard.Effects.Network
 
       -- * Interpreter
     , runNetwork
+
+      -- * Utilities
+    , loadNodeConfig
     ) where
 
-import Cardano.Api.IO (File (..))
-import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
+import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Exception (AsyncException (..))
 import Control.Tracer (Tracer (..))
@@ -301,17 +303,21 @@ isConnectedImpl _conn = do
 -- Codec Configuration
 --------------------------------------------------------------------------------
 
+loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
+loadNodeConfig configPath = do
+    let configFile = File configPath
+    nodeConfigResult <- runExceptT $ readNodeConfig configFile
+    case nodeConfigResult of
+        Left err -> error $ "Failed to read node config: " <> err
+        Right cfg -> pure cfg
+
+
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
 loadProtocolInfo :: (IOE :> es) => FilePath -> Eff es (ProtocolInfo CardanoBlock)
 loadProtocolInfo configPath = do
-    let configFile = File configPath
-
     -- Load NodeConfig
-    nodeConfigResult <- runExceptT $ readNodeConfig configFile
-    nodeConfig <- case nodeConfigResult of
-        Left err -> error $ "Failed to read node config: " <> err
-        Right cfg -> pure cfg
+    nodeConfig <- loadNodeConfig configPath
 
     -- Load GenesisConfig
     genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig

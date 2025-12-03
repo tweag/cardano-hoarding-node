@@ -32,14 +32,6 @@ import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Types.NodeIP (NodeIP (..))
 
-import Cardano.Api
-    ( ConsensusModeParams (CardanoModeParams)
-    , EpochSlots (EpochSlots)
-    , File (File)
-    , LocalNodeConnectInfo (..)
-    , NetworkId (Testnet)
-    , NetworkMagic (NetworkMagic)
-    )
 import Data.Default (def)
 import Effectful.Exception (tryIf)
 import Effectful.State.Static.Shared (State, evalState)
@@ -57,19 +49,8 @@ import Hoard.Types.HoardState (HoardState)
 import System.IO.Error (isDoesNotExistError)
 
 
-connectionInfo :: LocalNodeConnectInfo
-connectionInfo =
-    LocalNodeConnectInfo
-        { -- according to
-          -- https://cardano-api.cardano.intersectmbo.org/cardano-api/Cardano-Api-Network-IPC.html#g:2,
-          -- https://book.world.dev.cardano.org/environments/preprod/shelley-genesis.json,
-          -- https://book.world.dev.cardano.org/environments/mainnet/shelley-genesis.json,
-          -- https://github.com/IntersectMBO/cardano-node/blob/master/configuration/cardano/mainnet-shelley-genesis.json#L62,
-          -- and https://github.com/IntersectMBO/cardano-node/blob/master/nix/workbench/profile/presets/mainnet/genesis/genesis-shelley.json#L62
-          localConsensusModeParams = CardanoModeParams $ EpochSlots $ 432000
-        , localNodeNetworkId = Testnet $ NetworkMagic $ 1
-        , localNodeSocketPath = File "preprod.socket"
-        }
+connectionConfig :: ConnectionConfig
+connectionConfig = ConnectionConfig {protocolConfigPath = "config/preview/config.json", localNodeSocketPath = "preview.socket"}
 
 
 main :: IO ()
@@ -153,7 +134,7 @@ testConnection = do
     -- query immutable tip
     (=<<) (either (Log.warn . toText . displayException) pure)
         . tryIf isDoesNotExistError
-        . (\action -> scoped (\scope -> Conc.runConcWithKi scope $ runNodeToClient connectionInfo action))
+        . (\action -> scoped (\scope -> Conc.runConcWithKi scope $ runNodeToClient connectionConfig action))
         $ do
             tip0 <- immutableTip
             Log.debug (show tip0)
@@ -194,3 +175,6 @@ resolvePeerAddress address port = do
             maybe (error "Found address of preview relay is not an IP address") pure $
                 IP.fromSockAddr $
                     Socket.addrAddress addr
+
+
+data ConnectionConfig = ConnectionConfig {protocolConfigPath :: FilePath, localNodeSocketPath :: FilePath}

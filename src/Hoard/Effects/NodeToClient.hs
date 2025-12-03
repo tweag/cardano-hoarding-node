@@ -1,11 +1,15 @@
 module Hoard.Effects.NodeToClient
-    ( runNodeToClient
+    ( NodeToClient
+    , runNodeToClient
     , immutableTip
     , isOnChain
     ) where
 
 import Cardano.Api
     ( ChainPoint
+    , ConsensusModeParams (CardanoModeParams)
+    , EpochSize
+    , File (File)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
         ( LocalNodeClientProtocols
@@ -14,9 +18,14 @@ import Cardano.Api
         , localTxMonitoringClient
         , localTxSubmissionClient
         )
-    , LocalNodeConnectInfo
+    , LocalNodeConnectInfo (LocalNodeConnectInfo)
+    , NetworkId (Testnet)
+    , NetworkMagic (NetworkMagic)
     , QueryInMode (QueryChainPoint)
+    , ShelleyConfig (ShelleyConfig)
+    , ShelleyGenesis (ShelleyGenesis)
     , connectToLocalNode
+    , readShelleyGenesisConfig
     )
 import Cardano.Api qualified as C
 import Control.Concurrent.Chan.Unagi
@@ -33,7 +42,9 @@ import Effectful
     )
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
+import GHC.Records (HasField)
 import Hoard.Effects.Conc (Conc, fork_)
+import Hoard.Effects.Network (loadNodeConfig)
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 
@@ -46,11 +57,31 @@ data NodeToClient :: Effect where
 makeEffect ''NodeToClient
 
 
-runNodeToClient :: (Conc :> es, IOE :> es) => LocalNodeConnectInfo -> Eff (NodeToClient : es) a -> Eff es a
-runNodeToClient connectionInfo nodeToClient = do
+runNodeToClient
+    :: ( Conc :> es
+       , IOE :> es
+       , HasField "protocolConfigPath" config FilePath
+       , HasField "localNodeSocketPath" config FilePath
+       )
+    => config
+    -> Eff (NodeToClient : es) a
+    -> Eff es a
+runNodeToClient config nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
-    _ <- fork_ $ liftIO $ localNodeClient connectionInfo immutableTipQueriesOut isOnChainQueriesOut
+    epochSize <- loadEpochSize config.protocolConfigPath
+    _ <-
+        fork_
+            . liftIO
+            $ localNodeClient
+                ( LocalNodeConnectInfo
+                    { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
+                    , localNodeNetworkId = Testnet $ NetworkMagic $ 2
+                    , localNodeSocketPath = File config.localNodeSocketPath
+                    }
+                )
+                immutableTipQueriesOut
+                isOnChainQueriesOut
     interpret_
         ( \case
             ImmutableTip -> liftIO $ do
@@ -99,3 +130,16 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                     { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ putMVar resultVar True *> queryIsOnChain
                     , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ putMVar resultVar False *> queryIsOnChain
                     }
+
+
+loadEpochSize :: (IOE :> es) => FilePath -> Eff es EpochSize
+loadEpochSize configPath = do
+    -- Load NodeConfig
+    nodeConfig <- loadNodeConfig configPath
+
+    -- Load GenesisConfig
+    genesisConfigResult <- runExceptT $ readShelleyGenesisConfig nodeConfig
+    ShelleyConfig {scConfig = ShelleyGenesis {sgEpochLength}} <- case genesisConfigResult of
+        Left err -> error $ "Failed to read shelley genesis config: " <> show err
+        Right cfg -> pure cfg
+    pure sgEpochLength
