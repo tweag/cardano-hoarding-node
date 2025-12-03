@@ -6,6 +6,9 @@ server:
 # In production with sops-nix, this could be: /run/secrets/hoard
 secrets_file: secrets/prod.yaml
 
+# Path to local node socket file
+local_node_socket_path: preview.socket
+
 # Path to Cardano protocol config file
 # TODO: Update to mainnet config in phase 2
 protocol_config_path: config/preview/config.json
