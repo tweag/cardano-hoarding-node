@@ -17,7 +17,7 @@ instance forall a. (Typeable a, Read a) => FromJSON (JsonReadShow a) where
                     (fail $ "Failed to read " <> typeName)
                     (pure . JsonReadShow)
                     . readMaybe
-                    . show
+                    . toString
 
 
 instance (Show a) => ToJSON (JsonReadShow a) where
