@@ -30,6 +30,7 @@ library
       Hoard.Effects.DBWrite
       Hoard.Effects.Log
       Hoard.Effects.Network
+      Hoard.Effects.Network.Codecs
       Hoard.Effects.NodeToClient
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub
