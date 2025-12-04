@@ -8,7 +8,7 @@ interpreter, is read from the configuration files and the environment in
 [`Hoard.Config.Loader`](../src/Hoard/Config/Loader.hs).
 
 Minimum log level can be configured either in the configuration file itself,
-under `logging.minimumSeverity`, or through the environment variables `LOG`,
+under `logging.minimum_severity`, or through the environment variables `LOG`,
 `LOGGING` or `DEBUG`.
 
 - `DEBUG=1` sets the minimum log level to `DEBUG`.

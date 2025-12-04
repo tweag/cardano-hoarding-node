@@ -20,4 +20,4 @@ database:
     idleness_timeout_seconds: 600
 
 logging:
-  minimumSeverity: INFO
+  minimum_severity: INFO
