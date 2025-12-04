@@ -44,6 +44,7 @@ import Data.Default (def)
 import Effectful.Exception (tryIf)
 import Effectful.State.Static.Shared (State, evalState)
 import Hoard.Collector (dispatchDiscoveredNodes)
+import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
@@ -90,13 +91,14 @@ main = withIOManager $ \ioManager -> do
     result <- runEff
         . runLog
         . runConcurrent
+        . runClock
         . scoped
         $ \scope -> do
             Conc.runConcWithKi scope
                 . runErrorNoCallStack @Text
                 . runSub inChan
                 . runPub inChan
-                . runNetwork ioManager inChan "config/preview/config.json"
+                . runNetwork ioManager "config/preview/config.json"
                 . evalState @HoardState def
                 $ testConnection
 
