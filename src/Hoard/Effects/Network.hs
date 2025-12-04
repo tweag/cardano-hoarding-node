@@ -21,7 +21,6 @@ import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Concurrent.Chan.Unagi (InChan, writeChan)
 import Control.Exception (AsyncException (..))
 import Control.Tracer (stdoutTracer)
-import Data.Time (getCurrentTime)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpret)
@@ -76,6 +75,8 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
+import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
@@ -129,7 +130,7 @@ makeEffect ''Network
 -- This handler establishes actual network connections and spawns protocol threads.
 -- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
-    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es)
+    :: (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es, Clock :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -156,7 +157,7 @@ runNetwork ioManager chan protocolConfigPath = interpret $ \_ -> \case
 -- 6. Publishes connection events
 connectToPeerImpl
     :: forall es
-     . (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es)
+     . (Error Text :> es, IOE :> es, Log :> es, Pub :> es, Concurrent :> es, Clock :> es)
     => IOManager
     -> InChan Dyn.Dynamic
     -> FilePath
@@ -245,7 +246,7 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
             throwError @Text $ "Failed to connect to peer " <> show peer <> ": " <> show err
         Right (Left ()) -> do
             -- Connection succeeded, create Connection record
-            timestamp <- liftIO getCurrentTime
+            timestamp <- Clock.currentTime
             let version = NodeToNodeV_14 -- We negotiated this version
 
             -- Publish handshake completed event
@@ -276,12 +277,12 @@ connectToPeerImpl ioManager chan protocolConfigPath peer = do
 -- Note: With the current connectTo-based implementation, we don't have direct control
 -- over disconnection. The connection is managed by ouroboros-network's internal state.
 disconnectPeerImpl
-    :: (IOE :> es, Pub :> es)
+    :: (Pub :> es, Clock :> es)
     => Connection
     -> Eff es ()
 disconnectPeerImpl conn = do
     -- Publish connection lost event
-    timestamp <- liftIO getCurrentTime
+    timestamp <- Clock.currentTime
     let peer = Hoard.Network.Types.peer conn
         reason = "Disconnect requested"
     publish $ ConnectionLost ConnectionLostData {peer, reason, timestamp}
@@ -356,7 +357,7 @@ withExceptionLogging protocolName action =
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: (Concurrent :> es, IOE :> es)
+    :: (Concurrent :> es, IOE :> es, Clock :> es)
     => (forall x. Eff es x -> IO x)
     -> Codecs
         CardanoBlock
@@ -436,7 +437,7 @@ mkApplication unlift codecs peer publishEvent =
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
                                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
-                                    timestamp <- liftIO getCurrentTime
+                                    timestamp <- Clock.currentTime
                                     liftIO $ publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
                                     liftIO $ putTextLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
                                     liftIO $ putTextLn "[DEBUG] PeerSharing: About to run peer protocol..."
@@ -496,7 +497,7 @@ mkApplication unlift codecs peer publishEvent =
 -- 3. Waits 1 hour
 -- 4. Loops
 peerSharingClientImpl
-    :: (Concurrent :> es, IOE :> es)
+    :: (Concurrent :> es, IOE :> es, Clock :> es)
     => (forall x. Eff es x -> IO x)
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
@@ -509,7 +510,7 @@ peerSharingClientImpl unlift peer publishEvent =
     withPeers peerAddrs = unlift do
         liftIO $ putTextLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
         liftIO $ putTextLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
-        timestamp <- liftIO getCurrentTime
+        timestamp <- Clock.currentTime
         liftIO $
             publishEvent $
                 PeersReceived
@@ -537,7 +538,7 @@ peerSharingClientImpl unlift peer publishEvent =
 -- Note: This runs forever, continuously requesting the next header.
 chainSyncClientImpl
     :: forall es
-     . (IOE :> es)
+     . (IOE :> es, Clock :> es)
     => (forall x. Eff es x -> IO x)
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
@@ -549,7 +550,7 @@ chainSyncClientImpl unlift peer publishEvent =
                 withExceptionLogging "ChainSync" $
                     do
                         -- Publish started event
-                        timestamp <- liftIO $ getCurrentTime
+                        timestamp <- Clock.currentTime
                         liftIO $ publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
                         liftIO $ putTextLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
                         liftIO $ putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
@@ -563,7 +564,7 @@ chainSyncClientImpl unlift peer publishEvent =
                 pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
                 liftIO $ putTextLn "[DEBUG] ChainSync: Intersection found"
-                timestamp <- liftIO getCurrentTime
+                timestamp <- Clock.currentTime
                 liftIO $
                     publishEvent $
                         ChainSyncIntersectionFound
@@ -580,7 +581,7 @@ chainSyncClientImpl unlift peer publishEvent =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
                 liftIO $ putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
-                timestamp <- liftIO getCurrentTime
+                timestamp <- Clock.currentTime
                 let point = castPoint $ headerPoint header
                 liftIO $
                     publishEvent $
@@ -596,7 +597,7 @@ chainSyncClientImpl unlift peer publishEvent =
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
                 liftIO $ putTextLn "[DEBUG] ChainSync: Rollback"
-                timestamp <- liftIO getCurrentTime
+                timestamp <- Clock.currentTime
                 liftIO $
                     publishEvent $
                         RollBackward
@@ -610,7 +611,7 @@ chainSyncClientImpl unlift peer publishEvent =
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
                     putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
-                    timestamp <- liftIO getCurrentTime
+                    timestamp <- Clock.currentTime
                     let point = castPoint $ headerPoint header
                     liftIO $
                         publishEvent $
@@ -625,7 +626,7 @@ chainSyncClientImpl unlift peer publishEvent =
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
                     liftIO $ putTextLn "[DEBUG] ChainSync: Rollback after await"
-                    timestamp <- liftIO getCurrentTime
+                    timestamp <- Clock.currentTime
                     liftIO $
                         publishEvent $
                             RollBackward
