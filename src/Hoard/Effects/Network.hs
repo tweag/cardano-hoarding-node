@@ -335,19 +335,19 @@ loadProtocolInfo configPath = do
 --------------------------------------------------------------------------------
 
 -- | Wrap a protocol action with exception logging to debug cancellations.
-withExceptionLogging :: (IOE :> es) => Text -> Eff es a -> Eff es a
+withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         case fromException e of
             Just ThreadKilled -> do
-                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " killed: ThreadKilled"
-                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
+                Log.err $ protocolName <> " killed: ThreadKilled"
+                Log.err $ protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
             Just UserInterrupt -> do
-                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " interrupted: UserInterrupt"
+                Log.err $ protocolName <> " interrupted: UserInterrupt"
             Just (asyncEx :: AsyncException) -> do
-                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " async exception: " <> show asyncEx
+                Log.err $ protocolName <> " async exception: " <> show asyncEx
             Nothing -> do
-                liftIO $ putTextLn $ "[EXCEPTION] " <> protocolName <> " terminated with exception: " <> show e
+                Log.err $ protocolName <> " terminated with exception: " <> show e
         -- Re-throw the exception after logging
         throwIO e
 
@@ -357,7 +357,7 @@ withExceptionLogging protocolName action =
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: (Concurrent :> es, IOE :> es, Clock :> es)
+    :: (Concurrent :> es, IOE :> es, Clock :> es, Log :> es)
     => (forall x. Eff es x -> IO x)
     -> Codecs
         CardanoBlock
@@ -399,11 +399,11 @@ mkApplication unlift codecs peer publishEvent =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 unlift $ withExceptionLogging "BlockFetch" $ do
-                    liftIO $ putTextLn "[DEBUG] BlockFetch protocol stub started - will sleep forever to keep connection alive"
+                    Log.debug "BlockFetch protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    liftIO $ putTextLn "[DEBUG] BlockFetch stub woke up (should never happen)"
+                    Log.debug "BlockFetch stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         , -- KeepAlive mini-protocol
@@ -419,7 +419,7 @@ mkApplication unlift codecs peer publishEvent =
                                 wrappedPeer = Peer.Effect $
                                     unlift $
                                         withExceptionLogging "KeepAlive" $ do
-                                            liftIO $ putTextLn "[DEBUG] KeepAlive protocol started"
+                                            Log.debug "KeepAlive protocol started"
                                             pure (keepAliveClientPeer $ keepAliveClientImpl unlift)
                                 tracer = contramap (("[KeepAlive] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
@@ -439,8 +439,8 @@ mkApplication unlift codecs peer publishEvent =
                                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
                                     timestamp <- Clock.currentTime
                                     liftIO $ publishEvent $ PeerSharingStarted PeerSharingStartedData {peer, timestamp}
-                                    liftIO $ putTextLn "[DEBUG] PeerSharing: Published PeerSharingStarted event"
-                                    liftIO $ putTextLn "[DEBUG] PeerSharing: About to run peer protocol..."
+                                    Log.debug "PeerSharing: Published PeerSharingStarted event"
+                                    Log.debug "PeerSharing: About to run peer protocol..."
                                     pure (peerSharingClientPeer client)
                                 tracer = contramap (("[PeerSharing] " <>) . show) stdoutTracer
                             in  (tracer, codec, wrappedPeer)
@@ -452,11 +452,11 @@ mkApplication unlift codecs peer publishEvent =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 unlift $ withExceptionLogging "TxSubmission" $ do
-                    liftIO $ putTextLn "[DEBUG] TxSubmission protocol stub started - will sleep forever to keep connection alive"
+                    Log.debug "TxSubmission protocol stub started - will sleep forever to keep connection alive"
                     -- Sleep forever instead of terminating immediately
                     -- This prevents the stub from signaling connection termination
                     threadDelay maxBound
-                    liftIO $ putTextLn "[DEBUG] TxSubmission stub woke up (should never happen)"
+                    Log.debug "TxSubmission stub woke up (should never happen)"
                     pure ((), Nothing)
             }
         ]
@@ -497,7 +497,7 @@ mkApplication unlift codecs peer publishEvent =
 -- 3. Waits 1 hour
 -- 4. Loops
 peerSharingClientImpl
-    :: (Concurrent :> es, IOE :> es, Clock :> es)
+    :: (Concurrent :> es, IOE :> es, Clock :> es, Log :> es)
     => (forall x. Eff es x -> IO x)
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
@@ -508,8 +508,8 @@ peerSharingClientImpl unlift peer publishEvent =
   where
     requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
     withPeers peerAddrs = unlift do
-        liftIO $ putTextLn "[DEBUG] PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        liftIO $ putTextLn $ "[DEBUG] PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        Log.debug "PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
+        Log.debug $ "PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
         timestamp <- Clock.currentTime
         liftIO $
             publishEvent $
@@ -519,10 +519,10 @@ peerSharingClientImpl unlift peer publishEvent =
                         , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                         , timestamp
                         }
-        liftIO $ putTextLn "[DEBUG] PeerSharing: Published PeersReceived event"
-        liftIO $ putTextLn "[DEBUG] PeerSharing: Waiting 10 seconds"
+        Log.debug "PeerSharing: Published PeersReceived event"
+        Log.debug "PeerSharing: Waiting 10 seconds"
         threadDelay oneHour
-        liftIO $ putTextLn "[DEBUG] PeerSharing: looping"
+        Log.debug "PeerSharing: looping"
         pure $ requestPeers withPeers
     oneHour = 3_600_000_000
 
@@ -538,7 +538,7 @@ peerSharingClientImpl unlift peer publishEvent =
 -- Note: This runs forever, continuously requesting the next header.
 chainSyncClientImpl
     :: forall es
-     . (IOE :> es, Clock :> es)
+     . (IOE :> es, Clock :> es, Log :> es)
     => (forall x. Eff es x -> IO x)
     -> PeerAddress
     -> (forall event. (Typeable event) => event -> IO ())
@@ -552,18 +552,18 @@ chainSyncClientImpl unlift peer publishEvent =
                         -- Publish started event
                         timestamp <- Clock.currentTime
                         liftIO $ publishEvent $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-                        liftIO $ putTextLn "[DEBUG] ChainSync: Published ChainSyncStarted event"
-                        liftIO $ putTextLn "[DEBUG] ChainSync: Starting pipelined client, finding intersection from genesis"
+                        Log.debug "ChainSync: Published ChainSyncStarted event"
+                        Log.debug "ChainSync: Starting pipelined client, finding intersection from genesis"
                         pure findIntersect
   where
     findIntersect :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect =
         Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                liftIO $ putTextLn "[DEBUG] ChainSync: Intersection not found (continuing anyway)"
+                Log.debug "ChainSync: Intersection not found (continuing anyway)"
                 pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                liftIO $ putTextLn "[DEBUG] ChainSync: Intersection found"
+                Log.debug "ChainSync: Intersection found"
                 timestamp <- Clock.currentTime
                 liftIO $
                     publishEvent $
@@ -580,7 +580,7 @@ chainSyncClientImpl unlift peer publishEvent =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                liftIO $ putTextLn "[DEBUG] ChainSync: Received header (RollForward)"
+                Log.debug "ChainSync: Received header (RollForward)"
                 timestamp <- Clock.currentTime
                 let point = castPoint $ headerPoint header
                 liftIO $
@@ -596,7 +596,7 @@ chainSyncClientImpl unlift peer publishEvent =
                                 }
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                liftIO $ putTextLn "[DEBUG] ChainSync: Rollback"
+                Log.debug "ChainSync: Rollback"
                 timestamp <- Clock.currentTime
                 liftIO $
                     publishEvent $
@@ -610,7 +610,7 @@ chainSyncClientImpl unlift peer publishEvent =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                    putTextLn "[DEBUG] ChainSync: Received header after await (RollForward)"
+                    Log.debug "ChainSync: Received header after await (RollForward)"
                     timestamp <- Clock.currentTime
                     let point = castPoint $ headerPoint header
                     liftIO $
@@ -625,7 +625,7 @@ chainSyncClientImpl unlift peer publishEvent =
                                     }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                    liftIO $ putTextLn "[DEBUG] ChainSync: Rollback after await"
+                    Log.debug "ChainSync: Rollback after await"
                     timestamp <- Clock.currentTime
                     liftIO $
                         publishEvent $
@@ -644,17 +644,17 @@ chainSyncClientImpl unlift peer publishEvent =
 -- This client sends periodic keepalive messages to maintain the connection
 -- and detect network failures. It sends a message immediately, then waits 10
 -- seconds before sending the next one.
-keepAliveClientImpl :: (IOE :> es, Concurrent :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
+keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
 keepAliveClientImpl unlift = KeepAliveClient sendFirst
   where
     -- Send the first message immediately
     sendFirst = unlift $ do
-        liftIO $ putTextLn "[DEBUG] KeepAlive: Sending first keepalive message"
+        Log.debug "KeepAlive: Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     -- Wait 10 seconds before sending subsequent messages
     sendNext = unlift $ do
-        liftIO $ putTextLn "[DEBUG] KeepAlive: Response received, waiting 10s before next message"
+        Log.debug "KeepAlive: Response received, waiting 10s before next message"
         threadDelay 10_000_000 -- 10 seconds in microseconds
-        liftIO $ putTextLn "[DEBUG] KeepAlive: Sending keepalive message"
+        Log.debug "KeepAlive: Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
