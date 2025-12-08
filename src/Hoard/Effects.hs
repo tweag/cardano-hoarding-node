@@ -5,6 +5,8 @@ module Hoard.Effects
     , AppEffects
     -- Config
     , Config (..)
+    , Handles (..)
+    , Env (..)
     , ServerConfig (..)
 
       -- * Type Aliases
@@ -12,7 +14,7 @@ module Hoard.Effects
     )
 where
 
-import Prelude hiding (State, evalState, runState)
+import Prelude hiding (State, evalState)
 
 import Control.Exception (throwIO)
 import Data.Aeson (FromJSON)
@@ -53,14 +55,27 @@ data ServerConfig = ServerConfig
     deriving (FromJSON) via QuietSnake ServerConfig
 
 
+-- | Pure configuration data loaded from config files
 data Config = Config
-    { ioManager :: IOManager
-    , dbPools :: DBPools
-    , inChan :: InChan Dynamic
-    , server :: ServerConfig
+    { server :: ServerConfig
     , protocolConfigPath :: FilePath
     , localNodeSocketPath :: FilePath
     , logging :: Log.Config
+    }
+
+
+-- | Runtime handles and resources
+data Handles = Handles
+    { ioManager :: IOManager
+    , dbPools :: DBPools
+    , inChan :: InChan Dynamic
+    }
+
+
+-- | Application environment combining config and handles
+data Env = Env
+    { config :: Config
+    , handles :: Handles
     }
 
 
@@ -113,23 +128,23 @@ type AppEffects =
 
 
 -- | Run the full effect stack for the application
-runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
-runEffectStack config action = liftIO $ do
+runEffectStack :: (MonadIO m) => Env -> Eff AppEffects a -> m a
+runEffectStack env action = liftIO $ do
     result <-
         runEff
-            . runLog config.logging
+            . runLog env.config.logging
             . runClock
             . runFileSystem
             . runConcurrent
             . runConcNewScope
-            . runNodeToClient config
+            . runNodeToClient env.config
             . runChan
-            . runSub config.inChan
-            . runPub config.inChan
+            . runSub env.handles.inChan
+            . runPub env.handles.inChan
             . runErrorNoCallStack @Text
-            . runNodeToNode config.ioManager config.protocolConfigPath
-            . runDBRead config.dbPools.readerPool
-            . runDBWrite config.dbPools.writerPool
+            . runNodeToNode env.handles.ioManager env.config.protocolConfigPath
+            . runDBRead env.handles.dbPools.readerPool
+            . runDBWrite env.handles.dbPools.writerPool
             . runHeaderRepo
             . runPeerRepo
             . evalState def

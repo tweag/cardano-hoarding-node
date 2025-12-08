@@ -41,7 +41,7 @@ import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
-import Hoard.Effects (Config (..), ServerConfig (..), runEffectStack)
+import Hoard.Effects (Config (..), Env (..), Handles (..), ServerConfig (..), runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Pub (Pub, runPub)
@@ -54,17 +54,17 @@ withEffectStackServer
     :: (MonadIO m, es ~ TestAppEffs)
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> m (b, HoardState, [Dynamic])
-withEffectStackServer action = runEffectStackTest $ \config -> withServer config action
+withEffectStackServer action = runEffectStackTest $ \env -> withServer env action
 
 
 withServer
     :: forall b es
      . (IOE :> es)
-    => Config
+    => Env
     -> (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> Eff es b
-withServer config action = do
-    app <- makeApp config
+withServer env action = do
+    app <- makeApp env
     withEffToIO (ConcUnlift Persistent Unlimited) $ \unlift -> testWithApplication (pure app) $ \port -> do
         manager <- newManager defaultManagerSettings
         let baseUrl = BaseUrl Http "localhost" port ""
@@ -74,16 +74,16 @@ withServer config action = do
         unlift $ action port runClient
 
 
-makeApp :: (IOE :> es) => Config -> Eff es Application
-makeApp config =
+makeApp :: (IOE :> es) => Env -> Eff es Application
+makeApp env =
     liftIO $ do
-        let servantApp = hoistServer (Proxy @API) (runEffectStack config) Hoard.API.server
+        let servantApp = hoistServer (Proxy @API) (runEffectStack env) Hoard.API.server
         pure $ serve (Proxy @API) servantApp
 
 
 runEffectStackTest
     :: (MonadIO m)
-    => (Config -> Eff TestAppEffs a)
+    => (Env -> Eff TestAppEffs a)
     -> m (a, HoardState, [Dynamic])
 runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     (inChan, _) <- newChan
@@ -93,26 +93,30 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let config =
             Config
-                { ioManager
-                , dbPools
-                , inChan
-                , server = serverConfig
+                { server = serverConfig
                 , protocolConfigPath = "config/preview/config.json"
                 , localNodeSocketPath = "preview.socket"
                 , logging = Log.defaultConfig
                 }
+    let handles =
+            Handles
+                { ioManager
+                , dbPools
+                , inChan
+                }
+    let env = Env {config, handles}
     wireTapOutput <- newIORef []
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, finalState) <-
         runEff
-            . runLog config.logging
+            . runLog env.config.logging
             . runFileSystem
             . runConcurrent
             . runChan
-            . runSub config.inChan
-            . runPub config.inChan
+            . runSub env.handles.inChan
+            . runPub env.handles.inChan
             . runState def
-            $ mkEff config
+            $ mkEff env
     killThread wireTapThreadID
     publishes <- fmap reverse $ readIORef wireTapOutput
     pure (a, finalState, publishes)
