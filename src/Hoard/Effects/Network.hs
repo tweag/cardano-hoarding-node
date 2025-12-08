@@ -18,7 +18,6 @@ module Hoard.Effects.Network
 import Cardano.Api.IO (File (..))
 import Cardano.Api.LedgerState (mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Exception (AsyncException (..))
 import Control.Tracer (Tracer (..))
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
@@ -71,6 +70,7 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
+import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
@@ -95,7 +95,6 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
-import Effectful.Exception (catch, throwIO)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network.Codecs (hoistCodecs)
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -326,24 +325,6 @@ loadProtocolInfo configPath = do
 --------------------------------------------------------------------------------
 -- Mini-Protocol Application
 --------------------------------------------------------------------------------
-
--- | Wrap a protocol action with exception logging to debug cancellations.
-withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
-withExceptionLogging protocolName action =
-    action `catch` \(e :: SomeException) -> do
-        case fromException e of
-            Just ThreadKilled -> do
-                Log.err $ protocolName <> " killed: ThreadKilled"
-                Log.err $ protocolName <> " - This is likely due to the Ki scope cleanup or connection closure"
-            Just UserInterrupt -> do
-                Log.err $ protocolName <> " interrupted: UserInterrupt"
-            Just (asyncEx :: AsyncException) -> do
-                Log.err $ protocolName <> " async exception: " <> show asyncEx
-            Nothing -> do
-                Log.err $ protocolName <> " terminated with exception: " <> show e
-        -- Re-throw the exception after logging
-        throwIO e
-
 
 -- | Create the Ouroboros application with all mini-protocols.
 --

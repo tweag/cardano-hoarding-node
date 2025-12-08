@@ -19,6 +19,7 @@ library
       Hoard.CLI.Options
       Hoard.Collector
       Hoard.Config.Loader
+      Hoard.Control.Exception
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
