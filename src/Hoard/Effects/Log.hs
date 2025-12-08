@@ -1,6 +1,7 @@
 module Hoard.Effects.Log
     ( -- * Effect
       Log
+    , log
     , info
     , warn
     , debug
@@ -8,6 +9,7 @@ module Hoard.Effects.Log
 
       -- * Interpreters
     , runLog
+    , runLogNoOp
     , Config (..)
     , Severity (..)
     , defaultConfig
@@ -59,6 +61,11 @@ runLog :: (IOE :> es) => Eff (Log : es) a -> Eff es a
 runLog = interpret_ $ \(Log severity msg) -> liftIO $ do
     T.hPutStrLn stdout $ "[" <> (show severity) <> "] " <> msg
     hFlush stdout
+
+
+-- | Consumes `Log` effects, and discards the logged messages
+runLogNoOp :: Eff (Log : es) a -> Eff es a
+runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
 
 
 data Config = Config
