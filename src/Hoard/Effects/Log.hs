@@ -13,7 +13,6 @@ module Hoard.Effects.Log
     , Config (..)
     , Severity (..)
     , defaultConfig
-    , runLogWith
     ) where
 
 import Effectful (Eff, Effect, IOE, (:>))
@@ -57,12 +56,6 @@ err :: (Log :> es) => Text -> Eff es ()
 err = log ERROR
 
 
-runLog :: (IOE :> es) => Eff (Log : es) a -> Eff es a
-runLog = interpret_ $ \(Log severity msg) -> liftIO $ do
-    T.hPutStrLn stdout $ "[" <> (show severity) <> "] " <> msg
-    hFlush stdout
-
-
 -- | Consumes `Log` effects, and discards the logged messages
 runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
@@ -82,8 +75,8 @@ defaultConfig =
         }
 
 
-runLogWith :: (IOE :> es) => Config -> Eff (Log : es) a -> Eff es a
-runLogWith config = interpret_ $ \(Log severity msg) -> liftIO $
+runLog :: (IOE :> es) => Config -> Eff (Log : es) a -> Eff es a
+runLog config = interpret_ $ \(Log severity msg) -> liftIO $
     when (severity >= config.minimumSeverity) $ do
         T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
         hFlush stdout

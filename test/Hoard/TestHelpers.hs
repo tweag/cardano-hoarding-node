@@ -103,7 +103,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, finalState) <-
         runEff
-            . runLog
+            . runLog config.logging
             . runFileSystem
             . runConcurrent
             . runSub config.inChan

@@ -109,7 +109,7 @@ runEffectStack :: (MonadIO m) => Config -> Eff AppEffects a -> m a
 runEffectStack config action = liftIO $ do
     result <-
         runEff
-            . runLog
+            . runLog config.logging
             . runClock
             . runFileSystem
             . runConcurrent
@@ -135,7 +135,7 @@ runEffectStackReturningState :: (MonadIO m) => Config -> Eff AppEffects a -> m (
 runEffectStackReturningState config action = liftIO $ do
     result <-
         runEff
-            . runLog
+            . runLog config.logging
             . runClock
             . runFileSystem
             . runConcurrent
