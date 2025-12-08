@@ -153,7 +153,7 @@ testConnection = do
     -- query immutable tip
     (=<<) (either (Log.warn . toText . displayException) pure)
         . tryIf isDoesNotExistError
-        . runNodeToClient connectionInfo
+        . (\action -> scoped (\scope -> Conc.runConcWithKi scope $ runNodeToClient connectionInfo action))
         $ do
             tip0 <- immutableTip
             Log.debug (show tip0)
