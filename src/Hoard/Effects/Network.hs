@@ -67,7 +67,6 @@ import Ouroboros.Network.Snocket (socketSnocket)
 
 import Data.ByteString.Lazy qualified as LBS
 import Data.Map.Strict qualified as Map
-import Debug.Trace qualified
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
@@ -494,9 +493,7 @@ peerSharingClientImpl
     => (forall x. Eff es x -> IO x)
     -> PeerAddress
     -> PeerSharingClient SockAddr IO ()
-peerSharingClientImpl unlift peer =
-    Debug.Trace.trace "[DEBUG] PeerSharing: Creating SendMsgShareRequest..." $
-        requestPeers withPeers
+peerSharingClientImpl unlift peer = requestPeers withPeers
   where
     requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
     withPeers peerAddrs = unlift do

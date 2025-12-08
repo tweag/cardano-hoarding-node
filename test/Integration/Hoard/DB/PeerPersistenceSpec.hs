@@ -14,7 +14,7 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
-import Hoard.Effects.Log (runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -25,7 +25,7 @@ spec_PeerPersistence :: Spec
 spec_PeerPersistence = do
     let runWrite config action =
             runEff
-                . runLog
+                . Log.runLog Log.defaultConfig
                 . runErrorNoCallStack @Text
                 . runDBRead config.pools.readerPool
                 . runDBWrite config.pools.writerPool

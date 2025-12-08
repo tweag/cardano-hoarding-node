@@ -9,7 +9,6 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Chan.Unagi (newChan)
 import Data.IP (IP)
 import Data.IP qualified as IP
 import Data.Time (getCurrentTime)
@@ -18,18 +17,23 @@ import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Network.Socket (PortNumber)
 import Network.Socket qualified as Socket
+import Options.Applicative qualified as Opt
 import Ouroboros.Network.IOManager (withIOManager)
 import Prelude hiding (State, evalState)
 
 import Data.UUID qualified as UUID
 
+import Hoard.CLI.Options (Options (..), optsParser)
+import Hoard.Config.Loader (loadConfig)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects (Config (..))
 import Hoard.Effects.Conc (Conc, scoped)
-import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
+import Hoard.Types.Environment (Environment (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
 import Data.Default (def)
@@ -48,6 +52,14 @@ import Hoard.Types.HoardState (HoardState)
 
 main :: IO ()
 main = withIOManager $ \ioManager -> do
+    options <- Opt.execParser optsParser
+
+    -- Determine environment: CLI flag > default to Dev
+    let env = fromMaybe Dev options.environment
+
+    putTextLn $ "Loading configuration for environment: " <> show env
+    config <- loadConfig ioManager env
+
     putTextLn "=== Cardano Peer Connection Test ==="
     putTextLn ""
     putTextLn "This program will:"
@@ -58,21 +70,18 @@ main = withIOManager $ \ioManager -> do
     putTextLn "  5. Keep the connection alive for 60 seconds"
     putTextLn ""
 
-    -- Create event channel
-    (inChan, _outChan) <- newChan
-
     -- Run the test
     result <- runEff
-        . runLog
+        . Log.runLog config.logging
         . runConcurrent
         . runClock
         . scoped
         $ \scope -> do
             Conc.runConcWithKi scope
                 . runErrorNoCallStack @Text
-                . runSub inChan
-                . runPub inChan
-                . runNetwork ioManager "config/preview/config.json"
+                . runSub config.inChan
+                . runPub config.inChan
+                . runNetwork config.ioManager config.protocolConfigPath
                 . evalState @HoardState def
                 $ testConnection
 
