@@ -33,9 +33,12 @@ import Effectful
     )
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-import Hoard.Effects.Conc (Conc, fork_)
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
+
+import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Effects.Conc (Conc, fork_)
+import Hoard.Effects.Log (Log)
 
 
 data NodeToClient :: Effect where
@@ -46,11 +49,15 @@ data NodeToClient :: Effect where
 makeEffect ''NodeToClient
 
 
-runNodeToClient :: (Conc :> es, IOE :> es) => LocalNodeConnectInfo -> Eff (NodeToClient : es) a -> Eff es a
+runNodeToClient :: (Conc :> es, Log :> es, IOE :> es) => LocalNodeConnectInfo -> Eff (NodeToClient : es) a -> Eff es a
 runNodeToClient connectionInfo nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
-    _ <- fork_ $ liftIO $ localNodeClient connectionInfo immutableTipQueriesOut isOnChainQueriesOut
+    _ <-
+        withExceptionLogging "NodeToClient"
+            . fork_
+            . liftIO
+            $ localNodeClient connectionInfo immutableTipQueriesOut isOnChainQueriesOut
     interpret_
         ( \case
             ImmutableTip -> liftIO $ do
@@ -67,7 +74,7 @@ runNodeToClient connectionInfo nodeToClient = do
 
 localNodeClient :: LocalNodeConnectInfo -> OutChan (MVar ChainPoint) -> OutChan (ChainPoint, MVar Bool) -> IO Void
 localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
-    error "`connectToLocalNode` should run indefinitely because `localStateQueryClient` and `queryIsOnChain` return `void`."
+    error "localNodeClient should never return"
         <$> connectToLocalNode
             connectionInfo
             LocalNodeClientProtocols

@@ -6,6 +6,7 @@ module Hoard.Effects.Conc
     , fork_
     , await
     , awaitAll
+    , forkTry
 
       -- * Scope
     , Scope
@@ -34,6 +35,7 @@ data Conc :: Effect where
     Fork_ :: m Void -> Conc m ()
     Await :: Thread a -> Conc m a
     AwaitAll :: Conc m ()
+    ForkTry :: (Exception e) => m a -> Conc m (Thread (Either e a))
 
 
 newtype Scope = Scope Ki.Scope
@@ -74,6 +76,12 @@ runConcWithKi (Scope scope) = interpret $ \env -> \case
         runConcurrent
             . atomically
             $ Ki.awaitAll scope
+    ForkTry action ->
+        localUnliftIO env concStrat $ \unlift ->
+            fmap Thread
+                . liftIO
+                . Ki.forkTry scope
+                $ unlift action
 
 
 concStrat :: UnliftStrategy
