@@ -1,24 +1,50 @@
 module Hoard.Data.Header
     ( Header (..)
+    , HeaderReceipt (..)
+    , BlockHash (..)
     )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
+import Rel8 (DBEq, DBOrd, DBType)
 
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 import Prelude hiding (id)
 
 
--- | Represents a block header received from the Cardano network
+-- | Newtype wrapper for block hash
+newtype BlockHash = BlockHash Text
+    deriving stock (Eq, Ord, Generic, Show)
+    deriving newtype (FromJSON, ToJSON, DBEq, DBOrd, DBType)
+
+
+-- | Represents a block header from the Cardano blockchain
 --
--- This is a minimal schema for step 1. Additional header data fields
--- (slot, hash, block number, etc.) will be added in step 2.
+-- Stores unique headers indexed by block hash. Fields marked TODO
+-- require era-specific extraction and will be added later.
 data Header = Header
-    { id :: ID Header
+    { blockHash :: BlockHash
+    , slotNumber :: Int64
+    , blockNumber :: Int64
+    , vrfKeyHash :: Maybe Text -- TODO: Extract from era-specific header body
+    , blockTimestamp :: Maybe UTCTime -- TODO: Derive from slot + node config
+    , firstSeenAt :: UTCTime
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON)
+
+
+-- | Represents a receipt of a header from a specific peer
+--
+-- Tracks each time a header was received from a peer, enabling
+-- many-to-many relationship between headers and peers.
+data HeaderReceipt = HeaderReceipt
+    { id :: ID HeaderReceipt
+    , blockHash :: BlockHash
+    , peerId :: ID Peer
     , receivedAt :: UTCTime
-    , receivedFromPeerId :: ID Peer
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON)

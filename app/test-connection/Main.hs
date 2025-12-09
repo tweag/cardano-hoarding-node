@@ -35,12 +35,17 @@ import Hoard.Effects (Config (..))
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc (Conc, scoped)
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.DBRead (runDBRead)
+import Hoard.Effects.DBWrite (runDBWrite)
+import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
+import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (Environment (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
@@ -87,6 +92,10 @@ main = withIOManager $ \ioManager -> do
                 . runSub config.inChan
                 . runPub config.inChan
                 . runNetwork config.ioManager config.protocolConfigPath
+                . runDBRead config.dbPools.readerPool
+                . runDBWrite config.dbPools.writerPool
+                . runPeerRepo
+                . runHeaderRepo
                 . evalState @HoardState def
                 $ testConnection
 
@@ -125,6 +134,8 @@ testConnection
        , Sub :> es
        , Pub :> es
        , State HoardState :> es
+       , PeerRepo :> es
+       , HeaderRepo :> es
        )
     => Eff es ()
 testConnection = do

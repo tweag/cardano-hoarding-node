@@ -9,10 +9,12 @@ where
 import Data.Time (UTCTime)
 import Rel8
     ( Column
+    , Expr
     , Name
     , Rel8able
     , Result
     , TableSchema
+    , lit
     )
 
 import Hoard.DB.Schema (mkSchema)
@@ -59,14 +61,14 @@ peerFromRow row =
 
 
 -- | Convert a Peer domain type to a database row
-rowFromPeer :: Peer -> Row Result
+rowFromPeer :: Peer -> Row Expr
 rowFromPeer peer =
     Row
-        { id = peer.id
-        , address = peer.address.host
-        , port = fromIntegral peer.address.port
-        , firstDiscovered = peer.firstDiscovered
-        , lastSeen = peer.lastSeen
-        , lastConnected = peer.lastConnected
-        , discoveredVia = peer.discoveredVia
+        { id = lit peer.id
+        , address = lit peer.address.host
+        , port = lit $ fromIntegral peer.address.port
+        , firstDiscovered = lit peer.firstDiscovered
+        , lastSeen = lit peer.lastSeen
+        , lastConnected = lit peer.lastConnected
+        , discoveredVia = lit peer.discoveredVia
         }

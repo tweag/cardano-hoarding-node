@@ -9,22 +9,25 @@ where
 import Data.Time (UTCTime)
 import Rel8
     ( Column
+    , Expr
     , Name
     , Rel8able
     , Result
     , TableSchema
+    , lit
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Header (Header (..))
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Header (BlockHash (..), Header (..))
 
 
 data Row f = Row
-    { id :: Column f (ID Header)
-    , receivedAt :: Column f UTCTime
-    , receivedFromPeerId :: Column f (ID Peer)
+    { blockHash :: Column f BlockHash
+    , slotNumber :: Column f Int64
+    , blockNumber :: Column f Int64
+    , vrfKeyHash :: Column f (Maybe Text)
+    , blockTimestamp :: Column f (Maybe UTCTime)
+    , firstSeenAt :: Column f UTCTime
     }
     deriving stock (Generic)
     deriving anyclass (Rel8able)
@@ -45,17 +48,23 @@ schema = mkSchema "headers"
 headerFromRow :: Row Result -> Header
 headerFromRow row =
     Header
-        { id = row.id
-        , receivedAt = row.receivedAt
-        , receivedFromPeerId = row.receivedFromPeerId
+        { blockHash = row.blockHash
+        , slotNumber = row.slotNumber
+        , blockNumber = row.blockNumber
+        , vrfKeyHash = row.vrfKeyHash
+        , blockTimestamp = row.blockTimestamp
+        , firstSeenAt = row.firstSeenAt
         }
 
 
 -- | Convert a Header domain type to a database row
-rowFromHeader :: Header -> Row Result
+rowFromHeader :: Header -> Row Expr
 rowFromHeader header =
     Row
-        { id = header.id
-        , receivedAt = header.receivedAt
-        , receivedFromPeerId = header.receivedFromPeerId
+        { blockHash = lit header.blockHash
+        , slotNumber = lit header.slotNumber
+        , blockNumber = lit header.blockNumber
+        , vrfKeyHash = lit header.vrfKeyHash
+        , blockTimestamp = lit header.blockTimestamp
+        , firstSeenAt = lit header.firstSeenAt
         }

@@ -21,9 +21,11 @@ library
       Hoard.Config.Loader
       Hoard.Control.Exception
       Hoard.Data.Header
+      Hoard.Data.Header.Extract
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
       Hoard.Effects
