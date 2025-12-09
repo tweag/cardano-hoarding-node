@@ -25,8 +25,6 @@ data Row f = Row
     { blockHash :: Column f BlockHash
     , slotNumber :: Column f Int64
     , blockNumber :: Column f Int64
-    , vrfKeyHash :: Column f (Maybe Text)
-    , blockTimestamp :: Column f (Maybe UTCTime)
     , firstSeenAt :: Column f UTCTime
     }
     deriving stock (Generic)
@@ -51,8 +49,6 @@ headerFromRow row =
         { blockHash = row.blockHash
         , slotNumber = row.slotNumber
         , blockNumber = row.blockNumber
-        , vrfKeyHash = row.vrfKeyHash
-        , blockTimestamp = row.blockTimestamp
         , firstSeenAt = row.firstSeenAt
         }
 
@@ -64,7 +60,5 @@ rowFromHeader header =
         { blockHash = lit header.blockHash
         , slotNumber = lit header.slotNumber
         , blockNumber = lit header.blockNumber
-        , vrfKeyHash = lit header.vrfKeyHash
-        , blockTimestamp = lit header.blockTimestamp
         , firstSeenAt = lit header.firstSeenAt
         }

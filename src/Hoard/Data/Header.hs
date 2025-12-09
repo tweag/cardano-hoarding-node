@@ -28,8 +28,6 @@ data Header = Header
     { blockHash :: BlockHash
     , slotNumber :: Int64
     , blockNumber :: Int64
-    , vrfKeyHash :: Maybe Text -- TODO: Extract from era-specific header body
-    , blockTimestamp :: Maybe UTCTime -- TODO: Derive from slot + node config
     , firstSeenAt :: UTCTime
     }
     deriving stock (Eq, Generic, Show)

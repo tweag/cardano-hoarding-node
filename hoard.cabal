@@ -93,6 +93,7 @@ library
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -173,6 +174,7 @@ executable hoard-exe
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -254,6 +256,7 @@ executable test-connection
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -347,6 +350,7 @@ test-suite hoard-test
     , aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core

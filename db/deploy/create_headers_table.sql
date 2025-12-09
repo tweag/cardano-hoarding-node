@@ -8,8 +8,6 @@ CREATE TABLE hoard.headers (
     block_hash TEXT PRIMARY KEY,
     slot_number BIGINT NOT NULL,
     block_number BIGINT NOT NULL,
-    vrf_key_hash TEXT,  -- Pool ID, TODO: extract from era-specific header
-    block_timestamp TIMESTAMPTZ,  -- TODO: derive from slot + node config
     first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

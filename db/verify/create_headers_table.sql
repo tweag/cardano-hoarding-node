@@ -7,8 +7,6 @@ SELECT
     block_hash,
     slot_number,
     block_number,
-    vrf_key_hash,
-    block_timestamp,
     first_seen_at
 FROM hoard.headers
 WHERE FALSE;
