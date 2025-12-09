@@ -1,3 +1,6 @@
+-- to do. remove
+{-# OPTIONS_GHC -Wno-unused-top-binds -Wno-redundant-constraints #-}
+
 module Hoard.Effects.NodeToClient
     ( NodeToClient
     , runNodeToClient
@@ -57,6 +60,7 @@ data NodeToClient :: Effect where
 makeEffect ''NodeToClient
 
 
+-- to do. remove
 runNodeToClient
     :: ( Conc :> es
        , IOE :> es
@@ -66,7 +70,21 @@ runNodeToClient
     => config
     -> Eff (NodeToClient : es) a
     -> Eff es a
-runNodeToClient config nodeToClient = do
+runNodeToClient _config = interpret_ $ \case
+    ImmutableTip -> pure C.ChainPointAtGenesis
+    IsOnChain _ -> pure False
+
+
+runNodeToClient'
+    :: ( Conc :> es
+       , IOE :> es
+       , HasField "protocolConfigPath" config FilePath
+       , HasField "localNodeSocketPath" config FilePath
+       )
+    => config
+    -> Eff (NodeToClient : es) a
+    -> Eff es a
+runNodeToClient' config nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
     epochSize <- loadEpochSize config.protocolConfigPath
