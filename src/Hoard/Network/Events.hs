@@ -19,9 +19,9 @@ module Hoard.Network.Events
     , RollBackwardData (..)
     , RollForwardData (..)
     , ChainSyncIntersectionFoundData (..)
+    , BlockFetchRequest (..)
     , BlockFetchEvent (..)
     , BlockFetchStartedData (..)
-    , BlockRequestedData (..)
     , BlockReceivedData (..)
     , BlockFetchFailedData (..)
     , BlockBatchCompletedData (..)
@@ -158,7 +158,6 @@ data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
 -- has provided the headers.
 data BlockFetchEvent
     = BlockFetchStarted BlockFetchStartedData
-    | BlockRequested BlockRequestedData
     | BlockReceived BlockReceivedData
     | BlockFetchFailed BlockFetchFailedData
     | BlockBatchCompleted BlockBatchCompletedData
@@ -172,7 +171,8 @@ data BlockFetchStartedData = BlockFetchStartedData
     deriving (Show, Typeable)
 
 
-data BlockRequestedData = BlockRequestedData
+-- | A request to fetch a single block.
+data BlockFetchRequest = BlockFetchRequest
     { peer :: PeerAddress
     , point :: CardanoPoint
     , timestamp :: UTCTime
