@@ -5,31 +5,38 @@ where
 
 import Data.Time (UTCTime)
 
+import Cardano.Api.LedgerState ()
 import Hoard.Data.Header (BlockHash (..), Header (..))
 import Hoard.Types.Cardano (CardanoHeader)
+import Ouroboros.Consensus.Block (BlockNo (..), SlotNo (..))
+import Ouroboros.Consensus.Block.Abstract
+    ( HasHeader (getHeaderFields)
+    , HeaderFields (..)
+    )
 
 
 -- | Extract header data from a Cardano header
 --
 -- Currently uses simple string representation via Show instance.
--- TODO: Implement proper extraction of slot/block numbers and hash using era-specific accessors
 extractHeaderData :: CardanoHeader -> UTCTime -> Header
-extractHeaderData _cardanoHeader receivedAt =
+extractHeaderData cardanoHeader firstSeenAt =
     let
-        -- TODO: Extract actual hash from era-specific header
-        -- All HardForkBlock operations require CanHardFork instance which is complex to set up
-        blockHash = BlockHash "placeholder-hash"
+        fields = getHeaderFields cardanoHeader
 
-        -- TODO: Extract actual slot number from header
-        -- Requires handling HardForkBlock's OneEraHeader structure
-        slotNumber = 0
+        -- Extract hash and convert to Text using Show instance
+        blockHash = BlockHash $ show fields.headerFieldHash
 
-        -- TODO: Extract actual block number from header
-        -- Requires handling HardForkBlock's OneEraHeader structure
-        blockNumber = 0
+        -- Extract slot number and convert Word64 to Int64
+        slotNumber = fromIntegral . unSlotNo $ fields.headerFieldSlot
 
-        vrfKeyHash = Nothing -- TODO: Extract from era-specific header body
-        blockTimestamp = Nothing -- TODO: Derive from slot + node config
+        -- Extract block number and convert Word64 to Int64
+        blockNumber = fromIntegral . unBlockNo $ fields.headerFieldBlockNo
+
+        -- TODO: Extract from era-specific header body
+        vrfKeyHash = Nothing
+
+        -- TODO: Derive from slot + node config
+        blockTimestamp = Nothing
     in
         Header
             { blockHash
@@ -37,5 +44,5 @@ extractHeaderData _cardanoHeader receivedAt =
             , blockNumber
             , vrfKeyHash
             , blockTimestamp
-            , firstSeenAt = receivedAt
+            , firstSeenAt
             }

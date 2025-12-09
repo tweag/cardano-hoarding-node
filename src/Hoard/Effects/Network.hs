@@ -37,7 +37,7 @@ import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
-import Ouroboros.Network.Block (castPoint, genesisPoint)
+import Ouroboros.Network.Block (genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.IOManager (IOManager)
 import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..), mkMiniProtocolCbFromPeer, mkMiniProtocolCbFromPeerPipelined)
@@ -687,7 +687,7 @@ chainSyncClientImpl unlift peer =
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
                 Log.debug "ChainSync: Received header (RollForward)"
                 timestamp <- Clock.currentTime
-                let point = castPoint $ headerPoint header
+                let point = headerPoint header
                 publish $
                     HeaderReceived
                         HeaderReceivedData
@@ -715,7 +715,7 @@ chainSyncClientImpl unlift peer =
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
                     Log.debug "ChainSync: Received header after await (RollForward)"
                     timestamp <- Clock.currentTime
-                    let point = castPoint $ headerPoint header
+                    let point = headerPoint header
                     publish $
                         HeaderReceived
                             HeaderReceivedData
