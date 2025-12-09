@@ -20,15 +20,18 @@ library
       Hoard.Collector
       Hoard.Config.Loader
       Hoard.Control.Exception
+      Hoard.Data.Header
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.Clock
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.HeaderRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.Network
