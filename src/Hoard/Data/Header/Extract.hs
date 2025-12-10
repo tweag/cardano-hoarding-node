@@ -3,14 +3,13 @@ module Hoard.Data.Header.Extract
     )
 where
 
-import Data.Time (UTCTime)
-
 import Data.ByteString.Base16 qualified as B16
 import Data.Text.Encoding qualified as Text
 
 import Cardano.Api.LedgerState ()
 import Hoard.Data.Header (BlockHash (..), Header (..))
-import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
+import Hoard.Network.Events (HeaderReceivedData (..))
+import Hoard.Types.Cardano (CardanoBlock)
 import Ouroboros.Consensus.Block (BlockNo (..), HeaderHash, SlotNo (..))
 import Ouroboros.Consensus.Block.Abstract
     ( ConvertRawHash (toRawHash)
@@ -19,11 +18,11 @@ import Ouroboros.Consensus.Block.Abstract
     )
 
 
--- | Extract header data from a Cardano header
-extractHeaderData :: CardanoHeader -> UTCTime -> Header
-extractHeaderData cardanoHeader firstSeenAt =
+-- | Extract header data from a HeaderReceivedData event
+extractHeaderData :: HeaderReceivedData -> Header
+extractHeaderData dat =
     let
-        fields = getHeaderFields cardanoHeader
+        fields = getHeaderFields dat.header
 
         -- Extract hash and convert to hex-encoded Text
         blockHash =
@@ -39,7 +38,7 @@ extractHeaderData cardanoHeader firstSeenAt =
             { blockHash
             , slotNumber
             , blockNumber
-            , firstSeenAt
+            , firstSeenAt = dat.timestamp
             }
 
 

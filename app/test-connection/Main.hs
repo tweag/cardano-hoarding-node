@@ -42,7 +42,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
-import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
+import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -134,7 +134,6 @@ testConnection
        , Sub :> es
        , Pub :> es
        , State HoardState :> es
-       , PeerRepo :> es
        , HeaderRepo :> es
        )
     => Eff es ()

@@ -3,6 +3,7 @@ module Hoard.DB.Schemas.Peers
     , schema
     , peerFromRow
     , rowFromPeer
+    , selectPeerByAddress
     )
 where
 
@@ -11,10 +12,15 @@ import Rel8
     ( Column
     , Expr
     , Name
+    , Query
     , Rel8able
     , Result
     , TableSchema
+    , each
     , lit
+    , where_
+    , (&&.)
+    , (==.)
     )
 
 import Hoard.DB.Schema (mkSchema)
@@ -72,3 +78,15 @@ rowFromPeer peer =
         , lastConnected = lit peer.lastConnected
         , discoveredVia = lit peer.discoveredVia
         }
+
+
+-- | Query to select a peer by address and port
+--
+-- This is a reusable query that can be used by both PeerRepo and HeaderRepo
+selectPeerByAddress :: PeerAddress -> Query (Row Expr)
+selectPeerByAddress peerAddr = do
+    peer <- each schema
+    where_ $
+        peer.address ==. lit peerAddr.host
+            &&. peer.port ==. lit (fromIntegral peerAddr.port)
+    pure peer

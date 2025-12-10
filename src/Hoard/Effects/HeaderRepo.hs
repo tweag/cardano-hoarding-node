@@ -20,7 +20,7 @@ import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer, PeerAddress (..))
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Rel8 (each, lit, select, where_, (&&.), (==.))
+import Rel8 (lit, select)
 import Rel8 qualified
 
 
@@ -74,41 +74,72 @@ upsertHeaderImpl header peerAddr receivedAt = do
                 , returning = Rel8.NoReturning
                 }
 
-    -- 2. Look up the peer ID
-    maybePeer <- TX.statement () (getPeerIdByAddressStatement peerAddr)
+    -- 2. Upsert the peer (create if doesn't exist, update lastSeen if exists)
+    let discoveredVia = "ChainSync"
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.insert
+            Rel8.Insert
+                { into = PeersSchema.schema
+                , rows =
+                    Rel8.values
+                        [ PeersSchema.Row
+                            { PeersSchema.id = Rel8.unsafeDefault
+                            , PeersSchema.address = lit peerAddr.host
+                            , PeersSchema.port = lit (fromIntegral peerAddr.port)
+                            , PeersSchema.firstDiscovered = lit receivedAt
+                            , PeersSchema.lastSeen = lit receivedAt
+                            , PeersSchema.lastConnected = lit Nothing
+                            , PeersSchema.discoveredVia = lit discoveredVia
+                            }
+                        ]
+                , onConflict =
+                    Rel8.DoUpdate
+                        Rel8.Upsert
+                            { index = \r -> (r.address, r.port)
+                            , predicate = Nothing
+                            , set = \_ oldRow ->
+                                oldRow
+                                    { PeersSchema.lastSeen = lit receivedAt
+                                    }
+                            , updateWhere = \_ _ -> lit True
+                            }
+                , returning = Rel8.NoReturning
+                }
 
-    -- 3. Record the receipt (only if peer exists)
-    forM_ maybePeer $ \peerId ->
-        TX.statement ()
-            . Rel8.run_
-            $ Rel8.insert
-                Rel8.Insert
-                    { into = HeaderReceiptsSchema.schema
-                    , rows =
-                        Rel8.values
-                            [ HeaderReceiptsSchema.Row
-                                { HeaderReceiptsSchema.id = Rel8.unsafeDefault
-                                , HeaderReceiptsSchema.blockHash = lit header.blockHash
-                                , HeaderReceiptsSchema.peerId = lit peerId
-                                , HeaderReceiptsSchema.receivedAt = lit receivedAt
-                                }
-                            ]
-                    , onConflict = Rel8.DoNothing -- Receipt already recorded
-                    , returning = Rel8.NoReturning
-                    }
+    -- 3. Look up the peer ID (guaranteed to exist after upsert)
+    maybePeerId <- TX.statement () (getPeerIdByAddressStatement peerAddr)
+    let peerId = case maybePeerId of
+            Just pid -> pid
+            Nothing -> error "Peer not found after upsert - this should never happen"
+
+    -- 4. Record the receipt
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.insert
+            Rel8.Insert
+                { into = HeaderReceiptsSchema.schema
+                , rows =
+                    Rel8.values
+                        [ HeaderReceiptsSchema.Row
+                            { HeaderReceiptsSchema.id = Rel8.unsafeDefault
+                            , HeaderReceiptsSchema.blockHash = lit header.blockHash
+                            , HeaderReceiptsSchema.peerId = lit peerId
+                            , HeaderReceiptsSchema.receivedAt = lit receivedAt
+                            }
+                        ]
+                , onConflict = Rel8.DoNothing -- Receipt already recorded
+                , returning = Rel8.NoReturning
+                }
 
 
--- | Get peer ID by address
+-- | Get peer ID by address using the shared query
 getPeerIdByAddressStatement :: PeerAddress -> Statement () (Maybe (ID Peer))
 getPeerIdByAddressStatement peerAddr =
     fmap extractMaybePeerId $
         Rel8.run $
-            select $ do
-                peer <- each PeersSchema.schema
-                where_ $
-                    peer.address ==. lit peerAddr.host
-                        &&. peer.port ==. lit (fromIntegral peerAddr.port)
-                pure peer.id
+            select $
+                (.id) <$> PeersSchema.selectPeerByAddress peerAddr
   where
     extractMaybePeerId :: [ID Peer] -> Maybe (ID Peer)
     extractMaybePeerId [] = Nothing
