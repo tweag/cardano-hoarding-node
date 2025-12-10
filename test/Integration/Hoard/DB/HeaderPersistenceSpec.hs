@@ -11,7 +11,7 @@ import Rel8 qualified
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
-import Hoard.Data.Header (BlockHash (..), Header (..))
+import Hoard.Data.Header (BlockHash (..), Header (..), HeaderHash (..))
 import Hoard.Data.Peer (PeerAddress (..))
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
@@ -45,7 +45,8 @@ spec_HeaderPersistence = do
             let peerAddr = PeerAddress (read "192.168.1.1") 3001
             let header =
                     Header
-                        { blockHash = BlockHash "abc123def456"
+                        { headerHash = HeaderHash "header123hash456"
+                        , blockHash = BlockHash "abc123def456"
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now
@@ -79,7 +80,8 @@ spec_HeaderPersistence = do
             let peerAddr = PeerAddress (read "192.168.1.1") 3001
             let header =
                     Header
-                        { blockHash = BlockHash "abc123def456"
+                        { headerHash = HeaderHash "header123hash456"
+                        , blockHash = BlockHash "abc123def456"
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now
@@ -103,7 +105,8 @@ spec_HeaderPersistence = do
             let peer2 = PeerAddress (read "192.168.1.2") 3002
             let header =
                     Header
-                        { blockHash = BlockHash "abc123def456"
+                        { headerHash = HeaderHash "header123hash456"
+                        , blockHash = BlockHash "abc123def456"
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now

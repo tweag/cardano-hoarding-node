@@ -2,6 +2,7 @@ module Hoard.Data.Header
     ( Header (..)
     , HeaderReceipt (..)
     , BlockHash (..)
+    , HeaderHash (..)
     )
 where
 
@@ -20,14 +21,22 @@ newtype BlockHash = BlockHash Text
     deriving newtype (FromJSON, ToJSON, DBEq, DBOrd, DBType)
 
 
+-- | Newtype wrapper for header hash
+newtype HeaderHash = HeaderHash Text
+    deriving stock (Eq, Ord, Generic, Show)
+    deriving newtype (FromJSON, ToJSON, DBEq, DBOrd, DBType)
+
+
 -- | Represents a block header from the Cardano blockchain
 --
--- Stores unique headers indexed by block hash. Fields marked TODO
--- require era-specific extraction and will be added later.
+-- Stores unique headers indexed by header hash. The headerHash is the hash
+-- of the header itself and serves as the primary key. The blockHash is the
+-- hash of the block that this header belongs to.
 data Header = Header
-    { blockHash :: BlockHash
-    , slotNumber :: Int64
-    , blockNumber :: Int64
+    { headerHash :: HeaderHash
+    , blockHash :: BlockHash
+    , slotNumber :: Word64
+    , blockNumber :: Word64
     , firstSeenAt :: UTCTime
     }
     deriving stock (Eq, Generic, Show)
@@ -40,7 +49,7 @@ data Header = Header
 -- many-to-many relationship between headers and peers.
 data HeaderReceipt = HeaderReceipt
     { id :: ID HeaderReceipt
-    , blockHash :: BlockHash
+    , headerHash :: HeaderHash
     , peerId :: ID Peer
     , receivedAt :: UTCTime
     }

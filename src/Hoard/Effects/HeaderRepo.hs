@@ -123,7 +123,7 @@ upsertHeaderImpl header peerAddr receivedAt = do
                     Rel8.values
                         [ HeaderReceiptsSchema.Row
                             { HeaderReceiptsSchema.id = Rel8.unsafeDefault
-                            , HeaderReceiptsSchema.blockHash = lit header.blockHash
+                            , HeaderReceiptsSchema.headerHash = lit header.headerHash
                             , HeaderReceiptsSchema.peerId = lit peerId
                             , HeaderReceiptsSchema.receivedAt = lit receivedAt
                             }
