@@ -11,6 +11,8 @@ import Prelude hiding (State, gets, modify, state)
 import Hoard.Bootstrap (bootstrapPeer)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
@@ -40,7 +42,8 @@ import Hoard.Types.HoardState (HoardState, connectedPeers)
 -- - If peers exist, starts collectors for all of them
 -- - If no peers exist, bootstraps from the hardcoded preview-node peer
 runCollectors
-    :: ( Pub :> es
+    :: ( BlockRepo :> es
+       , Pub :> es
        , NodeToNode :> es
        , Chan :> es
        , Conc :> es
@@ -78,7 +81,8 @@ runCollectors = do
 -- The peer is automatically removed from connectedPeers when the collector
 -- terminates, whether due to an exception or normal completion.
 runCollector
-    :: ( Conc :> es
+    :: ( BlockRepo :> es
+       , Conc :> es
        , Chan :> es
        , Clock :> es
        , IOE :> es
@@ -112,7 +116,8 @@ runCollector peer = do
 
 
 runCollectorImpl
-    :: ( Conc :> es
+    :: ( BlockRepo :> es
+       , Conc :> es
        , Chan :> es
        , IOE :> es
        , NodeToNode :> es
@@ -147,18 +152,21 @@ runCollectorImpl peer =
 
 -- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
 pickBlockFetchRequest
-    :: ( Input HeaderReceivedData :> es
+    :: ( BlockRepo :> es
+       , Input HeaderReceivedData :> es
        , Output BlockFetchRequest :> es
        )
     => Eff es Void
 pickBlockFetchRequest = forever do
     dat <- input
-    output $
-        BlockFetchRequest
-            { timestamp = dat.timestamp
-            , point = dat.point
-            , peer = dat.peer.address
-            }
+    blocks <- BlockRepo.hasBlocks [dat.header]
+    when (not $ null blocks) $
+        output $
+            BlockFetchRequest
+                { timestamp = dat.timestamp
+                , point = dat.point
+                , peer = dat.peer.address
+                }
 
 
 -- | Bridge effects through bidirectional channels.

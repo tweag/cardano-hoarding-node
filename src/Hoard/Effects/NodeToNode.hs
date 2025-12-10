@@ -506,10 +506,10 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
 -- This client:
 blockFetchClientImpl
     :: forall es
-     . ( Pub :> es
-       , Log :> es
-       , Clock :> es
+     . ( Clock :> es
        , Concurrent :> es
+       , Log :> es
+       , Pub :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)

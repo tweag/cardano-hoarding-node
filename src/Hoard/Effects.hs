@@ -21,6 +21,7 @@ import Effectful.State.Static.Shared (State, evalState)
 import System.IO.Error (userError)
 import Prelude hiding (Reader, State, evalState)
 
+import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
 import Hoard.Effects.Chan (Chan, InChan, runChan)
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcNewScope)
@@ -61,6 +62,7 @@ type AppEff es =
     , NodeToNode :> es
     , DBRead :> es
     , DBWrite :> es
+    , BlockRepo :> es
     , PeerRepo :> es
     , HeaderRepo :> es
     , Error Text :> es
@@ -76,6 +78,7 @@ type a ::> b = a Effectful.:> b
 type AppEffects =
     '[ State HoardState
      , PeerRepo
+     , BlockRepo
      , HeaderRepo
      , DBWrite
      , DBRead
@@ -123,6 +126,7 @@ runEffectStack action = liftIO $ do
             . runDBRead
             . runDBWrite
             . runHeaderRepo
+            . runBlockRepo
             . runPeerRepo
             . evalState def
             $ action

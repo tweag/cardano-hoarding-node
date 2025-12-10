@@ -9,6 +9,7 @@ import Prelude hiding (State, gets)
 
 import Hoard.Collector (runCollector)
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
@@ -35,7 +36,8 @@ peerFailureCooldown = 300 -- 5 minutes in seconds
 -- - Filters out peers in cooldown period (recent failures)
 -- - Starts collectors for all eligible peers
 dispatchDiscoveredNodes
-    :: ( Chan :> es
+    :: ( BlockRepo :> es
+       , Chan :> es
        , Conc :> es
        , IOE :> es
        , Log :> es
