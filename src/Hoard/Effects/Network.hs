@@ -35,7 +35,7 @@ import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
-import Ouroboros.Consensus.Node.NetworkProtocolVersion (BlockNodeToNodeVersion, supportedNodeToNodeVersions)
+import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Block (castPoint, genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
@@ -106,10 +106,14 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Input (Input, input, runInputChan)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network.Codecs (hoistCodecs)
-import Hoard.Effects.Output (runOutputChan)
+import Hoard.Effects.Output (Output, output, runOutputChan)
+import Hoard.Effects.Sub (Sub)
+import Hoard.Effects.Sub qualified as Sub
 import Hoard.Types.NodeIP (NodeIP (..))
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 
@@ -140,12 +144,14 @@ makeEffect ''Network
 -- This handler establishes actual network connections and spawns protocol threads.
 -- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
-    :: ( Error Text :> es
+    :: ( Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Error Text :> es
        , IOE :> es
        , Log :> es
        , Pub :> es
-       , Concurrent :> es
-       , Clock :> es
+       , Sub :> es
        )
     => IOManager
     -> FilePath
@@ -173,11 +179,13 @@ runNetwork ioManager protocolConfigPath = interpret $ \_ -> \case
 connectToPeerImpl
     :: forall es
      . ( Clock :> es
+       , Conc :> es
        , Concurrent :> es
        , Error Text :> es
        , IOE :> es
        , Log :> es
        , Pub :> es
+       , Sub :> es
        )
     => IOManager
     -> FilePath
@@ -215,8 +223,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     -- Helper function to create application for a specific version
     let strat = ConcUnlift Persistent Unlimited
-        mkVersionedApp :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-        mkVersionedApp unlift nodeVersion blockVersion =
+        mkVersionedApp (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) nodeVersion blockVersion =
             let codecs =
                     hoistCodecs liftIO $
                         defaultCodecs
@@ -225,18 +232,18 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
                             encodeRemoteAddress
                             (\v -> decodeRemoteAddress v)
                             nodeVersion
-            in  mkApplication (unlift . runOutputChan blockFetchInChan . runInputChan blockFetchOutChan) codecs peer
+            in  mkApplication unlift codecs peer
 
     -- Create versions for negotiation - offer all supported versions
     Log.debug "Creating protocol versions..."
-    let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
+    let mkVersions (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) version blockVersion =
             simpleSingletonVersions
                 version
                 versionData
                 (\_ -> mkVersionedApp unlift version blockVersion)
 
     -- Create versions for all supported protocol versions
-    let versions (unlift :: forall x. Eff es x -> IO x) =
+    let versions (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) =
             combineVersions
                 [ mkVersions unlift nodeVersion blockVersion
                 | (nodeVersion, blockVersion) <- Map.toList supportedVersions
@@ -251,7 +258,8 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     -- Connect to the peer
     Log.debug "Calling connectTo..."
-    result <-
+    result <- runOutputChan blockFetchInChan . runInputChan blockFetchOutChan $ do
+        Conc.fork_ pickBlockFetchRequest
         withEffToIO strat $ \unlift ->
             connectTo
                 snocket
@@ -602,6 +610,25 @@ blockFetchClientImpl unlift peer =
                             , timestamp
                             }
             }
+
+
+-- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
+pickBlockFetchRequest
+    :: ( Clock :> es
+       , Output BlockFetchRequest :> es
+       , Sub :> es
+       )
+    => Eff es Void
+pickBlockFetchRequest = Sub.listen $ \case
+    HeaderReceived dat -> do
+        timestamp <- Clock.currentTime
+        output $
+            BlockFetchRequest
+                { timestamp
+                , point = dat.point
+                , peer = dat.peer
+                }
+    _ -> pure ()
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).
