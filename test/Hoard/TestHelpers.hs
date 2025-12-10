@@ -97,6 +97,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , inChan
                 , server = serverConfig
                 , protocolConfigPath = "config/preview/config.json"
+                , localNodeSocketPath = "preview.socket"
                 , logging = Log.defaultConfig
                 }
     wireTapOutput <- newIORef []

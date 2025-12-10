@@ -27,6 +27,7 @@ data ConfigFile = ConfigFile
     , database :: DatabaseConfig
     , secretsFile :: String
     , protocolConfigPath :: FilePath
+    , localNodeSocketPath :: FilePath
     , logging :: LoggingConfig
     }
     deriving stock (Eq, Generic, Show)
@@ -136,6 +137,7 @@ loadConfig ioManager env = do
             , inChan
             , server = configFile.server
             , protocolConfigPath = configFile.protocolConfigPath
+            , localNodeSocketPath = configFile.localNodeSocketPath
             , logging
             }
 
