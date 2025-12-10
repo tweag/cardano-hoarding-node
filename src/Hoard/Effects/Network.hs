@@ -20,7 +20,6 @@ module Hoard.Effects.Network
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Concurrent.Chan.Unagi (newChan)
 import Control.Tracer (Tracer (..), stdoutTracer)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
@@ -77,6 +76,8 @@ import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
+import Hoard.Effects.Chan (Chan)
+import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
@@ -142,9 +143,9 @@ makeEffect ''Network
 -- | Run the Network effect with real implementation.
 --
 -- This handler establishes actual network connections and spawns protocol threads.
--- Requires IOE, Pub, Conc, and Error effects in the stack.
 runNetwork
-    :: ( Clock :> es
+    :: ( Chan :> es
+       , Clock :> es
        , Conc :> es
        , Concurrent :> es
        , Error Text :> es
@@ -178,7 +179,8 @@ runNetwork ioManager protocolConfigPath = interpret $ \_ -> \case
 -- 6. Publishes connection events
 connectToPeerImpl
     :: forall es
-     . ( Clock :> es
+     . ( Chan :> es
+       , Clock :> es
        , Conc :> es
        , Concurrent :> es
        , Error Text :> es
@@ -219,8 +221,6 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
                 , query = False
                 }
 
-    (blockFetchInChan, blockFetchOutChan) <- liftIO newChan
-
     -- Helper function to create application for a specific version
     let strat = ConcUnlift Persistent Unlimited
         mkVersionedApp (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) nodeVersion blockVersion =
@@ -258,7 +258,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     -- Connect to the peer
     Log.debug "Calling connectTo..."
-    result <- runOutputChan blockFetchInChan . runInputChan blockFetchOutChan $ do
+    result <- withBridge $ do
         Conc.fork_ pickBlockFetchRequest
         withEffToIO strat $ \unlift ->
             connectTo
@@ -267,6 +267,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
                 (versions unlift)
                 Nothing -- No local address binding
                 addr
+
     Log.debug "connectTo returned!"
 
     case result of
@@ -764,3 +765,19 @@ keepAliveClientImpl unlift = KeepAliveClient sendFirst
 logTracer :: (Log :> es) => (forall x. Eff es x -> m x) -> Log.Severity -> Tracer m String
 logTracer unlift severity =
     Tracer $ \msg -> unlift $ Log.log severity $ toText msg
+
+
+-- | Bridge effects through bidirectional channels.
+--
+-- Creates a channel pair and interprets Input/Output effects over them,
+-- enabling communication between threads.
+--
+-- This function:
+-- 1. Creates a bidirectional channel pair using 'Chan.newChan'
+-- 2. Interprets 'Input' and 'Output' effects over these channels
+-- 3. Provides these effects to the wrapped action
+-- 4. The action can fork threads that communicate via these effects
+withBridge :: forall es a b. (Chan :> es) => Eff (Input b : Output b : es) a -> Eff es a
+withBridge action = do
+    (inChan, outChan) <- Chan.newChan
+    runOutputChan inChan . runInputChan outChan $ action

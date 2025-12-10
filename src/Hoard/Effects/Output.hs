@@ -11,12 +11,13 @@ where
 
 import Prelude hiding (modify, runState)
 
-import Control.Concurrent.Chan.Unagi (InChan, writeChan)
 import Data.Dynamic qualified as Dyn
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)
 import Effectful.State.Static.Local (modify, runState)
 import Effectful.TH (makeEffect)
+import Hoard.Effects.Chan (Chan, InChan)
+import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Pub (Pub, publish)
 
 
@@ -40,8 +41,8 @@ runOutputEff eff = interpret_ $ \(Output x) -> eff x
 
 
 -- | Run an Output effect by writing to an `InChan`.
-runOutputChan :: (IOE :> es) => InChan a -> Eff (Output a : es) x -> Eff es x
-runOutputChan inChan = runOutputEff $ liftIO . writeChan inChan
+runOutputChan :: (Chan :> es) => InChan a -> Eff (Output a : es) x -> Eff es x
+runOutputChan inChan = runOutputEff $ Chan.writeChan inChan
 
 
 -- | Run an Output by publishing values with the `Pub` effect.

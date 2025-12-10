@@ -25,6 +25,7 @@ library
       Hoard.DB.Schema
       Hoard.DB.Schemas.Peers
       Hoard.Effects
+      Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
