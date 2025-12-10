@@ -18,9 +18,9 @@
       fi
 
       # Parse config values from YAML
-      DB_HOST=$(${pkgs.yq-go}/bin/yq '.database.reader.host' "$CONFIG_FILE")
-      DB_PORT=$(${pkgs.yq-go}/bin/yq '.database.reader.port' "$CONFIG_FILE")
-      DB_NAME=$(${pkgs.yq-go}/bin/yq '.database.reader.database_name' "$CONFIG_FILE")
+      DB_HOST=$(${pkgs.yq-go}/bin/yq '.database.host' "$CONFIG_FILE")
+      DB_PORT=$(${pkgs.yq-go}/bin/yq '.database.port' "$CONFIG_FILE")
+      DB_NAME=$(${pkgs.yq-go}/bin/yq '.database.database_name' "$CONFIG_FILE")
 
       echo "Loading configuration from: $CONFIG_FILE"
       echo "  Database: $DB_NAME"
