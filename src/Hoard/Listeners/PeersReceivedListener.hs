@@ -2,6 +2,7 @@ module Hoard.Listeners.PeersReceivedListener (peersReceivedListener) where
 
 import Effectful (Eff, (:>))
 
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 
@@ -12,5 +13,5 @@ import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 -- the database.
 peersReceivedListener :: (PeerRepo :> es) => PeerSharingEvent -> Eff es ()
 peersReceivedListener = \case
-    PeersReceived dat -> upsertPeers dat.peerAddresses dat.peer dat.timestamp
+    PeersReceived dat -> upsertPeers dat.peerAddresses dat.peer.address dat.timestamp
     _ -> pure () -- Ignore other PeerSharing events

@@ -7,12 +7,15 @@ import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (bracket)
 import Effectful.State.Static.Shared (State, gets, modify, state)
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.Peer (PeerAddress)
+import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer)
+import Hoard.Effects.PeerRepo (PeerRepo, getPeerByAddress, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
@@ -25,43 +28,56 @@ dispatchDiscoveredNodes
        , IOE :> es
        , Log :> es
        , Network :> es
+       , PeerRepo :> es
        , Pub :> es
        , State HoardState :> es
+       , Clock :> es
        )
     => PeerSharingEvent
     -> Eff es ()
 dispatchDiscoveredNodes = \case
-    (PeersReceived (PeersReceivedData {peerAddresses})) -> do
+    (PeersReceived (PeersReceivedData {peer = sourcePeer, peerAddresses})) -> do
         Log.info "Dispatch: Received peers"
+
+        -- First, upsert all discovered peer addresses to create Peer records
+        timestamp <- Clock.currentTime
+        upsertPeers peerAddresses sourcePeer.address timestamp
+
         currPeers <- gets connectedPeers
         let peersToConnect = S.difference peerAddresses currPeers
         Log.info $ "Dispatch: " <> show (S.size peersToConnect) <> " new peers to connect to"
+
         forM_ peersToConnect $ \peerAddr -> do
-            _ <-
-                Conc.forkTry @SomeException
-                    . withExceptionLogging ("collector " <> show peerAddr)
-                    $ bracket
-                        ( state \r ->
-                            (peerAddr, r {connectedPeers = S.insert peerAddr r.connectedPeers})
-                        )
-                        ( \addr ->
-                            modify \r -> r {connectedPeers = S.delete addr r.connectedPeers}
-                        )
-                        runCollector
-            pure ()
+            -- Get the full Peer record (we just upserted it, so it should exist)
+            maybePeer <- getPeerByAddress peerAddr
+            case maybePeer of
+                Nothing -> Log.err $ "Failed to get peer after upsert: " <> show peerAddr
+                Just peer -> do
+                    _ <-
+                        Conc.forkTry @SomeException
+                            . withExceptionLogging ("collector " <> show peerAddr)
+                            $ bracket
+                                ( state \r ->
+                                    (peer, r {connectedPeers = S.insert peerAddr r.connectedPeers})
+                                )
+                                ( \p ->
+                                    modify \r -> r {connectedPeers = S.delete p.address r.connectedPeers}
+                                )
+                                runCollector
+                    pure ()
     _ -> pure ()
 
 
 runCollector
     :: (IOE :> es, Network :> es, Pub :> es)
-    => PeerAddress
+    => Peer
     -> Eff es Void
 runCollector peer = do
-    publish $ CollectorStarted peer
-    publish $ ConnectingToPeer peer
+    publish $ CollectorStarted peer.address
+    publish $ ConnectingToPeer peer.address
 
     _conn <- connectToPeer peer
-    publish $ ConnectedToPeer peer
+    publish $ ConnectedToPeer peer.address
 
     -- Connection is now running autonomously!
     -- Protocols publish events as they receive data

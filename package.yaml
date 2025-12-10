@@ -20,6 +20,7 @@ ghc-options:
 - -Wredundant-constraints
 - -O2
 - -fplugin=Effectful.Plugin
+- -threaded
 
 dependencies:
 - name: base

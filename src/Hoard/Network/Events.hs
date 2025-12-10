@@ -34,7 +34,7 @@ module Hoard.Network.Events
 import Data.Time (UTCTime)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
-import Hoard.Data.Peer (PeerAddress)
+import Hoard.Data.Peer (Peer, PeerAddress)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
 
 
@@ -55,7 +55,7 @@ data NetworkEvent
 
 
 data ConnectionEstablishedData = ConnectionEstablishedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , version :: NodeToNodeVersion
     , timestamp :: UTCTime
     }
@@ -63,7 +63,7 @@ data ConnectionEstablishedData = ConnectionEstablishedData
 
 
 data ConnectionLostData = ConnectionLostData
-    { peer :: PeerAddress
+    { peer :: Peer
     , reason :: Text
     , timestamp :: UTCTime
     }
@@ -71,7 +71,7 @@ data ConnectionLostData = ConnectionLostData
 
 
 data HandshakeCompletedData = HandshakeCompletedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , version :: NodeToNodeVersion
     , timestamp :: UTCTime
     }
@@ -79,7 +79,7 @@ data HandshakeCompletedData = HandshakeCompletedData
 
 
 data ProtocolErrorData = ProtocolErrorData
-    { peer :: PeerAddress
+    { peer :: Peer
     , errorMessage :: Text
     , timestamp :: UTCTime
     }
@@ -104,14 +104,14 @@ data ChainSyncEvent
 
 
 data ChainSyncStartedData = ChainSyncStartedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data HeaderReceivedData = HeaderReceivedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , header :: CardanoHeader
     , point :: CardanoPoint
     , tip :: CardanoTip
@@ -121,7 +121,7 @@ data HeaderReceivedData = HeaderReceivedData
 
 
 data RollBackwardData = RollBackwardData
-    { peer :: PeerAddress
+    { peer :: Peer
     , point :: CardanoPoint
     , tip :: CardanoTip
     , timestamp :: UTCTime
@@ -130,7 +130,7 @@ data RollBackwardData = RollBackwardData
 
 
 data RollForwardData = RollForwardData
-    { peer :: PeerAddress
+    { peer :: Peer
     , header :: CardanoHeader
     , point :: CardanoPoint
     , tip :: CardanoTip
@@ -140,7 +140,7 @@ data RollForwardData = RollForwardData
 
 
 data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
-    { peer :: PeerAddress
+    { peer :: Peer
     , point :: CardanoPoint
     , tip :: CardanoTip
     , timestamp :: UTCTime
@@ -221,14 +221,14 @@ data PeerSharingEvent
 
 
 data PeerSharingStartedData = PeerSharingStartedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
 data PeersReceivedData = PeersReceivedData
-    { peer :: PeerAddress -- The peer we requested from
+    { peer :: Peer -- The peer we requested from
     , peerAddresses :: Set PeerAddress -- The peer addresses we received
     , timestamp :: UTCTime
     }
@@ -236,7 +236,7 @@ data PeersReceivedData = PeersReceivedData
 
 
 data PeerSharingFailedData = PeerSharingFailedData
-    { peer :: PeerAddress
+    { peer :: Peer
     , errorMessage :: Text
     , timestamp :: UTCTime
     }
