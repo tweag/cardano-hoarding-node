@@ -170,7 +170,7 @@ executable hoard-exe
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin -threaded -with-rtsopts=-N
   build-depends:
       aeson
     , async
@@ -252,7 +252,7 @@ executable test-connection
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -fplugin=Effectful.Plugin -threaded -with-rtsopts=-N
   build-depends:
       aeson
     , async

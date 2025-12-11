@@ -102,12 +102,16 @@ executables:
   hoard-exe:
     main:                Main.hs
     source-dirs:         app/hoard
+    ghc-options:
+    - -with-rtsopts=-N
     dependencies:
     - hoard
 
   test-connection:
     main:                Main.hs
     source-dirs:         app/test-connection
+    ghc-options:
+    - -with-rtsopts=-N
     dependencies:
     - hoard
 
