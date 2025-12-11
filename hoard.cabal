@@ -20,9 +20,13 @@ library
       Hoard.Collector
       Hoard.Config.Loader
       Hoard.Control.Exception
+      Hoard.Data.Header
+      Hoard.Data.Header.Extract
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.DB.Schema
+      Hoard.DB.Schemas.HeaderReceipts
+      Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.Chan
@@ -30,6 +34,7 @@ library
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.HeaderRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.Network
@@ -89,6 +94,7 @@ library
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -169,6 +175,7 @@ executable hoard-exe
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -250,6 +257,7 @@ executable test-connection
       aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core
@@ -309,6 +317,7 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
@@ -343,6 +352,7 @@ test-suite hoard-test
     , aeson
     , async
     , base
+    , base16-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-core

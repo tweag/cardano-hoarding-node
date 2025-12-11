@@ -18,7 +18,7 @@ import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Rel8 (each, lit, select, where_, (&&.), (==.))
+import Rel8 (lit, select)
 import Rel8 qualified
 
 
@@ -113,12 +113,8 @@ getPeerByAddressImpl :: PeerAddress -> Statement () (Maybe Peer)
 getPeerByAddressImpl peerAddr =
     fmap extractMaybePeer $
         Rel8.run $
-            select $ do
-                peer <- each PeersSchema.schema
-                where_ $
-                    peer.address ==. lit peerAddr.host
-                        &&. peer.port ==. lit (fromIntegral peerAddr.port)
-                pure peer
+            select $
+                PeersSchema.selectPeerByAddress peerAddr
   where
     extractMaybePeer :: [PeersSchema.Row Rel8.Result] -> Maybe Peer
     extractMaybePeer [] = Nothing
