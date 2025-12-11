@@ -44,7 +44,7 @@ dispatchDiscoveredNodes = \case
         upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
 
         currPeers <- gets connectedPeers
-        let peersToConnect = S.filter (\p -> p.address `S.notMember` currPeers) upsertedPeers
+        let peersToConnect = S.difference upsertedPeers currPeers
         Log.info $ "Dispatch: " <> show (S.size peersToConnect) <> " new peers to connect to"
 
         forM_ peersToConnect $ \peer -> do
@@ -53,10 +53,10 @@ dispatchDiscoveredNodes = \case
                     . withExceptionLogging ("collector " <> show peer.address)
                     $ bracket
                         ( state \r ->
-                            (peer, r {connectedPeers = S.insert peer.address r.connectedPeers})
+                            (peer, r {connectedPeers = S.insert peer r.connectedPeers})
                         )
                         ( \p ->
-                            modify \r -> r {connectedPeers = S.delete p.address r.connectedPeers}
+                            modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
                         )
                         runCollector
             pure ()
