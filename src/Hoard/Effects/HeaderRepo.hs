@@ -7,7 +7,7 @@ where
 
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
-import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 
 import Hasql.Statement (Statement)
@@ -51,7 +51,7 @@ runHeaderRepo
     :: (DBWrite :> es)
     => Eff (HeaderRepo : es) a
     -> Eff es a
-runHeaderRepo = interpret $ \_ -> \case
+runHeaderRepo = interpret_ \case
     UpsertHeader header peerAddr receivedAt ->
         runTransaction "upsert-header" $
             upsertHeaderImpl header peerAddr receivedAt
@@ -123,7 +123,7 @@ upsertHeaderImpl header peerAddr receivedAt = do
                     Rel8.values
                         [ HeaderReceiptsSchema.Row
                             { HeaderReceiptsSchema.id = Rel8.unsafeDefault
-                            , HeaderReceiptsSchema.headerHash = lit header.headerHash
+                            , HeaderReceiptsSchema.hash = lit header.hash
                             , HeaderReceiptsSchema.peerId = lit peerId
                             , HeaderReceiptsSchema.receivedAt = lit receivedAt
                             }

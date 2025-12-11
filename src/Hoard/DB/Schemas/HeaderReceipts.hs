@@ -16,14 +16,14 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Header (HeaderHash, HeaderReceipt (..))
+import Hoard.Data.Header (BlockHash, HeaderReceipt (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 
 
 data Row f = Row
     { id :: Column f (ID HeaderReceipt)
-    , headerHash :: Column f HeaderHash
+    , hash :: Column f BlockHash
     , peerId :: Column f (ID Peer)
     , receivedAt :: Column f UTCTime
     }
@@ -47,7 +47,7 @@ headerReceiptFromRow :: Row Result -> HeaderReceipt
 headerReceiptFromRow row =
     HeaderReceipt
         { id = row.id
-        , headerHash = row.headerHash
+        , hash = row.hash
         , peerId = row.peerId
         , receivedAt = row.receivedAt
         }
@@ -58,7 +58,7 @@ rowFromHeaderReceipt :: HeaderReceipt -> Row Result
 rowFromHeaderReceipt receipt =
     Row
         { id = receipt.id
-        , headerHash = receipt.headerHash
+        , hash = receipt.hash
         , peerId = receipt.peerId
         , receivedAt = receipt.receivedAt
         }

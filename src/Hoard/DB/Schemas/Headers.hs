@@ -18,12 +18,11 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Header (BlockHash (..), Header (..), HeaderHash (..))
+import Hoard.Data.Header (BlockHash (..), Header (..))
 
 
 data Row f = Row
-    { headerHash :: Column f HeaderHash
-    , blockHash :: Column f BlockHash
+    { hash :: Column f BlockHash
     , slotNumber :: Column f Int64
     , blockNumber :: Column f Int64
     , firstSeenAt :: Column f UTCTime
@@ -47,8 +46,7 @@ schema = mkSchema "headers"
 headerFromRow :: Row Result -> Header
 headerFromRow row =
     Header
-        { headerHash = row.headerHash
-        , blockHash = row.blockHash
+        { hash = row.hash
         , slotNumber = fromIntegral row.slotNumber
         , blockNumber = fromIntegral row.blockNumber
         , firstSeenAt = row.firstSeenAt
@@ -59,8 +57,7 @@ headerFromRow row =
 rowFromHeader :: Header -> Row Expr
 rowFromHeader header =
     Row
-        { headerHash = lit header.headerHash
-        , blockHash = lit header.blockHash
+        { hash = lit header.hash
         , slotNumber = lit $ fromIntegral header.slotNumber
         , blockNumber = lit $ fromIntegral header.blockNumber
         , firstSeenAt = lit header.firstSeenAt

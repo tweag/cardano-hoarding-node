@@ -8,42 +8,29 @@ import Data.Text.Encoding qualified as Text
 
 import Cardano.Api.LedgerState ()
 import Hoard.Data.Header (BlockHash (..), Header (..))
-import Hoard.Data.Header qualified as Hoard
 import Hoard.Network.Events (HeaderReceivedData (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Ouroboros.Consensus.Block (BlockNo (..), SlotNo (..))
-import Ouroboros.Consensus.Block.Abstract
-    ( ConvertRawHash (toRawHash)
-    , HasHeader (getHeaderFields)
-    , HeaderFields (..)
-    )
+import Ouroboros.Consensus.Block.Abstract (ConvertRawHash (toRawHash), blockNo, blockSlot)
+import Ouroboros.Consensus.Block.Abstract qualified as Block
 import Ouroboros.Network.Block (HeaderHash)
-import Ouroboros.Network.Block qualified as OBlock
 
 
 -- | Extract header data from a HeaderReceivedData event
 extractHeaderData :: HeaderReceivedData -> Header
 extractHeaderData dat =
     let
-        fields = getHeaderFields dat.header
-
-        -- Extract header hash (hash of the header itself) from header fields
-        headerHash =
-            Hoard.HeaderHash (renderHash (Proxy @CardanoBlock) fields.headerFieldHash)
-
-        -- Extract block hash using the blockHash function from HasHeader
-        blockHash =
-            BlockHash (renderHash (Proxy @CardanoBlock) (OBlock.blockHash dat.header))
+        hash =
+            BlockHash (renderHash (Proxy @CardanoBlock) (Block.blockHash dat.header))
 
         -- Extract slot number and convert Word64 to Int64
-        slotNumber = unSlotNo $ fields.headerFieldSlot
+        slotNumber = unSlotNo $ blockSlot dat.header
 
         -- Extract block number and convert Word64 to Int64
-        blockNumber = unBlockNo $ fields.headerFieldBlockNo
+        blockNumber = unBlockNo $ blockNo dat.header
     in
         Header
-            { headerHash
-            , blockHash
+            { hash
             , slotNumber
             , blockNumber
             , firstSeenAt = dat.timestamp

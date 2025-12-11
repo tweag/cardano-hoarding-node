@@ -27,7 +27,7 @@ chainSyncEventListener = \case
         let header = extractHeaderData dat
         -- Upsert the header and record receipt (peer will be created if needed)
         upsertHeader header dat.peer dat.timestamp
-        Log.debug $ "Persisted header: " <> show (header.blockHash)
+        Log.debug $ "Persisted header: " <> show header.hash
     RollBackward _dat -> do
         Log.info "⏪ Rollback occurred"
     RollForward _dat -> do

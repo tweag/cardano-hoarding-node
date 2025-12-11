@@ -4,7 +4,7 @@ BEGIN;
 
 -- Verify that the peers table exists and has the correct columns
 SELECT
-    peer_id,
+    id,
     address,
     port,
     first_discovered,
