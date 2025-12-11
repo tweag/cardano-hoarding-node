@@ -52,7 +52,7 @@ import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Network (loadNodeConfig)
+import Hoard.Effects.NodeToNode (loadNodeConfig)
 
 
 data NodeToClient :: Effect where

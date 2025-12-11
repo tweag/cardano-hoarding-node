@@ -35,8 +35,8 @@ import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Network (Network, runNetwork)
 import Hoard.Effects.NodeToClient (NodeToClient, runNodeToClient)
+import Hoard.Effects.NodeToNode (NodeToNode, runNodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
@@ -77,7 +77,7 @@ type AppEff es =
     , Sub :> es
     , Pub :> es
     , Chan :> es
-    , Network :> es
+    , NodeToNode :> es
     , DBRead :> es
     , DBWrite :> es
     , PeerRepo :> es
@@ -98,7 +98,7 @@ type AppEffects =
      , HeaderRepo
      , DBWrite
      , DBRead
-     , Network
+     , NodeToNode
      , Error Text
      , Pub
      , Sub
@@ -130,7 +130,7 @@ runEffectStack config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager config.protocolConfigPath
+                    . runNodeToNode config.ioManager config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runHeaderRepo
@@ -159,7 +159,7 @@ runEffectStackReturningState config action = liftIO $ do
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
-                    . runNetwork config.ioManager config.protocolConfigPath
+                    . runNodeToNode config.ioManager config.protocolConfigPath
                     . runDBRead config.dbPools.readerPool
                     . runDBWrite config.dbPools.writerPool
                     . runHeaderRepo

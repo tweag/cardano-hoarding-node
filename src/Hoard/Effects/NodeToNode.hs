@@ -1,18 +1,18 @@
 -- |
--- Module: Hoard.Effects.Network
--- Description: Network effect for managing peer connections
+-- Module: Hoard.Effects.NodeToNode
+-- Description: Effect for managing peer connections
 --
 -- This effect provides high-level operations for connecting to Cardano peers
 -- and managing the node-to-node protocol communication.
-module Hoard.Effects.Network
+module Hoard.Effects.NodeToNode
     ( -- * Effect
-      Network
+      NodeToNode
     , connectToPeer
     , disconnectPeer
     , isConnected
 
       -- * Interpreter
-    , runNetwork
+    , runNodeToNode
 
       -- * Utilities
     , loadNodeConfig
@@ -111,7 +111,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Input (Input, input, runInputChan)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Network.Codecs (hoistCodecs)
+import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.Sub (Sub)
 import Hoard.Effects.Sub qualified as Sub
@@ -126,24 +126,24 @@ import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 -- | Effect for managing peer connections.
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
-data Network :: Effect where
-    ConnectToPeer :: Peer -> Network m Connection
-    DisconnectPeer :: Connection -> Network m ()
-    IsConnected :: Connection -> Network m Bool
+data NodeToNode :: Effect where
+    ConnectToPeer :: Peer -> NodeToNode m Connection
+    DisconnectPeer :: Connection -> NodeToNode m ()
+    IsConnected :: Connection -> NodeToNode m Bool
 
 
 -- Generate smart constructors using Template Haskell
-makeEffect ''Network
+makeEffect ''NodeToNode
 
 
 --------------------------------------------------------------------------------
 -- Effect Handler
 --------------------------------------------------------------------------------
 
--- | Run the Network effect with real implementation.
+-- | Run the NodeToNode effect with real implementation.
 --
 -- This handler establishes actual network connections and spawns protocol threads.
-runNetwork
+runNodeToNode
     :: ( Chan :> es
        , Clock :> es
        , Conc :> es
@@ -156,9 +156,9 @@ runNetwork
        )
     => IOManager
     -> FilePath
-    -> Eff (Network : es) a
+    -> Eff (NodeToNode : es) a
     -> Eff es a
-runNetwork ioManager protocolConfigPath = interpret $ \_ -> \case
+runNodeToNode ioManager protocolConfigPath = interpret $ \_ -> \case
     ConnectToPeer peer -> connectToPeerImpl ioManager protocolConfigPath peer
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
@@ -253,7 +253,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
     adhocTracers <- withEffToIO strat $ \unlift ->
         pure $
             nullNetworkConnectTracers
-                { nctHandshakeTracer = (("[Network] " <>) . show) >$< logTracer unlift Log.DEBUG
+                { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< logTracer unlift Log.DEBUG
                 }
 
     -- Connect to the peer
