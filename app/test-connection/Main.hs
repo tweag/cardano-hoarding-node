@@ -43,8 +43,8 @@ import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
+import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer, isConnected, runNodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
@@ -95,7 +95,7 @@ main = withIOManager $ \ioManager -> do
                 . runChan
                 . runSub config.inChan
                 . runPub config.inChan
-                . runNetwork config.ioManager config.protocolConfigPath
+                . runNodeToNode config.ioManager config.protocolConfigPath
                 . runDBRead config.dbPools.readerPool
                 . runDBWrite config.dbPools.writerPool
                 . runPeerRepo
@@ -134,7 +134,7 @@ testConnection
     :: ( Conc :> es
        , IOE :> es
        , Log :> es
-       , Network :> es
+       , NodeToNode :> es
        , Sub :> es
        , Pub :> es
        , State HoardState :> es

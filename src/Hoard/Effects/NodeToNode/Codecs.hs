@@ -1,4 +1,4 @@
-module Hoard.Effects.Network.Codecs (hoistCodecs) where
+module Hoard.Effects.NodeToNode.Codecs (hoistCodecs) where
 
 import Network.TypedProtocol.Codec (hoistCodec)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))

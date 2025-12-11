@@ -37,9 +37,9 @@ library
       Hoard.Effects.HeaderRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
-      Hoard.Effects.Network
-      Hoard.Effects.Network.Codecs
       Hoard.Effects.NodeToClient
+      Hoard.Effects.NodeToNode
+      Hoard.Effects.NodeToNode.Codecs
       Hoard.Effects.Output
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub

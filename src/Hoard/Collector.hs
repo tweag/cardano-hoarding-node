@@ -14,7 +14,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Network (Network, connectToPeer)
+import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
@@ -27,7 +27,7 @@ dispatchDiscoveredNodes
     :: ( Conc :> es
        , IOE :> es
        , Log :> es
-       , Network :> es
+       , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
        , State HoardState :> es
@@ -64,7 +64,7 @@ dispatchDiscoveredNodes = \case
 
 
 runCollector
-    :: (IOE :> es, Network :> es, Pub :> es)
+    :: (IOE :> es, NodeToNode :> es, Pub :> es)
     => Peer
     -> Eff es Void
 runCollector peer = do
