@@ -15,7 +15,6 @@ where
 
 import Prelude hiding (State, evalState, runState)
 
-import Control.Concurrent.Chan.Unagi (InChan)
 import Control.Exception (throwIO)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
@@ -28,6 +27,7 @@ import Effectful.State.Static.Shared (State, evalState, runState)
 import Ouroboros.Network.IOManager (IOManager)
 import System.IO.Error (userError)
 
+import Hoard.Effects.Chan (Chan, InChan, runChan)
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
@@ -75,6 +75,7 @@ type AppEff es =
     , NodeToClient :> es
     , Sub :> es
     , Pub :> es
+    , Chan :> es
     , Network :> es
     , DBRead :> es
     , DBWrite :> es
@@ -98,6 +99,7 @@ type AppEffects =
      , Error Text
      , Pub
      , Sub
+     , Chan
      , NodeToClient
      , Conc
      , Concurrent
@@ -121,6 +123,7 @@ runEffectStack config action = liftIO $ do
             $ \scope ->
                 runConcWithKi scope
                     . runNodeToClient config
+                    . runChan
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text
@@ -148,6 +151,7 @@ runEffectStackReturningState config action = liftIO $ do
             $ \scope ->
                 runConcWithKi scope
                     . runNodeToClient config
+                    . runChan
                     . runSub config.inChan
                     . runPub config.inChan
                     . runErrorNoCallStack @Text

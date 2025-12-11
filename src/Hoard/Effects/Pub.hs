@@ -9,12 +9,12 @@ where
 
 import Prelude hiding (modify, runState)
 
-import Control.Concurrent.Chan.Unagi (InChan, writeChan)
-import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
+import Data.Dynamic qualified as Dyn
+import Effectful (Dispatch (..), DispatchOf, Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_, send)
 import Effectful.State.Static.Local (modify, runState)
-
-import Data.Dynamic qualified as Dyn
+import Hoard.Effects.Chan (Chan, InChan)
+import Hoard.Effects.Chan qualified as Chan
 
 
 data Pub :: Effect where
@@ -28,9 +28,9 @@ publish :: (Pub :> es, Typeable a) => a -> Eff es ()
 publish = send . Publish
 
 
-runPub :: (IOE :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es a
+runPub :: (Chan :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es a
 runPub inChan = interpret_ $ \case
-    Publish event -> liftIO $ writeChan inChan $ Dyn.toDyn event
+    Publish event -> Chan.writeChan inChan $ Dyn.toDyn event
 
 
 runPubToList :: Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
@@ -41,7 +41,7 @@ runPubToList =
             (\(Publish event) -> modify (Dyn.toDyn event :))
 
 
-runPubWithList :: (IOE :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
+runPubWithList :: (Chan :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
 runPubWithList inChan eff = do
     x <- runPub inChan eff
     (_, xs) <- runPubToList eff

@@ -32,6 +32,7 @@ import Hoard.Config.Loader (loadConfig)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects (Config (..))
+import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc (Conc, scoped)
 import Hoard.Effects.Conc qualified as Conc
@@ -84,6 +85,7 @@ main = withIOManager $ \ioManager -> do
         $ \scope -> do
             Conc.runConcWithKi scope
                 . runErrorNoCallStack @Text
+                . runChan
                 . runSub config.inChan
                 . runPub config.inChan
                 . runNetwork config.ioManager config.protocolConfigPath

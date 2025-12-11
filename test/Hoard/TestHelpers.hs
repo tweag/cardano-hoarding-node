@@ -10,7 +10,7 @@ where
 import Prelude hiding (State, atomicModifyIORef', newIORef, readIORef, runState)
 
 import Control.Concurrent (forkIO, killThread)
-import Control.Concurrent.Chan.Unagi (OutChan, dupChan, newChan, readChan)
+import Control.Concurrent.Chan.Unagi (dupChan, newChan, readChan)
 import Data.Default (def)
 import Data.Dynamic (Dynamic, fromDynamic)
 import Data.IORef (atomicModifyIORef', newIORef, readIORef)
@@ -27,6 +27,7 @@ import Effectful
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, runState)
+import Hoard.Effects.Chan (Chan, OutChan, runChan)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (testWithApplication)
@@ -107,6 +108,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runLog config.logging
             . runFileSystem
             . runConcurrent
+            . runChan
             . runSub config.inChan
             . runPub config.inChan
             . runState def
@@ -126,6 +128,7 @@ type TestAppEffs =
     [ State HoardState
     , Pub
     , Sub
+    , Chan
     , Concurrent
     , FileSystem
     , Log
