@@ -75,7 +75,7 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
+import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
@@ -127,7 +127,7 @@ import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data Network :: Effect where
-    ConnectToPeer :: PeerAddress -> Network m Connection
+    ConnectToPeer :: Peer -> Network m Connection
     DisconnectPeer :: Connection -> Network m ()
     IsConnected :: Connection -> Network m Bool
 
@@ -191,10 +191,10 @@ connectToPeerImpl
        )
     => IOManager
     -> FilePath
-    -> PeerAddress
+    -> Peer
     -> Eff es Connection
 connectToPeerImpl ioManager protocolConfigPath peer = do
-    let addr = IP.toSockAddr (getNodeIP peer.host, fromIntegral peer.port)
+    let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
 
@@ -391,7 +391,7 @@ mkApplication
         LBS.ByteString
         LBS.ByteString
         LBS.ByteString
-    -> PeerAddress
+    -> Peer
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
 mkApplication unlift codecs peer =
     OuroborosApplication
@@ -418,7 +418,7 @@ mkApplication unlift codecs peer =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
                 let codec = cBlockFetchCodec codecs
-                    client = blockFetchClientImpl unlift peer
+                    client = blockFetchClientImpl unlift peer.address
                     tracer = (("[BlockFetch] " <>) . show) >$< stdoutTracer
                     wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                         Log.debug "BlockFetch protocol started"
@@ -518,7 +518,7 @@ mkApplication unlift codecs peer =
 peerSharingClientImpl
     :: (Concurrent :> es, Clock :> es, Log :> es, Pub :> es)
     => (forall x. Eff es x -> IO x)
-    -> PeerAddress
+    -> Peer
     -> PeerSharingClient SockAddr IO ()
 peerSharingClientImpl unlift peer = requestPeers withPeers
   where
@@ -627,7 +627,7 @@ pickBlockFetchRequest = Sub.listen $ \case
             BlockFetchRequest
                 { timestamp
                 , point = dat.point
-                , peer = dat.peer
+                , peer = dat.peer.address
                 }
     _ -> pure ()
 
@@ -648,7 +648,7 @@ chainSyncClientImpl
        , Pub :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> PeerAddress
+    -> Peer
     -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
 chainSyncClientImpl unlift peer =
     ClientPipelined $

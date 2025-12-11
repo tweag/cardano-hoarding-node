@@ -5,12 +5,12 @@ import Data.Default (Default (..))
 import Data.Set qualified as S
 
 import Cardano.Api (ChainPoint (ChainPointAtGenesis))
-import Hoard.Data.Peer (PeerAddress)
+import Hoard.Data.Peer (Peer)
 
 
 -- | Application state
 data HoardState = HoardState
-    { connectedPeers :: Set PeerAddress
+    { connectedPeers :: Set Peer
     , immutableTip :: ChainPoint
     }
     deriving (Eq, Show)

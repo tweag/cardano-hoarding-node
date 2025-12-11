@@ -12,6 +12,7 @@ import Control.Concurrent (threadDelay)
 import Data.Default (def)
 import Data.IP (IP)
 import Data.IP qualified as IP
+import Data.Set qualified as S
 import Data.Time (getCurrentTime)
 import Data.UUID qualified as UUID
 import Effectful (Eff, IOE, runEff, (:>))
@@ -33,7 +34,8 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects (Config (..))
 import Hoard.Effects.Chan (runChan)
-import Hoard.Effects.Clock (runClock)
+import Hoard.Effects.Clock (Clock, runClock)
+import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc, scoped)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.DBRead (runDBRead)
@@ -43,7 +45,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
-import Hoard.Effects.PeerRepo (runPeerRepo)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -137,11 +139,21 @@ testConnection
        , Pub :> es
        , State HoardState :> es
        , HeaderRepo :> es
+       , PeerRepo :> es
+       , Clock :> es
        )
     => Eff es ()
 testConnection = do
     previewRelay <- liftIO mkPreviewRelay
     Log.info $ "Connecting to " <> show previewRelay.address.host <> ":" <> show previewRelay.address.port
+
+    -- Upsert the peer to the database first (bootstrap: source is itself)
+    -- upsertPeers returns the peer with DB-assigned ID
+    timestamp <- Clock.currentTime
+    upsertedPeers <- upsertPeers (S.singleton previewRelay.address) previewRelay.address timestamp
+    peer <- case toList upsertedPeers of
+        [p] -> pure p
+        _ -> error "Expected exactly one peer from upsert"
 
     -- Start event listeners in background
     Conc.fork_ $ listen networkEventListener
@@ -164,7 +176,7 @@ testConnection = do
             Log.debug =<< show <$> isOnChain tip1
 
     -- Connect to peer
-    conn <- connectToPeer previewRelay.address
+    conn <- connectToPeer peer
 
     Log.info "✓ Connection established!"
 
