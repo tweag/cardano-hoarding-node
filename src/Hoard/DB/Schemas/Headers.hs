@@ -18,7 +18,8 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Header (BlockHash (..), Header (..))
+import Hoard.Data.BlockHash (BlockHash)
+import Hoard.Data.Header (Header (..))
 
 
 data Row f = Row

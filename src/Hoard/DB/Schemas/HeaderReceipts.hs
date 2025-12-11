@@ -16,7 +16,8 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Header (BlockHash, HeaderReceipt (..))
+import Hoard.Data.BlockHash (BlockHash)
+import Hoard.Data.Header (HeaderReceipt (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 

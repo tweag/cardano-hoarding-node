@@ -7,7 +7,8 @@ import Data.ByteString.Base16 qualified as B16
 import Data.Text.Encoding qualified as Text
 
 import Cardano.Api.LedgerState ()
-import Hoard.Data.Header (BlockHash (..), Header (..))
+import Hoard.Data.BlockHash (BlockHash (..))
+import Hoard.Data.Header (Header (..))
 import Hoard.Network.Events (HeaderReceivedData (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Ouroboros.Consensus.Block (BlockNo (..), SlotNo (..))

@@ -10,6 +10,7 @@ import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
 
+import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
@@ -22,6 +23,7 @@ spec_Schema = withCleanTestDatabase $ do
             weakTestSchema config PeersSchema.schema
             weakTestSchema config HeaderReceiptsSchema.schema
             weakTestSchema config HeadersSchema.schema
+            weakTestSchema config BlocksSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors

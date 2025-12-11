@@ -1,23 +1,16 @@
 module Hoard.Data.Header
     ( Header (..)
     , HeaderReceipt (..)
-    , BlockHash (..)
     )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
-import Rel8 (DBEq, DBOrd, DBType)
 
+import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 import Prelude hiding (id)
-
-
--- | Newtype wrapper for block hash
-newtype BlockHash = BlockHash Text
-    deriving stock (Eq, Ord, Generic, Show)
-    deriving newtype (FromJSON, ToJSON, DBEq, DBOrd, DBType)
 
 
 -- | Represents a block header from the Cardano blockchain
