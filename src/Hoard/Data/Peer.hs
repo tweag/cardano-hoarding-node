@@ -16,15 +16,6 @@ import Hoard.Types.NodeIP (NodeIP (..))
 import Prelude hiding (id)
 
 
--- | Represents a peer address (host:port)
-data PeerAddress = PeerAddress
-    { host :: NodeIP
-    , port :: Int
-    }
-    deriving stock (Eq, Ord, Generic, Show)
-    deriving (FromJSON, ToJSON)
-
-
 -- | Represents a peer in the P2P network
 data Peer = Peer
     { id :: ID Peer
@@ -34,7 +25,16 @@ data Peer = Peer
     , lastConnected :: Maybe UTCTime
     , discoveredVia :: Text
     }
-    deriving stock (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Ord, Show)
+    deriving (FromJSON, ToJSON)
+
+
+-- | Represents a peer address (host:port)
+data PeerAddress = PeerAddress
+    { host :: NodeIP
+    , port :: Int
+    }
+    deriving stock (Eq, Ord, Generic, Show)
     deriving (FromJSON, ToJSON)
 
 

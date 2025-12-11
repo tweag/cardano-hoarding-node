@@ -15,7 +15,7 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer)
-import Hoard.Effects.PeerRepo (PeerRepo, getPeerByAddress, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
@@ -41,30 +41,25 @@ dispatchDiscoveredNodes = \case
 
         -- First, upsert all discovered peer addresses to create Peer records
         timestamp <- Clock.currentTime
-        upsertPeers peerAddresses sourcePeer.address timestamp
+        upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
 
         currPeers <- gets connectedPeers
-        let peersToConnect = S.difference peerAddresses currPeers
+        let peersToConnect = S.filter (\p -> p.address `S.notMember` currPeers) upsertedPeers
         Log.info $ "Dispatch: " <> show (S.size peersToConnect) <> " new peers to connect to"
 
-        forM_ peersToConnect $ \peerAddr -> do
-            -- Get the full Peer record (we just upserted it, so it should exist)
-            maybePeer <- getPeerByAddress peerAddr
-            case maybePeer of
-                Nothing -> Log.err $ "Failed to get peer after upsert: " <> show peerAddr
-                Just peer -> do
-                    _ <-
-                        Conc.forkTry @SomeException
-                            . withExceptionLogging ("collector " <> show peerAddr)
-                            $ bracket
-                                ( state \r ->
-                                    (peer, r {connectedPeers = S.insert peerAddr r.connectedPeers})
-                                )
-                                ( \p ->
-                                    modify \r -> r {connectedPeers = S.delete p.address r.connectedPeers}
-                                )
-                                runCollector
-                    pure ()
+        forM_ peersToConnect $ \peer -> do
+            _ <-
+                Conc.forkTry @SomeException
+                    . withExceptionLogging ("collector " <> show peer.address)
+                    $ bracket
+                        ( state \r ->
+                            (peer, r {connectedPeers = S.insert peer.address r.connectedPeers})
+                        )
+                        ( \p ->
+                            modify \r -> r {connectedPeers = S.delete p.address r.connectedPeers}
+                        )
+                        runCollector
+            pure ()
     _ -> pure ()
 
 

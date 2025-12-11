@@ -13,5 +13,5 @@ import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 -- the database.
 peersReceivedListener :: (PeerRepo :> es) => PeerSharingEvent -> Eff es ()
 peersReceivedListener = \case
-    PeersReceived dat -> upsertPeers dat.peerAddresses dat.peer.address dat.timestamp
+    PeersReceived dat -> void $ upsertPeers dat.peerAddresses dat.peer.address dat.timestamp
     _ -> pure () -- Ignore other PeerSharing events

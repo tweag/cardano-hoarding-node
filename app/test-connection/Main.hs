@@ -45,7 +45,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Network (Network, connectToPeer, isConnected, runNetwork)
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
-import Hoard.Effects.PeerRepo (PeerRepo, getPeerByAddress, runPeerRepo, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -148,14 +148,12 @@ testConnection = do
     Log.info $ "Connecting to " <> show previewRelay.address.host <> ":" <> show previewRelay.address.port
 
     -- Upsert the peer to the database first (bootstrap: source is itself)
+    -- upsertPeers returns the peer with DB-assigned ID
     timestamp <- Clock.currentTime
-    upsertPeers (S.singleton previewRelay.address) previewRelay.address timestamp
-
-    -- Get the peer back from the database with its assigned ID
-    maybePeer <- getPeerByAddress previewRelay.address
-    peer <- case maybePeer of
-        Nothing -> error "Failed to get peer after upsert"
-        Just p -> pure p
+    upsertedPeers <- upsertPeers (S.singleton previewRelay.address) previewRelay.address timestamp
+    peer <- case toList upsertedPeers of
+        [p] -> pure p
+        _ -> error "Expected exactly one peer from upsert"
 
     -- Start event listeners in background
     Conc.fork_ $ listen networkEventListener

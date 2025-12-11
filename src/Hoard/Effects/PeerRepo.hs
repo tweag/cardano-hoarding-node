@@ -35,7 +35,7 @@ data PeerRepo :: Effect where
         -- ^ The source peer that shared these addresses
         -> UTCTime
         -- ^ Timestamp when these peers were discovered
-        -> PeerRepo m ()
+        -> PeerRepo m (Set Peer)
     -- | Get a peer by its address and port
     --
     -- Returns Nothing if the peer is not found in the database
@@ -70,42 +70,45 @@ upsertPeersImpl
     -- ^ The source peer that shared these addresses
     -> UTCTime
     -- ^ Timestamp when these peers were discovered
-    -> Transaction ()
+    -> Transaction (Set Peer)
 upsertPeersImpl peerAddresses sourcePeer timestamp = do
     let discoveredVia = "PeerSharing:" <> show sourcePeer.host <> ":" <> show sourcePeer.port
 
-    -- Upsert all peers in a single statement
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = PeersSchema.schema
-                , rows =
-                    Rel8.values $
-                        toList peerAddresses <&> \peerAddr ->
-                            PeersSchema.Row
-                                { PeersSchema.id = Rel8.unsafeDefault
-                                , PeersSchema.address = lit peerAddr.host
-                                , PeersSchema.port = lit (fromIntegral peerAddr.port)
-                                , PeersSchema.firstDiscovered = lit timestamp
-                                , PeersSchema.lastSeen = lit timestamp
-                                , PeersSchema.lastConnected = lit Nothing
-                                , PeersSchema.discoveredVia = lit discoveredVia
-                                }
-                , onConflict =
-                    Rel8.DoUpdate
-                        Rel8.Upsert
-                            { index = \r -> (r.address, r.port)
-                            , predicate = Nothing
-                            , -- Only update lastSeen, keep everything else unchanged
-                              set = \_ oldRow ->
-                                oldRow
-                                    { PeersSchema.lastSeen = lit timestamp
+    -- Upsert all peers in a single statement and get back the full peer records
+    rows <-
+        TX.statement ()
+            . Rel8.run
+            $ Rel8.insert
+                Rel8.Insert
+                    { into = PeersSchema.schema
+                    , rows =
+                        Rel8.values $
+                            toList peerAddresses <&> \peerAddr ->
+                                PeersSchema.Row
+                                    { PeersSchema.id = Rel8.unsafeDefault
+                                    , PeersSchema.address = lit peerAddr.host
+                                    , PeersSchema.port = lit (fromIntegral peerAddr.port)
+                                    , PeersSchema.firstDiscovered = lit timestamp
+                                    , PeersSchema.lastSeen = lit timestamp
+                                    , PeersSchema.lastConnected = lit Nothing
+                                    , PeersSchema.discoveredVia = lit discoveredVia
                                     }
-                            , updateWhere = \_ _ -> lit True
-                            }
-                , returning = Rel8.NoReturning
-                }
+                    , onConflict =
+                        Rel8.DoUpdate
+                            Rel8.Upsert
+                                { index = \r -> (r.address, r.port)
+                                , predicate = Nothing
+                                , -- Only update lastSeen, keep everything else unchanged
+                                  set = \_ oldRow ->
+                                    oldRow
+                                        { PeersSchema.lastSeen = lit timestamp
+                                        }
+                                , updateWhere = \_ _ -> lit True
+                                }
+                    , returning = Rel8.Returning Prelude.id
+                    }
+
+    pure $ fromList $ map PeersSchema.peerFromRow rows
 
 
 -- | Get a peer from the database by its address and port

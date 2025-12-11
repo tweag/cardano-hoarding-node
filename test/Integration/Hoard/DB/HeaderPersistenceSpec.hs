@@ -18,7 +18,7 @@ import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
+import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
 import Text.Read (read)
@@ -54,13 +54,12 @@ spec_HeaderPersistence = do
                         , firstSeenAt = now
                         }
 
-            -- First, create the peer and then fetch it back to get the actual ID
+            -- First, create the peer (upsertPeers returns the peer with DB-assigned ID)
             result <- runWrite config $ do
-                upsertPeers (fromList [peer.address]) peer.address now
-                maybePeer <- getPeerByAddress peer.address
-                persistedPeer <- case maybePeer of
-                    Just p -> pure p
-                    Nothing -> error "Peer not found after upsert"
+                upsertedPeers <- upsertPeers (fromList [peer.address]) peer.address now
+                persistedPeer <- case toList upsertedPeers of
+                    [p] -> pure p
+                    _ -> error "Expected exactly one peer from upsert"
                 -- Then upsert header with the persisted peer
                 upsertHeader header persistedPeer now
 
@@ -89,13 +88,12 @@ spec_HeaderPersistence = do
                         , firstSeenAt = now
                         }
 
-            -- Create peer first, fetch it back, and insert headers
+            -- Create peer first (upsertPeers returns the peer with DB-assigned ID)
             _ <- runWrite config $ do
-                upsertPeers (fromList [peer.address]) peer.address now
-                maybePeer <- getPeerByAddress peer.address
-                persistedPeer <- case maybePeer of
-                    Just p -> pure p
-                    Nothing -> error "Peer not found after upsert"
+                upsertedPeers <- upsertPeers (fromList [peer.address]) peer.address now
+                persistedPeer <- case toList upsertedPeers of
+                    [p] -> pure p
+                    _ -> error "Expected exactly one peer from upsert"
                 -- Insert header first time
                 _ <- upsertHeader header persistedPeer now
                 -- Insert same header again
@@ -119,18 +117,16 @@ spec_HeaderPersistence = do
                         , firstSeenAt = now
                         }
 
-            -- Create both peers, fetch them back, and insert headers
+            -- Create both peers (upsertPeers returns peers with DB-assigned IDs)
             _ <- runWrite config $ do
-                upsertPeers (fromList [peer1.address]) peer1.address now
-                upsertPeers (fromList [peer2.address]) peer2.address now
-                maybePeer1 <- getPeerByAddress peer1.address
-                maybePeer2 <- getPeerByAddress peer2.address
-                persistedPeer1 <- case maybePeer1 of
-                    Just p -> pure p
-                    Nothing -> error "Peer1 not found after upsert"
-                persistedPeer2 <- case maybePeer2 of
-                    Just p -> pure p
-                    Nothing -> error "Peer2 not found after upsert"
+                upsertedPeers1 <- upsertPeers (fromList [peer1.address]) peer1.address now
+                upsertedPeers2 <- upsertPeers (fromList [peer2.address]) peer2.address now
+                persistedPeer1 <- case toList upsertedPeers1 of
+                    [p] -> pure p
+                    _ -> error "Expected exactly one peer from upsert"
+                persistedPeer2 <- case toList upsertedPeers2 of
+                    [p] -> pure p
+                    _ -> error "Expected exactly one peer from upsert"
                 -- Upsert header from peer1
                 _ <- upsertHeader header persistedPeer1 now
                 -- Upsert same header from peer2
