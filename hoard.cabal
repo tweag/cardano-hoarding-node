@@ -27,6 +27,7 @@ library
       Hoard.Data.Header.Extract
       Hoard.Data.ID
       Hoard.Data.Peer
+      Hoard.Data.ProtocolInfo
       Hoard.DB.Schema
       Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.HeaderReceipts

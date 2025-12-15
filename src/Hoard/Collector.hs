@@ -1,37 +1,49 @@
-module Hoard.Collector (dispatchDiscoveredNodes, runCollector) where
+module Hoard.Collector (dispatchDiscoveredNodes) where
 
 import Control.Concurrent (threadDelay)
 import Data.Set qualified as S
 import Effectful (Eff, IOE, (:>))
 
+import Effectful.Concurrent (Concurrent)
+import Effectful.Error.Static (Error)
 import Effectful.Exception (bracket)
 import Effectful.State.Static.Shared (State, gets, modify, state)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Data.ProtocolInfo (ProtocolConfigPath)
+import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Input (Input)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
+import Hoard.Effects.NodeToNode (connectToPeer)
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Sub (Sub)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 import Hoard.Types.HoardState (HoardState, connectedPeers)
+import Ouroboros.Network.IOManager (IOManager)
 import Prelude hiding (State, gets, modify, state)
 
 
 dispatchDiscoveredNodes
-    :: ( Conc :> es
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Error Text :> es
        , IOE :> es
+       , Input IOManager :> es
+       , Input ProtocolConfigPath :> es
        , Log :> es
-       , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
        , State HoardState :> es
-       , Clock :> es
+       , Sub :> es
        )
     => PeerSharingEvent
     -> Eff es ()
@@ -61,20 +73,15 @@ dispatchDiscoveredNodes = \case
                         runCollector
             pure ()
     _ -> pure ()
+  where
+    runCollector peer = do
+        publish $ CollectorStarted peer.address
+        publish $ ConnectingToPeer peer.address
 
+        _conn <- connectToPeer peer
+        publish $ ConnectedToPeer peer.address
 
-runCollector
-    :: (IOE :> es, NodeToNode :> es, Pub :> es)
-    => Peer
-    -> Eff es Void
-runCollector peer = do
-    publish $ CollectorStarted peer.address
-    publish $ ConnectingToPeer peer.address
-
-    _conn <- connectToPeer peer
-    publish $ ConnectedToPeer peer.address
-
-    -- Connection is now running autonomously!
-    -- Protocols publish events as they receive data
-    -- For now, just keep the collector alive
-    forever $ liftIO $ threadDelay 1000000
+        -- Connection is now running autonomously!
+        -- Protocols publish events as they receive data
+        -- For now, just keep the collector alive
+        forever $ liftIO $ threadDelay 1000000

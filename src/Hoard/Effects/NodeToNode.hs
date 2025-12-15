@@ -4,32 +4,22 @@
 --
 -- This effect provides high-level operations for connecting to Cardano peers
 -- and managing the node-to-node protocol communication.
-module Hoard.Effects.NodeToNode
-    ( -- * Effect
-      NodeToNode
-    , connectToPeer
-    , disconnectPeer
-    , isConnected
+module Hoard.Effects.NodeToNode (connectToPeer) where
 
-      -- * Interpreter
-    , runNodeToNode
-
-      -- * Utilities
-    , loadNodeConfig
-    ) where
-
-import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Tracer (Tracer (..), stdoutTracer)
-import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
+import Data.ByteString.Lazy qualified as LBS
+import Data.IP qualified as IP
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as S
+import Effectful (Eff, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
-import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
+import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
@@ -39,7 +29,16 @@ import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Block (genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.IOManager (IOManager)
-import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..), mkMiniProtocolCbFromPeer, mkMiniProtocolCbFromPeerPipelined)
+import Ouroboros.Network.Mux
+    ( MiniProtocol (..)
+    , MiniProtocolCb (..)
+    , MiniProtocolLimits (..)
+    , OuroborosApplication (..)
+    , OuroborosApplicationWithMinimalCtx
+    , RunMiniProtocol (..)
+    , mkMiniProtocolCbFromPeer
+    , mkMiniProtocolCbFromPeerPipelined
+    )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , MiniProtocolParameters (..)
@@ -59,29 +58,35 @@ import Ouroboros.Network.NodeToNode
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
+import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
+import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
+import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 
-import Data.ByteString.Lazy qualified as LBS
-import Data.Map.Strict qualified as Map
-import Network.TypedProtocol.Peer.Client qualified as Peer
-import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
-import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
-
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
+import Hoard.Data.ProtocolInfo (ProtocolConfigPath, loadProtocolInfo)
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Input (Input, input, runInputChan)
 import Hoard.Effects.Log (Log)
+import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
+import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Sub (Sub)
+import Hoard.Effects.Sub qualified as Sub
 import Hoard.Network.Events
     ( BlockBatchCompletedData (..)
     , BlockFetchEvent (..)
@@ -93,7 +98,6 @@ import Hoard.Network.Events
     , ChainSyncIntersectionFoundData (..)
     , ChainSyncStartedData (..)
     , ConnectionEstablishedData (..)
-    , ConnectionLostData (..)
     , HandshakeCompletedData (..)
     , HeaderReceivedData (..)
     , NetworkEvent (..)
@@ -104,80 +108,16 @@ import Hoard.Network.Events
     )
 import Hoard.Network.Types (Connection (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
-
-import Data.IP qualified as IP
-import Data.Set qualified as S
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Input (Input, input, runInputChan)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
-import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
 import Hoard.Types.NodeIP (NodeIP (..))
-import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 
 
---------------------------------------------------------------------------------
--- Network Effect
---------------------------------------------------------------------------------
-
--- | Effect for managing peer connections.
---
--- Provides operations to connect to peers, disconnect, and check connection status.
-data NodeToNode :: Effect where
-    ConnectToPeer :: Peer -> NodeToNode m Connection
-    DisconnectPeer :: Connection -> NodeToNode m ()
-    IsConnected :: Connection -> NodeToNode m Bool
-
-
--- Generate smart constructors using Template Haskell
-makeEffect ''NodeToNode
-
-
---------------------------------------------------------------------------------
--- Effect Handler
---------------------------------------------------------------------------------
-
--- | Run the NodeToNode effect with real implementation.
---
--- This handler establishes actual network connections and spawns protocol threads.
-runNodeToNode
-    :: ( Chan :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Error Text :> es
-       , IOE :> es
-       , Log :> es
-       , Pub :> es
-       , Sub :> es
-       )
-    => IOManager
-    -> FilePath
-    -> Eff (NodeToNode : es) a
-    -> Eff es a
-runNodeToNode ioManager protocolConfigPath = interpret $ \_ -> \case
-    ConnectToPeer peer -> connectToPeerImpl ioManager protocolConfigPath peer
-    DisconnectPeer conn -> disconnectPeerImpl conn
-    IsConnected conn -> isConnectedImpl conn
-
-
---------------------------------------------------------------------------------
--- Implementation Functions
---------------------------------------------------------------------------------
-
--- | Implementation of connectToPeer.
---
--- This implementation:
--- 1. Resolves the peer's address
--- 2. Creates an IOManager and Snocket
--- 3. Constructs version negotiation data
--- 4. Creates mini-protocol applications
--- 5. Connects using ouroboros-network's connectTo
--- 6. Publishes connection events
-connectToPeerImpl
+-- | This function:
+-- 1. Creates a Snocket
+-- 2. Constructs version negotiation data
+-- 3. Creates mini-protocol applications
+-- 4. Connects using ouroboros-network's connectTo
+-- 5. Publishes connection events
+connectToPeer
     :: forall es
      . ( Chan :> es
        , Clock :> es
@@ -185,25 +125,25 @@ connectToPeerImpl
        , Concurrent :> es
        , Error Text :> es
        , IOE :> es
+       , Input IOManager :> es
+       , Input ProtocolConfigPath :> es
        , Log :> es
        , Pub :> es
        , Sub :> es
        )
-    => IOManager
-    -> FilePath
-    -> Peer
+    => Peer
     -> Eff es Connection
-connectToPeerImpl ioManager protocolConfigPath peer = do
+connectToPeer peer = do
     let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
 
     Log.debug "Creating snocket..."
-    let snocket = socketSnocket ioManager
+    snocket <- socketSnocket <$> input
 
     -- Load protocol info and create codecs
     Log.debug "Loading protocol configuration..."
-    protocolInfo <- loadProtocolInfo protocolConfigPath
+    protocolInfo <- loadProtocolInfo =<< input
     let codecConfig = configCodec (pInfoConfig protocolInfo)
     let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
@@ -299,68 +239,6 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
         Right (Right _) -> do
             -- This shouldn't happen with InitiatorOnly mode
             throwError ("Unexpected responder mode result" :: Text)
-
-
--- | Implementation of disconnectPeer.
---
--- Note: With the current connectTo-based implementation, we don't have direct control
--- over disconnection. The connection is managed by ouroboros-network's internal state.
-disconnectPeerImpl
-    :: (Pub :> es, Clock :> es)
-    => Connection
-    -> Eff es ()
-disconnectPeerImpl conn = do
-    -- Publish connection lost event
-    timestamp <- Clock.currentTime
-    let peer = Hoard.Network.Types.peer conn
-        reason = "Disconnect requested"
-    publish $ ConnectionLost ConnectionLostData {peer, reason, timestamp}
-
-
--- Note: Actual socket closing is handled by ouroboros-network
-
--- | Implementation of isConnected.
---
--- Note: With the current implementation, we can't easily check connection status
--- since it's managed internally by ouroboros-network.
-isConnectedImpl
-    :: Connection
-    -> Eff es Bool
-isConnectedImpl _conn = do
-    -- For now, we'll assume connections are persistent
-    -- In a full implementation, we'd track connection state
-    pure True
-
-
---------------------------------------------------------------------------------
--- Codec Configuration
---------------------------------------------------------------------------------
-
-loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
-loadNodeConfig configPath = do
-    let configFile = File configPath
-    nodeConfigResult <- runExceptT $ readNodeConfig configFile
-    case nodeConfigResult of
-        Left err -> error $ "Failed to read node config: " <> err
-        Right cfg -> pure cfg
-
-
--- | Load the Cardano protocol info from config files.
--- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: (IOE :> es) => FilePath -> Eff es (ProtocolInfo CardanoBlock)
-loadProtocolInfo configPath = do
-    -- Load NodeConfig
-    nodeConfig <- loadNodeConfig configPath
-
-    -- Load GenesisConfig
-    genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
-    genesisConfig <- case genesisConfigResult of
-        Left err -> error $ "Failed to read genesis config: " <> show err
-        Right cfg -> pure cfg
-
-    -- Create ProtocolInfo
-    let (protocolInfo, _mkBlockForging) = mkProtocolInfoCardano genesisConfig
-    pure protocolInfo
 
 
 --------------------------------------------------------------------------------

@@ -6,11 +6,13 @@ import Options.Applicative qualified as Opt
 
 import Hoard.CLI.Options (Options (..), optsParser)
 import Hoard.Config.Loader (loadConfig)
-import Hoard.Effects (runEffectStack)
+import Hoard.Effects (Config (..), runEffectStack)
 import Hoard.Listeners (runListeners)
 import Hoard.Types.Environment (Environment (..))
 
+import Hoard.Data.ProtocolInfo (ProtocolConfigPath (..))
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Input (runInputConst)
 import Hoard.Server (runServer)
 
 
@@ -24,7 +26,10 @@ main = withIOManager $ \ioManager -> do
     putTextLn $ "Loading configuration for environment: " <> show env
     config <- loadConfig ioManager env
 
-    runEffectStack config $ do
-        runServer config
-        runListeners
-        Conc.awaitAll
+    runEffectStack config
+        . runInputConst config.ioManager
+        . runInputConst (ProtocolConfigPath config.protocolConfigPath)
+        $ do
+            runServer config
+            runListeners
+            Conc.awaitAll

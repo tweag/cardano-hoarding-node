@@ -50,9 +50,9 @@ import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 
 import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Data.ProtocolInfo (ProtocolConfigPath, getProtocolConfigPath, loadNodeConfig)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.NodeToNode (loadNodeConfig)
 
 
 data NodeToClient :: Effect where
@@ -83,7 +83,7 @@ runNodeToClient'
     :: ( Conc :> es
        , Log :> es
        , IOE :> es
-       , HasField "protocolConfigPath" config FilePath
+       , HasField "protocolConfigPath" config ProtocolConfigPath
        , HasField "localNodeSocketPath" config FilePath
        )
     => config
@@ -92,7 +92,7 @@ runNodeToClient'
 runNodeToClient' config nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
-    epochSize <- loadEpochSize config.protocolConfigPath
+    epochSize <- loadEpochSize $ getProtocolConfigPath config.protocolConfigPath
     _ <-
         withExceptionLogging "NodeToClient"
             . fork_

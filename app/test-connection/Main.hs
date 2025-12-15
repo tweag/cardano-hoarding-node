@@ -16,14 +16,14 @@ import Data.Set qualified as S
 import Data.Time (getCurrentTime)
 import Data.UUID qualified as UUID
 import Effectful (Eff, IOE, runEff, (:>))
-import Effectful.Concurrent (runConcurrent)
-import Effectful.Error.Static (runErrorNoCallStack)
+import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Error.Static (runError, runErrorNoCallStack)
 import Effectful.Exception (tryIf)
 import Effectful.State.Static.Shared (State, evalState)
 import Network.Socket (PortNumber)
 import Network.Socket qualified as Socket
 import Options.Applicative qualified as Opt
-import Ouroboros.Network.IOManager (withIOManager)
+import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import System.IO.Error (isDoesNotExistError)
 import Prelude hiding (State, evalState)
 
@@ -33,7 +33,7 @@ import Hoard.Config.Loader (loadConfig)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects (Config (..))
-import Hoard.Effects.Chan (runChan)
+import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc, scoped)
@@ -44,7 +44,7 @@ import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
-import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer, isConnected, runNodeToNode)
+import Hoard.Effects.NodeToNode (connectToPeer)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
@@ -52,6 +52,8 @@ import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (Environment (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Hoard.Data.ProtocolInfo (ProtocolConfigPath (..))
+import Hoard.Effects.Input (Input, runInputConst)
 import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
 import Hoard.Listeners.CollectorEventListener (collectorEventListener)
 import Hoard.Listeners.NetworkEventListener (networkEventListener)
@@ -88,6 +90,8 @@ main = withIOManager $ \ioManager -> do
         . Log.runLog config.logging
         . runConcurrent
         . runClock
+        . runInputConst ioManager
+        . runInputConst (ProtocolConfigPath config.protocolConfigPath)
         . scoped
         $ \scope -> do
             Conc.runConcWithKi scope
@@ -95,7 +99,6 @@ main = withIOManager $ \ioManager -> do
                 . runChan
                 . runSub config.inChan
                 . runPub config.inChan
-                . runNodeToNode config.ioManager config.protocolConfigPath
                 . runDBRead config.dbPools.readerPool
                 . runDBWrite config.dbPools.writerPool
                 . runPeerRepo
@@ -131,16 +134,19 @@ mkPreviewRelay = do
 
 -- | Test connection to Preview testnet
 testConnection
-    :: ( Conc :> es
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , HeaderRepo :> es
        , IOE :> es
+       , Input IOManager :> es
+       , Input ProtocolConfigPath :> es
        , Log :> es
-       , NodeToNode :> es
-       , Sub :> es
+       , PeerRepo :> es
        , Pub :> es
        , State HoardState :> es
-       , HeaderRepo :> es
-       , PeerRepo :> es
-       , Clock :> es
+       , Sub :> es
        )
     => Eff es ()
 testConnection = do
@@ -160,7 +166,7 @@ testConnection = do
     Conc.fork_ $ listen peerSharingEventListener
     Conc.fork_ $ listen chainSyncEventListener
     Conc.fork_ $ listen collectorEventListener
-    Conc.fork_ $ listen dispatchDiscoveredNodes
+    Conc.fork_ $ listen $ \e -> fmap (const ()) . runError $ dispatchDiscoveredNodes e
 
     -- query immutable tip
     (either (Log.warn . toText . displayException) pure =<<)
@@ -175,26 +181,13 @@ testConnection = do
             Log.debug (show tip1)
             Log.debug =<< show <$> isOnChain tip1
 
-    -- Connect to peer
-    conn <- connectToPeer peer
+    conn <- runError $ connectToPeer peer
 
-    Log.info "✓ Connection established!"
+    Log.info "Connection closed!"
 
-    -- Check connection status
-    isAlive <- isConnected conn
-    if isAlive
-        then Log.info "✓ Connection is alive"
-        else Log.info "✗ Connection appears dead"
-
-    -- Keep connection alive for 60 seconds to receive headers
-    Log.info "Keeping connection alive for 60 seconds to receive headers..."
-    liftIO $ threadDelay (60 * 1000000)
-
-    -- Check status again
-    isAlive' <- isConnected conn
-    if isAlive'
-        then Log.info "✓ Connection still alive after 30 seconds"
-        else Log.info "✗ Connection died"
+    case conn of
+        Left (_, err) -> Log.info $ "✗ Connection failed: " <> err
+        Right _ -> pure ()
 
 
 resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
