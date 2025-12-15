@@ -2,20 +2,24 @@
 
 module Hoard.Config.Loader
     ( loadEnv
+    , loadNodeConfig
+    , loadProtocolInfo
     )
 where
 
+import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Control.Concurrent.Chan.Unagi (newChan)
 import Control.Exception (throwIO)
 import Data.Aeson (FromJSON (..))
+import Data.String.Conversions (cs)
+import Data.Yaml qualified as Yaml
+import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
 
-import Data.Yaml qualified as Yaml
-
-import Data.String.Conversions (cs)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment, deploymentName)
 import Hoard.Types.Environment (Config (..), Env (..), Handles (..), ServerConfig (..))
@@ -80,6 +84,30 @@ data DBUserCredentials = DBUserCredentials
     deriving (FromJSON) via QuietSnake DBUserCredentials
 
 
+loadNodeConfig :: FilePath -> IO NodeConfig
+loadNodeConfig configPath = do
+    let configFile = File configPath
+    nodeConfigResult <- runExceptT $ readNodeConfig configFile
+    case nodeConfigResult of
+        Left err -> error $ "Failed to read node config: " <> err
+        Right cfg -> pure cfg
+
+
+-- | Load the Cardano protocol info from config files.
+-- This is needed to get the CodecConfig for creating proper codecs.
+loadProtocolInfo :: NodeConfig -> IO (ProtocolInfo CardanoBlock)
+loadProtocolInfo nodeConfig = do
+    -- Load GenesisConfig
+    genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
+    genesisConfig <- case genesisConfigResult of
+        Left err -> error $ "Failed to read genesis config: " <> show err
+        Right cfg -> pure cfg
+
+    -- Create ProtocolInfo
+    let (protocolInfo, _mkBlockForging) = mkProtocolInfoCardano genesisConfig
+    pure protocolInfo
+
+
 -- | Convert config types to DBConfig for database connection
 toDBConfig :: DatabaseConfig -> DBUserCredentials -> DBConfig
 toDBConfig dbCfg credentials =
@@ -113,6 +141,9 @@ loadEnv ioManager deployment = do
     secrets <- loadYaml @SecretConfig $ configFile.secretsFile
 
     -- Build pure config
+    nodeConfig <- loadNodeConfig configFile.protocolConfigPath
+    protocolInfo <- loadProtocolInfo nodeConfig
+
     logging <- do
         log <- (>>= readMaybe) <$> lookupEnv "LOG"
         logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
@@ -125,7 +156,8 @@ loadEnv ioManager deployment = do
     let config =
             Config
                 { server = configFile.server
-                , protocolConfigPath = configFile.protocolConfigPath
+                , protocolInfo
+                , nodeConfig
                 , localNodeSocketPath = configFile.localNodeSocketPath
                 , logging
                 }

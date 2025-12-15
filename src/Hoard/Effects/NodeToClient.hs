@@ -45,14 +45,13 @@ import Effectful
     )
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-import GHC.Records (HasField)
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.NodeToNode (loadNodeConfig)
+import Hoard.Types.Environment (Config (..))
 
 
 data NodeToClient :: Effect where
@@ -68,10 +67,8 @@ runNodeToClient
     :: ( Conc :> es
        , Log :> es
        , IOE :> es
-       , HasField "protocolConfigPath" config FilePath
-       , HasField "localNodeSocketPath" config FilePath
        )
-    => config
+    => Config
     -> Eff (NodeToClient : es) a
     -> Eff es a
 runNodeToClient _config = interpret_ $ \case
@@ -83,16 +80,14 @@ runNodeToClient'
     :: ( Conc :> es
        , Log :> es
        , IOE :> es
-       , HasField "protocolConfigPath" config FilePath
-       , HasField "localNodeSocketPath" config FilePath
        )
-    => config
+    => Config
     -> Eff (NodeToClient : es) a
     -> Eff es a
 runNodeToClient' config nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
-    epochSize <- loadEpochSize config.protocolConfigPath
+    epochSize <- loadEpochSize config
     _ <-
         withExceptionLogging "NodeToClient"
             . fork_
@@ -156,12 +151,8 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                     }
 
 
-loadEpochSize :: (IOE :> es) => FilePath -> Eff es EpochSize
-loadEpochSize configPath = do
-    -- Load NodeConfig
-    nodeConfig <- loadNodeConfig configPath
-
-    -- Load GenesisConfig
+loadEpochSize :: (IOE :> es) => Config -> Eff es EpochSize
+loadEpochSize Config {nodeConfig} = do
     genesisConfigResult <- runExceptT $ readShelleyGenesisConfig nodeConfig
     ShelleyConfig {scConfig = ShelleyGenesis {sgEpochLength}} <- case genesisConfigResult of
         Left err -> error $ "Failed to read shelley genesis config: " <> show err
