@@ -33,6 +33,7 @@ library
       Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.Peers
       Hoard.Effects
+      Hoard.Effects.BlockRepo
       Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
