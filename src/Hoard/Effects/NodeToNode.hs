@@ -7,6 +7,7 @@
 module Hoard.Effects.NodeToNode
     ( -- * Effect
       NodeToNode
+    , Config (..)
     , connectToPeer
     , disconnectPeer
     , isConnected
@@ -23,7 +24,7 @@ import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Tracer (Tracer (..), stdoutTracer)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.Dispatch.Dynamic (LocalEnv, interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
@@ -44,7 +45,6 @@ import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , MiniProtocolParameters (..)
     , NetworkConnectTracers (..)
-    , NodeToNodeVersion (..)
     , NodeToNodeVersionData (..)
     , blockFetchMiniProtocolNum
     , chainSyncMiniProtocolNum
@@ -76,8 +76,6 @@ import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
@@ -92,9 +90,7 @@ import Hoard.Network.Events
     , ChainSyncEvent (..)
     , ChainSyncIntersectionFoundData (..)
     , ChainSyncStartedData (..)
-    , ConnectionEstablishedData (..)
     , ConnectionLostData (..)
-    , HandshakeCompletedData (..)
     , HeaderReceivedData (..)
     , NetworkEvent (..)
     , PeerSharingEvent (..)
@@ -107,14 +103,9 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Input (Input, input, runInputChan)
+import Hoard.Effects.Conc (concStrat)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
-import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
 import Hoard.Types.NodeIP (NodeIP (..))
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 
@@ -127,9 +118,17 @@ import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
-    ConnectToPeer :: Peer -> NodeToNode m Connection
+    ConnectToPeer :: Config m -> NodeToNode m Void
     DisconnectPeer :: Connection -> NodeToNode m ()
     IsConnected :: Connection -> NodeToNode m Bool
+
+
+data Config m = Config
+    { awaitBlockFetchRequest :: m BlockFetchRequest
+    , emitFetchedHeader :: HeaderReceivedData -> m ()
+    , emitFetchedBlock :: BlockReceivedData -> m ()
+    , peer :: Peer
+    }
 
 
 -- Generate smart constructors using Template Haskell
@@ -144,24 +143,31 @@ makeEffect ''NodeToNode
 --
 -- This handler establishes actual network connections and spawns protocol threads.
 runNodeToNode
-    :: ( Chan :> es
-       , Clock :> es
-       , Conc :> es
+    :: ( Clock :> es
        , Concurrent :> es
        , Error Text :> es
        , IOE :> es
        , Log :> es
        , Pub :> es
-       , Sub :> es
        )
     => IOManager
     -> FilePath
     -> Eff (NodeToNode : es) a
     -> Eff es a
-runNodeToNode ioManager protocolConfigPath = interpret $ \_ -> \case
-    ConnectToPeer peer -> connectToPeerImpl ioManager protocolConfigPath peer
+runNodeToNode ioManager protocolConfigPath = interpret $ \env -> \case
+    ConnectToPeer conf -> connectToPeerImpl ioManager protocolConfigPath $ hoistConfig env conf
     DisconnectPeer conn -> disconnectPeerImpl conn
     IsConnected conn -> isConnectedImpl conn
+
+
+hoistConfig :: LocalEnv localEs es -> Config (Eff localEs) -> Config (Eff es)
+hoistConfig env conf =
+    Config
+        { awaitBlockFetchRequest = localUnlift env concStrat \unlift -> unlift conf.awaitBlockFetchRequest
+        , emitFetchedHeader = \header -> localUnlift env concStrat \unlift -> unlift $ conf.emitFetchedHeader header
+        , emitFetchedBlock = \block -> localUnlift env concStrat \unlift -> unlift $ conf.emitFetchedBlock block
+        , peer = conf.peer
+        }
 
 
 --------------------------------------------------------------------------------
@@ -179,22 +185,19 @@ runNodeToNode ioManager protocolConfigPath = interpret $ \_ -> \case
 -- 6. Publishes connection events
 connectToPeerImpl
     :: forall es
-     . ( Chan :> es
-       , Clock :> es
-       , Conc :> es
+     . ( Clock :> es
        , Concurrent :> es
        , Error Text :> es
        , IOE :> es
        , Log :> es
        , Pub :> es
-       , Sub :> es
        )
     => IOManager
     -> FilePath
-    -> Peer
-    -> Eff es Connection
-connectToPeerImpl ioManager protocolConfigPath peer = do
-    let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
+    -> Config (Eff es)
+    -> Eff es Void
+connectToPeerImpl ioManager protocolConfigPath conf = do
+    let addr = IP.toSockAddr (getNodeIP conf.peer.address.host, fromIntegral conf.peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
 
@@ -223,7 +226,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     -- Helper function to create application for a specific version
     let strat = ConcUnlift Persistent Unlimited
-        mkVersionedApp (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) nodeVersion blockVersion =
+        mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
             let codecs =
                     hoistCodecs liftIO $
                         defaultCodecs
@@ -232,18 +235,18 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
                             encodeRemoteAddress
                             (\v -> decodeRemoteAddress v)
                             nodeVersion
-            in  mkApplication unlift codecs peer
+            in  mkApplication unlift conf codecs conf.peer
 
     -- Create versions for negotiation - offer all supported versions
     Log.debug "Creating protocol versions..."
-    let mkVersions (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) version blockVersion =
+    let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
             simpleSingletonVersions
                 version
                 versionData
                 (\_ -> mkVersionedApp unlift version blockVersion)
 
     -- Create versions for all supported protocol versions
-    let versions (unlift :: forall x. Eff (Input BlockFetchRequest : Output BlockFetchRequest : es) x -> IO x) =
+    let versions (unlift :: forall x. Eff es x -> IO x) =
             combineVersions
                 [ mkVersions unlift nodeVersion blockVersion
                 | (nodeVersion, blockVersion) <- Map.toList supportedVersions
@@ -258,8 +261,7 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     -- Connect to the peer
     Log.debug "Calling connectTo..."
-    result <- withBridge $ do
-        Conc.fork_ pickBlockFetchRequest
+    result <- do
         withEffToIO strat $ \unlift ->
             connectTo
                 snocket
@@ -272,33 +274,12 @@ connectToPeerImpl ioManager protocolConfigPath peer = do
 
     case result of
         Left err -> do
-            throwError @Text $ "Failed to connect to peer " <> show peer <> ": " <> show err
+            throwError $ "Failed to connect to peer " <> show conf.peer <> ": " <> show err
         Right (Left ()) -> do
-            -- Connection succeeded, create Connection record
-            timestamp <- Clock.currentTime
-            let version = NodeToNodeV_14 -- We negotiated this version
-
-            -- Publish handshake completed event
-            publish $ HandshakeCompleted HandshakeCompletedData {peer, version, timestamp}
-
-            -- Note: The mini-protocols are already running in the background
-            -- via the application we passed to connectTo
-
-            -- Create connection record
-            let conn =
-                    Connection
-                        { peer
-                        , version
-                        , started = timestamp
-                        }
-
-            -- Publish connection established event
-            publish $ ConnectionEstablished ConnectionEstablishedData {peer, version, timestamp}
-
-            pure conn
+            throwError "Connection closed unexpectedly"
         Right (Right _) -> do
             -- This shouldn't happen with InitiatorOnly mode
-            throwError ("Unexpected responder mode result" :: Text)
+            throwError "Unexpected responder mode result"
 
 
 -- | Implementation of disconnectPeer.
@@ -374,11 +355,11 @@ loadProtocolInfo configPath = do
 mkApplication
     :: ( Clock :> es
        , Concurrent :> es
-       , Input BlockFetchRequest :> es
        , Log :> es
        , Pub :> es
        )
     => (forall x. Eff es x -> IO x)
+    -> Config (Eff es)
     -> Codecs
         CardanoBlock
         SockAddr
@@ -393,7 +374,7 @@ mkApplication
         LBS.ByteString
     -> Peer
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication unlift codecs peer =
+mkApplication unlift conf codecs peer =
     OuroborosApplication
         [ -- ChainSync mini-protocol (pipelined)
           MiniProtocol
@@ -406,7 +387,7 @@ mkApplication unlift codecs peer =
                         \_ ->
                             let codec = cChainSyncCodec codecs
                                 -- Note: Exception logging added inside chainSyncClientImpl via Effect
-                                client = chainSyncClientImpl unlift peer
+                                client = chainSyncClientImpl unlift conf peer
                                 -- Use a tracer to see protocol messages
                                 tracer = (("[ChainSync] " <>) . show) >$< logTracer unlift Log.DEBUG
                             in  (tracer, codec, client)
@@ -418,7 +399,7 @@ mkApplication unlift codecs peer =
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
                 let codec = cBlockFetchCodec codecs
-                    client = blockFetchClientImpl unlift peer.address
+                    client = blockFetchClientImpl unlift conf peer.address
                     tracer = (("[BlockFetch] " <>) . show) >$< stdoutTracer
                     wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                         Log.debug "BlockFetch protocol started"
@@ -549,14 +530,14 @@ blockFetchClientImpl
     :: forall es
      . ( Pub :> es
        , Log :> es
-       , Input BlockFetchRequest :> es
        , Clock :> es
        , Concurrent :> es
        )
     => (forall x. Eff es x -> IO x)
+    -> Config (Eff es)
     -> PeerAddress
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
-blockFetchClientImpl unlift peer =
+blockFetchClientImpl unlift conf peer =
     BlockFetch.BlockFetchClient $ unlift $ do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted $ BlockFetchStartedData {timestamp, peer}
@@ -566,12 +547,12 @@ blockFetchClientImpl unlift peer =
   where
     awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
     awaitMessage = do
-        req <- input
+        req <- conf.awaitBlockFetchRequest
         pure
             $ BlockFetch.SendMsgRequestRange
                 (BlockFetch.ChainRange req.point req.point)
                 (handleResponse req)
-            $ blockFetchClientImpl unlift peer
+            $ blockFetchClientImpl unlift conf peer
 
     handleResponse req =
         BlockFetch.BlockFetchResponse
@@ -593,13 +574,14 @@ blockFetchClientImpl unlift peer =
         BlockFetch.BlockFetchReceiver
             { handleBlock = \block -> unlift $ do
                 timestamp <- Clock.currentTime
-                publish $
-                    BlockReceived $
+                let blockReceived =
                         BlockReceivedData
                             { peer
                             , block
                             , timestamp
                             }
+                conf.emitFetchedBlock blockReceived
+                publish $ BlockReceived $ blockReceived
                 pure $ blockReceiver $ blockCount + 1
             , handleBatchDone = unlift $ do
                 timestamp <- Clock.currentTime
@@ -611,25 +593,6 @@ blockFetchClientImpl unlift peer =
                             , timestamp
                             }
             }
-
-
--- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
-pickBlockFetchRequest
-    :: ( Clock :> es
-       , Output BlockFetchRequest :> es
-       , Sub :> es
-       )
-    => Eff es Void
-pickBlockFetchRequest = Sub.listen $ \case
-    HeaderReceived dat -> do
-        timestamp <- Clock.currentTime
-        output $
-            BlockFetchRequest
-                { timestamp
-                , point = dat.point
-                , peer = dat.peer.address
-                }
-    _ -> pure ()
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).
@@ -648,9 +611,10 @@ chainSyncClientImpl
        , Pub :> es
        )
     => (forall x. Eff es x -> IO x)
+    -> Config (Eff es)
     -> Peer
     -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
-chainSyncClientImpl unlift peer =
+chainSyncClientImpl unlift conf peer =
     ClientPipelined $
         Effect $
             unlift $
@@ -689,8 +653,7 @@ chainSyncClientImpl unlift peer =
                 Log.debug "ChainSync: Received header (RollForward)"
                 timestamp <- Clock.currentTime
                 let point = headerPoint header
-                publish $
-                    HeaderReceived
+                    headerReceived =
                         HeaderReceivedData
                             { peer
                             , header
@@ -699,6 +662,8 @@ chainSyncClientImpl unlift peer =
                             , tip
                             , timestamp
                             }
+                conf.emitFetchedHeader headerReceived
+                publish $ HeaderReceived headerReceived
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
                 Log.debug "ChainSync: Rollback"
@@ -765,19 +730,3 @@ keepAliveClientImpl unlift = KeepAliveClient sendFirst
 logTracer :: (Log :> es) => (forall x. Eff es x -> m x) -> Log.Severity -> Tracer m String
 logTracer unlift severity =
     Tracer $ \msg -> unlift $ Log.log severity $ toText msg
-
-
--- | Bridge effects through bidirectional channels.
---
--- Creates a channel pair and interprets Input/Output effects over them,
--- enabling communication between threads.
---
--- This function:
--- 1. Creates a bidirectional channel pair using 'Chan.newChan'
--- 2. Interprets 'Input' and 'Output' effects over these channels
--- 3. Provides these effects to the wrapped action
--- 4. The action can fork threads that communicate via these effects
-withBridge :: forall es a b. (Chan :> es) => Eff (Input b : Output b : es) a -> Eff es a
-withBridge action = do
-    (inChan, outChan) <- Chan.newChan
-    runOutputChan inChan . runInputChan outChan $ action
