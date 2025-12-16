@@ -49,7 +49,7 @@ library
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub
       Hoard.Effects.Sub
-      Hoard.Effects.WithNodeSockets
+      Hoard.Effects.WithSocket
       Hoard.Events
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
