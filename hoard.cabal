@@ -49,6 +49,7 @@ library
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub
       Hoard.Effects.Sub
+      Hoard.Effects.WithSocket
       Hoard.Events
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
@@ -141,6 +142,7 @@ library
     , text
     , time
     , transformers
+    , typed-process
     , typed-protocols
     , unagi-chan
     , unordered-containers
@@ -225,6 +227,7 @@ executable hoard-exe
     , text
     , time
     , transformers
+    , typed-process
     , typed-protocols
     , unagi-chan
     , unordered-containers
@@ -309,6 +312,7 @@ executable test-connection
     , text
     , time
     , transformers
+    , typed-process
     , typed-protocols
     , unagi-chan
     , unordered-containers
@@ -420,6 +424,7 @@ test-suite hoard-test
     , time
     , tmp-postgres
     , transformers
+    , typed-process
     , typed-protocols
     , unagi-chan
     , unix
