@@ -10,8 +10,8 @@ import Servant hiding (Header)
 import Servant.Server.Generic (AsServerT)
 import Prelude hiding (appendFile, readFile)
 
-import Hoard.Effects (AppEff)
-import Hoard.Effects.Pub (publish)
+import Hoard.Effects ((::>))
+import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 
 
@@ -27,7 +27,7 @@ type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
-server :: (AppEff es) => Routes (AsServerT (Eff es))
+server :: (Pub ::> es) => Routes (AsServerT (Eff es))
 server =
     Routes
         { receiveHeader = headerHandler
@@ -35,7 +35,7 @@ server =
 
 
 -- | Handler for header data
-headerHandler :: (AppEff es) => Header -> Eff es NoContent
+headerHandler :: (Pub ::> es) => Header -> Eff es NoContent
 headerHandler headerData = do
     -- Publish event via Publisher effect
     publish $ HeaderReceived headerData

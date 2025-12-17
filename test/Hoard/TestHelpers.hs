@@ -25,6 +25,7 @@ import Effectful
     , (:>)
     )
 import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.State.Static.Shared (State, runState)
 import Hoard.Effects.Chan (Chan, OutChan, runChan)
@@ -36,13 +37,13 @@ import Servant (hoistServer, serve)
 import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM)
 import Servant.Client.Core (ClientError)
 import Servant.Client.Generic (genericClient)
+import Servant.Server (Handler (..))
 
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
 import Hoard.Config.Loader (loadNodeConfig, loadProtocolInfo)
-import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
@@ -84,7 +85,17 @@ withServer env action = do
 makeApp :: (IOE :> es) => Env -> Eff es Application
 makeApp env =
     liftIO $ do
-        let servantApp = hoistServer (Proxy @API) (runEffectStack env) Hoard.API.server
+        let servantApp =
+                hoistServer
+                    (Proxy @API)
+                    ( Handler
+                        . ExceptT
+                        . runEff
+                        . try
+                        . runChan
+                        . runPub env.handles.inChan
+                    )
+                    Hoard.API.server
         pure $ serve (Proxy @API) servantApp
 
 
