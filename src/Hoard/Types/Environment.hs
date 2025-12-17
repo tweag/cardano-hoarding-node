@@ -1,8 +1,11 @@
 module Hoard.Types.Environment
     ( ServerConfig (..)
+    , LogConfig (..)
+    , Severity (..)
     , Config (..)
     , Handles (..)
     , Env (..)
+    , defaultLogConfig
     )
 where
 
@@ -13,9 +16,9 @@ import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
 import Hoard.Effects.Chan (InChan)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.JsonReadShow (JsonReadShow (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -28,11 +31,34 @@ data ServerConfig = ServerConfig
     deriving (FromJSON) via QuietSnake ServerConfig
 
 
+data LogConfig = LogConfig
+    { minimumSeverity :: Severity
+    , output :: Handle
+    }
+
+
+data Severity
+    = DEBUG
+    | INFO
+    | WARN
+    | ERROR
+    deriving stock (Eq, Ord, Enum, Bounded, Show, Read)
+    deriving (FromJSON) via (JsonReadShow Severity)
+
+
+defaultLogConfig :: LogConfig
+defaultLogConfig =
+    LogConfig
+        { minimumSeverity = minBound
+        , output = stdout
+        }
+
+
 -- | Pure configuration data loaded from config files
 data Config = Config
     { server :: ServerConfig
     , localNodeSocketPath :: FilePath
-    , logging :: Log.Config
+    , logging :: LogConfig
     , protocolInfo :: ProtocolInfo CardanoBlock
     , nodeConfig :: NodeConfig
     }

@@ -22,6 +22,7 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.Environment (defaultLogConfig)
 import Text.Read (read)
 
 
@@ -29,7 +30,7 @@ spec_HeaderPersistence :: Spec
 spec_HeaderPersistence = do
     let runWrite config action =
             runEff
-                . Log.runLog Log.defaultConfig
+                . Log.runLog defaultLogConfig
                 . runErrorNoCallStack @Text
                 . runDBRead config.pools.readerPool
                 . runDBWrite config.pools.writerPool

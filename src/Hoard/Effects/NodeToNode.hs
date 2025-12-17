@@ -97,6 +97,7 @@ import Hoard.Network.Events
     )
 import Hoard.Network.Types (Connection (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
+import Hoard.Types.Environment qualified as Log (Severity (..))
 
 import Data.IP qualified as IP
 import Data.Set qualified as S

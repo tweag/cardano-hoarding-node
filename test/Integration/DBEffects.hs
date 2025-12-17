@@ -14,6 +14,7 @@ import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
 import Hoard.Effects.Log qualified as Log
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.Environment (defaultLogConfig)
 
 
 spec_DBEffects :: Spec
@@ -35,7 +36,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First write some data
             _ <-
                 runEff
-                    . Log.runLog Log.defaultConfig
+                    . Log.runLog defaultLogConfig
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert-test"
@@ -57,7 +58,7 @@ spec_DBEffects = withCleanTestDatabase $ do
         it "can write to the database" $ \config -> do
             result <-
                 runEff
-                    . Log.runLog Log.defaultConfig
+                    . Log.runLog defaultLogConfig
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert-test"
@@ -70,7 +71,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First insert
             _ <-
                 runEff
-                    . Log.runLog Log.defaultConfig
+                    . Log.runLog defaultLogConfig
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "insert"
@@ -79,7 +80,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- Then delete
             result <-
                 runEff
-                    . Log.runLog Log.defaultConfig
+                    . Log.runLog defaultLogConfig
                     . runErrorNoCallStack @Text
                     . runDBWrite config.pools.writerPool
                     $ runTransaction "delete"

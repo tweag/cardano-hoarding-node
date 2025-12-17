@@ -18,11 +18,18 @@ import Ouroboros.Network.IOManager (IOManager)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
 
-import Hoard.Effects.Log qualified as Log
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment, deploymentName)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), ServerConfig (..))
+import Hoard.Types.Environment
+    ( Config (..)
+    , Env (..)
+    , Handles (..)
+    , ServerConfig (..)
+    , Severity (..)
+    , defaultLogConfig
+    )
+import Hoard.Types.Environment qualified as Log (LogConfig (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -122,7 +129,7 @@ toDBConfig dbCfg credentials =
 
 
 data LoggingConfig = LoggingConfig
-    { minimumSeverity :: Log.Severity
+    { minimumSeverity :: Severity
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake LoggingConfig
@@ -148,10 +155,10 @@ loadEnv ioManager deployment = do
         log <- (>>= readMaybe) <$> lookupEnv "LOG"
         logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
         debug <-
-            (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
+            (>>= \x -> if x == "0" then Nothing else Just DEBUG)
                 <$> lookupEnv "DEBUG"
         let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
-        pure $ Log.defaultConfig {Log.minimumSeverity}
+        pure $ defaultLogConfig {Log.minimumSeverity}
 
     let config =
             Config
