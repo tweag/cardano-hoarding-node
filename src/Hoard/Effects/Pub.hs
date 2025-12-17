@@ -7,12 +7,13 @@ module Hoard.Effects.Pub
     )
 where
 
-import Prelude hiding (modify, runState)
-
 import Data.Dynamic qualified as Dyn
 import Effectful (Dispatch (..), DispatchOf, Eff, Effect, (:>))
-import Effectful.Dispatch.Dynamic (interpret_, reinterpret_, send)
+import Effectful.Dispatch.Dynamic (interpretWith_, reinterpret_, send)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Local (modify, runState)
+import Prelude hiding (Reader, ask, modify, runState)
+
 import Hoard.Effects.Chan (Chan, InChan)
 import Hoard.Effects.Chan qualified as Chan
 
@@ -28,9 +29,11 @@ publish :: (Pub :> es, Typeable a) => a -> Eff es ()
 publish = send . Publish
 
 
-runPub :: (Chan :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es a
-runPub inChan = interpret_ $ \case
-    Publish event -> Chan.writeChan inChan $ Dyn.toDyn event
+runPub :: (Chan :> es, Reader (InChan Dyn.Dynamic) :> es) => Eff (Pub : es) a -> Eff es a
+runPub eff = do
+    inChan <- ask
+    interpretWith_ eff \case
+        Publish event -> Chan.writeChan inChan $ Dyn.toDyn event
 
 
 runPubToList :: Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
@@ -41,8 +44,8 @@ runPubToList =
             (\(Publish event) -> modify (Dyn.toDyn event :))
 
 
-runPubWithList :: (Chan :> es) => InChan Dyn.Dynamic -> Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
-runPubWithList inChan eff = do
-    x <- runPub inChan eff
+runPubWithList :: (Chan :> es, Reader (InChan Dyn.Dynamic) :> es) => Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
+runPubWithList eff = do
+    x <- runPub eff
     (_, xs) <- runPubToList eff
     pure (x, xs)

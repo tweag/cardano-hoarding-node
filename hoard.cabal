@@ -17,9 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.Bootstrap
-      Hoard.CLI.Options
       Hoard.Collector
-      Hoard.Config.Loader
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.BlockHash
@@ -40,12 +38,14 @@ library
       Hoard.Effects.Conc
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.Codecs
+      Hoard.Effects.Options
       Hoard.Effects.Output
       Hoard.Effects.PeerRepo
       Hoard.Effects.Pub

@@ -1,35 +1,34 @@
-{-# LANGUAGE UndecidableInstances #-}
-
-module Hoard.Config.Loader
+module Hoard.Effects.Environment
     ( loadEnv
+    , runConfigReader
+    , runHandlesReader
     , loadNodeConfig
     , loadProtocolInfo
-    )
-where
+    ) where
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
-import Control.Concurrent.Chan.Unagi (newChan)
-import Control.Exception (throwIO)
 import Data.Aeson (FromJSON (..))
+import Data.Dynamic (Dynamic)
 import Data.String.Conversions (cs)
 import Data.Yaml qualified as Yaml
+import Effectful (Eff, IOE, withSeqEffToIO, (:>))
+import Effectful.Exception (throwIO)
+import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
-import Ouroboros.Network.IOManager (IOManager)
+import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
+import Prelude hiding (Reader, asks, runReader)
 
+import Hoard.Effects.Chan (Chan, InChan)
+import Hoard.Effects.Chan qualified as Chan
+import Hoard.Effects.Options (Options)
+import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
-import Hoard.Types.Deployment (Deployment, deploymentName)
-import Hoard.Types.Environment
-    ( Config (..)
-    , Env (..)
-    , Handles (..)
-    , ServerConfig (..)
-    , Severity (..)
-    , defaultLogConfig
-    )
-import Hoard.Types.Environment qualified as Log (LogConfig (..))
+import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
+import Hoard.Types.Deployment (Deployment (..), deploymentName)
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, ServerConfig (..))
+import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -91,7 +90,7 @@ data DBUserCredentials = DBUserCredentials
     deriving (FromJSON) via QuietSnake DBUserCredentials
 
 
-loadNodeConfig :: FilePath -> IO NodeConfig
+loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
 loadNodeConfig configPath = do
     let configFile = File configPath
     nodeConfigResult <- runExceptT $ readNodeConfig configFile
@@ -102,7 +101,7 @@ loadNodeConfig configPath = do
 
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: NodeConfig -> IO (ProtocolInfo CardanoBlock)
+loadProtocolInfo :: (IOE :> es) => NodeConfig -> Eff es (ProtocolInfo CardanoBlock)
 loadProtocolInfo nodeConfig = do
     -- Load GenesisConfig
     genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
@@ -129,59 +128,30 @@ toDBConfig dbCfg credentials =
 
 
 data LoggingConfig = LoggingConfig
-    { minimumSeverity :: Severity
+    { minimumSeverity :: Log.Severity
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake LoggingConfig
 
 
--- | Load the full application environment for a given deployment
--- Loads both the public config YAML and the secrets YAML file,
--- then acquires all necessary runtime handles
-loadEnv :: IOManager -> Deployment -> IO Env
-loadEnv ioManager deployment = do
-    -- Load non-sensitive config from YAML
-    configFile <- loadYaml @ConfigFile $ "config" </> cs (deploymentName deployment) <> ".yaml"
-
-    -- Load secrets from YAML (path specified in config file)
-    -- Note: In production, this file should be decrypted by sops first
-    secrets <- loadYaml @SecretConfig $ configFile.secretsFile
-
-    -- Build pure config
-    nodeConfig <- loadNodeConfig configFile.protocolConfigPath
-    protocolInfo <- loadProtocolInfo nodeConfig
-
-    logging <- do
-        log <- (>>= readMaybe) <$> lookupEnv "LOG"
-        logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
-        debug <-
-            (>>= \x -> if x == "0" then Nothing else Just DEBUG)
-                <$> lookupEnv "DEBUG"
-        let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
-        pure $ defaultLogConfig {Log.minimumSeverity}
-
-    let config =
-            Config
-                { server = configFile.server
-                , protocolInfo
-                , nodeConfig
-                , localNodeSocketPath = configFile.localNodeSocketPath
-                , logging
-                }
-
-    -- Acquire runtime handles
-    handles <- acquireHandles ioManager configFile secrets
-
-    pure Env {config, handles}
+loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.LogConfig
+loadLoggingConfig configFile = do
+    log <- (>>= readMaybe) <$> lookupEnv "LOG"
+    logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
+    debug <-
+        (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
+            <$> lookupEnv "DEBUG"
+    let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
+    pure $ Log.defaultLogConfig {Log.minimumSeverity}
 
 
 -- | Acquire runtime handles
-acquireHandles :: IOManager -> ConfigFile -> SecretConfig -> IO Handles
+acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     let readerConfig = toDBConfig configFile.database secrets.database.users.reader
     let writerConfig = toDBConfig configFile.database secrets.database.users.writer
-    dbPools <- acquireDatabasePools readerConfig writerConfig
-    (inChan, _) <- newChan
+    dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
+    (inChan, _) <- Chan.newChan
 
     pure
         Handles
@@ -191,9 +161,58 @@ acquireHandles ioManager configFile secrets = do
             }
 
 
-loadYaml :: (FromJSON a) => String -> IO a
+loadYaml :: forall a es. (IOE :> es) => (FromJSON a) => String -> Eff es a
 loadYaml path = do
-    result <- Yaml.decodeFileEither path
+    result <- liftIO $ Yaml.decodeFileEither path
     case result of
         Left err -> throwIO $ userError $ "Failed to parse " <> path <> ": " <> show err
         Right configFile -> pure configFile
+
+
+-- | Load the full application environment for a given deployment
+-- Loads both the public config YAML and the secrets YAML file,
+-- then acquires all necessary runtime handles
+loadEnv
+    :: ( Chan :> es
+       , IOE :> es
+       , Reader Options :> es
+       )
+    => Eff (Reader Env : es) a
+    -> Eff es a
+loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
+    deployment <- asks $ fromMaybe Dev . Options.deployment
+    putTextLn $ "Loading configuration for deployment: " <> show deployment
+    configFile <- loadYaml @ConfigFile $ "config" </> cs (deploymentName deployment) <> ".yaml"
+    secrets <- loadYaml @SecretConfig $ configFile.secretsFile
+    nodeConfig <- loadNodeConfig configFile.protocolConfigPath
+    protocolInfo <- loadProtocolInfo nodeConfig
+    logging <- loadLoggingConfig configFile
+    handles <- acquireHandles ioManager configFile secrets
+
+    let config =
+            Config
+                { server = configFile.server
+                , protocolInfo
+                , nodeConfig
+                , localNodeSocketPath = configFile.localNodeSocketPath
+                , logging
+                }
+        env = Env {config, handles}
+
+    runReader env eff
+
+
+runConfigReader :: (Reader Env :> es) => Eff (Reader LogConfig : Reader Config : es) a -> Eff es a
+runConfigReader eff = do
+    cfg <- asks config
+    runReader cfg
+        . runReader cfg.logging
+        $ eff
+
+
+runHandlesReader :: (Reader Env :> es) => Eff (Reader (InChan Dynamic) : Reader DBPools : es) a -> Eff es a
+runHandlesReader eff = do
+    handles <- asks handles
+    runReader handles.dbPools
+        . runReader handles.inChan
+        $ eff

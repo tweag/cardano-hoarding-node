@@ -44,9 +44,11 @@ import Effectful
     , (:>)
     )
 import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
+import Prelude hiding (Reader, ask)
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Effects.Conc (Conc, fork_)
@@ -67,11 +69,11 @@ runNodeToClient
     :: ( Conc :> es
        , Log :> es
        , IOE :> es
+       , Reader Config :> es
        )
-    => Config
-    -> Eff (NodeToClient : es) a
+    => Eff (NodeToClient : es) a
     -> Eff es a
-runNodeToClient _config = interpret_ $ \case
+runNodeToClient = interpret_ $ \case
     ImmutableTip -> pure C.ChainPointAtGenesis
     IsOnChain _ -> pure False
 
@@ -80,11 +82,12 @@ runNodeToClient'
     :: ( Conc :> es
        , Log :> es
        , IOE :> es
+       , Reader Config :> es
        )
-    => Config
-    -> Eff (NodeToClient : es) a
+    => Eff (NodeToClient : es) a
     -> Eff es a
-runNodeToClient' config nodeToClient = do
+runNodeToClient' nodeToClient = do
+    config <- ask
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
     epochSize <- loadEpochSize config

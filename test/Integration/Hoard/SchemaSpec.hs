@@ -2,18 +2,17 @@ module Integration.Hoard.SchemaSpec (spec_Schema) where
 
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
-import Test.Hspec
-
+import Effectful.Reader.Static (runReader)
 import Rel8 qualified
-
-import Hoard.Effects.DBRead (runDBRead, runQuery)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.DBConfig (DBPools (..))
+import Test.Hspec
+import Prelude hiding (runReader)
 
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.Effects.DBRead (runDBRead, runQuery)
+import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
 spec_Schema :: Spec
@@ -32,7 +31,8 @@ spec_Schema = withCleanTestDatabase $ do
         result <-
             runEff
                 . runErrorNoCallStack @Text
-                . runDBRead config.pools.readerPool
+                . runReader config.pools
+                . runDBRead
                 $ runQuery "weak-schema-test" query
 
         case result of

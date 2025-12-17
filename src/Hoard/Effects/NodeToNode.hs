@@ -19,15 +19,21 @@ module Hoard.Effects.NodeToNode
 import Cardano.Api ()
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Tracer (Tracer (..), stdoutTracer)
+import Data.ByteString.Lazy qualified as LBS
+import Data.IP qualified as IP
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as S
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
+import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
@@ -36,8 +42,16 @@ import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersi
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Block (genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
-import Ouroboros.Network.IOManager (IOManager)
-import Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..), MiniProtocolLimits (..), OuroborosApplication (..), OuroborosApplicationWithMinimalCtx, RunMiniProtocol (..), mkMiniProtocolCbFromPeer, mkMiniProtocolCbFromPeerPipelined)
+import Ouroboros.Network.Mux
+    ( MiniProtocol (..)
+    , MiniProtocolCb (..)
+    , MiniProtocolLimits (..)
+    , OuroborosApplication (..)
+    , OuroborosApplicationWithMinimalCtx
+    , RunMiniProtocol (..)
+    , mkMiniProtocolCbFromPeer
+    , mkMiniProtocolCbFromPeerPipelined
+    )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , MiniProtocolParameters (..)
@@ -56,26 +70,27 @@ import Ouroboros.Network.NodeToNode
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
+import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
+import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
+import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
-
-import Data.ByteString.Lazy qualified as LBS
-import Data.Map.Strict qualified as Map
-import Network.TypedProtocol.Peer.Client qualified as Peer
-import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
-import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
+import Prelude hiding (Reader, asks)
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Conc (concStrat)
 import Hoard.Effects.Log (Log)
+import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
     ( BlockBatchCompletedData (..)
@@ -97,15 +112,10 @@ import Hoard.Network.Events
     )
 import Hoard.Network.Types (Connection (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
+import Hoard.Types.Environment (Env)
+import Hoard.Types.Environment qualified as Env
 import Hoard.Types.Environment qualified as Log (Severity (..))
-
-import Data.IP qualified as IP
-import Data.Set qualified as S
-import Hoard.Effects.Conc (concStrat)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Types.NodeIP (NodeIP (..))
-import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 
 
 --------------------------------------------------------------------------------
@@ -147,15 +157,14 @@ runNodeToNode
        , IOE :> es
        , Log :> es
        , Pub :> es
+       , Reader Env :> es
        )
-    => IOManager
-    -> ProtocolInfo CardanoBlock
-    -> Eff (NodeToNode : es) a
+    => Eff (NodeToNode : es) a
     -> Eff es a
-runNodeToNode ioManager protocolConfigPath =
+runNodeToNode =
     interpret $ \env -> \case
         ConnectToPeer conf -> localUnlift env concStrat \unlift ->
-            connectToPeerImpl ioManager protocolConfigPath $ hoistConfig unlift conf
+            connectToPeerImpl $ hoistConfig unlift conf
         DisconnectPeer conn -> disconnectPeerImpl conn
         IsConnected conn -> isConnectedImpl conn
 
@@ -191,12 +200,13 @@ connectToPeerImpl
        , IOE :> es
        , Log :> es
        , Pub :> es
+       , Reader Env :> es
        )
-    => IOManager
-    -> ProtocolInfo CardanoBlock
-    -> Config (Eff es)
+    => Config (Eff es)
     -> Eff es Void
-connectToPeerImpl ioManager protocolInfo conf = do
+connectToPeerImpl conf = do
+    protocolInfo <- asks $ Env.protocolInfo . Env.config
+    ioManager <- asks $ Env.ioManager . Env.handles
     let addr = IP.toSockAddr (getNodeIP conf.peer.address.host, fromIntegral conf.peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr

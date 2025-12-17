@@ -1,14 +1,16 @@
 module Integration.Hoard.DB.HeaderPersistenceSpec (spec_HeaderPersistence) where
 
 import Data.Time (UTCTime, getCurrentTime)
+import Data.UUID.V4 qualified as UUID
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
-import Test.Hspec
-
+import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
 import Rel8 qualified
+import Test.Hspec
+import Text.Read (read)
+import Prelude hiding (runReader)
 
-import Data.UUID.V4 qualified as UUID
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.Data.BlockHash (BlockHash (..))
@@ -21,19 +23,19 @@ import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (defaultLogConfig)
-import Text.Read (read)
 
 
 spec_HeaderPersistence :: Spec
 spec_HeaderPersistence = do
     let runWrite config action =
             runEff
-                . Log.runLog defaultLogConfig
+                . runReader defaultLogConfig
+                . runReader config.pools
+                . Log.runLog
                 . runErrorNoCallStack @Text
-                . runDBRead config.pools.readerPool
-                . runDBWrite config.pools.writerPool
+                . runDBRead
+                . runDBWrite
                 . runPeerRepo
                 . runHeaderRepo
                 $ action
@@ -41,7 +43,8 @@ spec_HeaderPersistence = do
     let runRead config action =
             runEff
                 . runErrorNoCallStack @Text
-                . runDBRead config.pools.readerPool
+                . runReader config.pools
+                . runDBRead
                 $ action
 
     withCleanTestDatabase $ describe "Header persistence (database)" $ do

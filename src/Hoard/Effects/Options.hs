@@ -1,12 +1,10 @@
-module Hoard.CLI.Options
-    ( Options (..)
-    , parseOptions
-    , optsParser
-    )
-where
+module Hoard.Effects.Options (Options (..), loadOptions) where
 
 import Options.Applicative qualified as Opt
+import Prelude hiding (Reader, runReader)
 
+import Effectful (Eff, IOE, (:>))
+import Effectful.Reader.Static (Reader, runReader)
 import Hoard.Types.Deployment (Deployment, parseDeployment)
 
 
@@ -45,3 +43,9 @@ optsParser =
             <> Opt.progDesc "Run the Hoard Cardano node"
             <> Opt.header "hoard - A Cardano hoarding node"
         )
+
+
+loadOptions :: (IOE :> es) => Eff (Reader Options : es) a -> Eff es a
+loadOptions eff = do
+    options <- liftIO $ Opt.execParser optsParser
+    runReader options eff
