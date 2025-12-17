@@ -1,7 +1,6 @@
 module Hoard.Effects
     ( -- * Effect Stack
       runEffectStack
-    , runEffectStackReturningState
     , AppEff
     , AppEffects
     -- Config
@@ -23,7 +22,7 @@ import Effectful (Eff, IOE, runEff, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.FileSystem (FileSystem, runFileSystem)
-import Effectful.State.Static.Shared (State, evalState, runState)
+import Effectful.State.Static.Shared (State, evalState)
 import Ouroboros.Network.IOManager (IOManager)
 import System.IO.Error (userError)
 
@@ -134,33 +133,6 @@ runEffectStack config action = liftIO $ do
             . runHeaderRepo
             . runPeerRepo
             . evalState def
-            $ action
-    case result of
-        Left err -> throwIO $ userError $ toString err
-        Right value -> pure value
-
-
--- | Run the full effect stack and return both the result and final HoardState
-runEffectStackReturningState :: (MonadIO m) => Config -> Eff AppEffects a -> m (a, HoardState)
-runEffectStackReturningState config action = liftIO $ do
-    result <-
-        runEff
-            . runLog config.logging
-            . runClock
-            . runFileSystem
-            . runConcurrent
-            . runConcNewScope
-            . runNodeToClient config
-            . runChan
-            . runSub config.inChan
-            . runPub config.inChan
-            . runErrorNoCallStack @Text
-            . runNodeToNode config.ioManager config.protocolConfigPath
-            . runDBRead config.dbPools.readerPool
-            . runDBWrite config.dbPools.writerPool
-            . runHeaderRepo
-            . runPeerRepo
-            . runState def
             $ action
     case result of
         Left err -> throwIO $ userError $ toString err
