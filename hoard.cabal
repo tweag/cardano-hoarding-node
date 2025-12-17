@@ -16,6 +16,7 @@ build-type:    Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.Bootstrap
       Hoard.CLI.Options
       Hoard.Collector
       Hoard.Config.Loader
@@ -163,91 +164,6 @@ executable hoard-exe
       Paths_hoard
   hs-source-dirs:
       app/hoard
-  default-extensions:
-      BlockArguments
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DerivingVia
-      DuplicateRecordFields
-      FlexibleContexts
-      GADTs
-      LambdaCase
-      OverloadedLabels
-      OverloadedRecordDot
-      OverloadedStrings
-      StrictData
-      TemplateHaskell
-      TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -with-rtsopts=-N
-  build-depends:
-      aeson
-    , async
-    , base
-    , base16-bytestring
-    , bytestring
-    , cardano-api
-    , cardano-ledger-core
-    , casing
-    , cborg
-    , containers
-    , contra-tracer
-    , data-default
-    , directory
-    , effectful
-    , effectful-core
-    , effectful-plugin
-    , effectful-th
-    , filepath
-    , hashable
-    , hasql
-    , hasql-pool
-    , hasql-transaction
-    , hoard
-    , iproute
-    , ki
-    , network
-    , network-mux
-    , network-uri
-    , optparse-applicative
-    , ouroboros-consensus
-    , ouroboros-consensus-cardano
-    , ouroboros-consensus-diffusion
-    , ouroboros-consensus-protocol
-    , ouroboros-network
-    , ouroboros-network-api
-    , ouroboros-network-framework
-    , ouroboros-network-protocols
-    , rel8
-    , relude
-    , serialise
-    , servant
-    , servant-server
-    , string-conversions
-    , text
-    , time
-    , transformers
-    , typed-process
-    , typed-protocols
-    , unagi-chan
-    , unordered-containers
-    , uuid
-    , warp
-    , yaml
-  mixins:
-      base hiding (Prelude)
-    , relude (Relude as Prelude)
-    , relude 
-  default-language: GHC2021
-
-executable test-connection
-  main-is: Main.hs
-  other-modules:
-      Paths_hoard
-  autogen-modules:
-      Paths_hoard
-  hs-source-dirs:
-      app/test-connection
   default-extensions:
       BlockArguments
       DataKinds
