@@ -33,7 +33,8 @@ import Hoard.Config.Loader (loadConfig)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects (Config (..))
-import Hoard.Effects.Chan (runChan)
+import Hoard.Effects.Chan (Chan, runChan)
+import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc, scoped)
@@ -41,13 +42,22 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
+import Hoard.Effects.Input (input, runInputChan)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (immutableTip, isOnChain, runNodeToClient)
-import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer, isConnected, runNodeToNode)
+import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer, runNodeToNode)
+import Hoard.Effects.NodeToNode qualified as NodeToNode
+import Hoard.Effects.Output (output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
-import Hoard.Effects.Pub (Pub, runPub)
+import Hoard.Effects.Pub (Pub, publish, runPub)
 import Hoard.Effects.Sub (Sub, listen, runSub)
+import Hoard.Network.Events
+    ( BlockFetchEvent (..)
+    , BlockFetchRequest (..)
+    , ChainSyncEvent (..)
+    , HeaderReceivedData (..)
+    )
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (Environment (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -131,7 +141,8 @@ mkPreviewRelay = do
 
 -- | Test connection to Preview testnet
 testConnection
-    :: ( Conc :> es
+    :: ( Chan :> es
+       , Conc :> es
        , IOE :> es
        , Log :> es
        , NodeToNode :> es
@@ -175,26 +186,28 @@ testConnection = do
             Log.debug (show tip1)
             Log.debug =<< show <$> isOnChain tip1
 
+    (inChan, outChan) <- Chan.newChan
     -- Connect to peer
-    conn <- connectToPeer peer
+    _ <- runInputChan outChan . runOutputChan inChan $ do
+        Conc.fork $ listen \case
+            HeaderReceived dat ->
+                output $
+                    BlockFetchRequest
+                        { timestamp = dat.timestamp
+                        , point = dat.point
+                        , peer = dat.peer.address
+                        }
+            _ -> pure ()
 
-    Log.info "✓ Connection established!"
+        connectToPeer $
+            NodeToNode.Config
+                { peer
+                , emitFetchedBlock = publish . BlockReceived
+                , emitFetchedHeader = publish . HeaderReceived
+                , awaitBlockFetchRequest = input
+                }
 
-    -- Check connection status
-    isAlive <- isConnected conn
-    if isAlive
-        then Log.info "✓ Connection is alive"
-        else Log.info "✗ Connection appears dead"
-
-    -- Keep connection alive for 60 seconds to receive headers
-    Log.info "Keeping connection alive for 60 seconds to receive headers..."
-    liftIO $ threadDelay (60 * 1000000)
-
-    -- Check status again
-    isAlive' <- isConnected conn
-    if isAlive'
-        then Log.info "✓ Connection still alive after 30 seconds"
-        else Log.info "✗ Connection died"
+    Log.info "Connection closed!"
 
 
 resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
