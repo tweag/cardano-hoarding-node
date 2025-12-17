@@ -100,7 +100,7 @@ runEffectStack env action = liftIO $ do
             . runSub env.handles.inChan
             . runPub env.handles.inChan
             . runErrorNoCallStack @Text
-            . runNodeToNode env.handles.ioManager env.config.protocolConfigPath
+            . runNodeToNode env.handles.ioManager env.config.protocolInfo
             . runDBRead env.handles.dbPools.readerPool
             . runDBWrite env.handles.dbPools.writerPool
             . runHeaderRepo

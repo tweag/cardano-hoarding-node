@@ -14,12 +14,9 @@ module Hoard.Effects.NodeToNode
 
       -- * Interpreter
     , runNodeToNode
-
-      -- * Utilities
-    , loadNodeConfig
     ) where
 
-import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
+import Cardano.Api ()
 import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Tracer (Tracer (..), stdoutTracer)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
@@ -151,7 +148,7 @@ runNodeToNode
        , Pub :> es
        )
     => IOManager
-    -> FilePath
+    -> ProtocolInfo CardanoBlock
     -> Eff (NodeToNode : es) a
     -> Eff es a
 runNodeToNode ioManager protocolConfigPath =
@@ -195,10 +192,10 @@ connectToPeerImpl
        , Pub :> es
        )
     => IOManager
-    -> FilePath
+    -> ProtocolInfo CardanoBlock
     -> Config (Eff es)
     -> Eff es Void
-connectToPeerImpl ioManager protocolConfigPath conf = do
+connectToPeerImpl ioManager protocolInfo conf = do
     let addr = IP.toSockAddr (getNodeIP conf.peer.address.host, fromIntegral conf.peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
@@ -208,7 +205,6 @@ connectToPeerImpl ioManager protocolConfigPath conf = do
 
     -- Load protocol info and create codecs
     Log.debug "Loading protocol configuration..."
-    protocolInfo <- loadProtocolInfo protocolConfigPath
     let codecConfig = configCodec (pInfoConfig protocolInfo)
     let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
@@ -313,37 +309,6 @@ isConnectedImpl _conn = do
     -- For now, we'll assume connections are persistent
     -- In a full implementation, we'd track connection state
     pure True
-
-
---------------------------------------------------------------------------------
--- Codec Configuration
---------------------------------------------------------------------------------
-
-loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
-loadNodeConfig configPath = do
-    let configFile = File configPath
-    nodeConfigResult <- runExceptT $ readNodeConfig configFile
-    case nodeConfigResult of
-        Left err -> error $ "Failed to read node config: " <> err
-        Right cfg -> pure cfg
-
-
--- | Load the Cardano protocol info from config files.
--- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: (IOE :> es) => FilePath -> Eff es (ProtocolInfo CardanoBlock)
-loadProtocolInfo configPath = do
-    -- Load NodeConfig
-    nodeConfig <- loadNodeConfig configPath
-
-    -- Load GenesisConfig
-    genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
-    genesisConfig <- case genesisConfigResult of
-        Left err -> error $ "Failed to read genesis config: " <> show err
-        Right cfg -> pure cfg
-
-    -- Create ProtocolInfo
-    let (protocolInfo, _mkBlockForging) = mkProtocolInfoCardano genesisConfig
-    pure protocolInfo
 
 
 --------------------------------------------------------------------------------

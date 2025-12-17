@@ -41,6 +41,7 @@ import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
+import Hoard.Config.Loader (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
@@ -90,12 +91,15 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     (inChan, _) <- newChan
     wireTap <- dupChan inChan
     pool <- Pool.acquire $ Pool.settings []
+    nodeConfig <- loadNodeConfig "config/preview/config.json"
+    protocolInfo <- loadProtocolInfo nodeConfig
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let config =
             Config
                 { server = serverConfig
-                , protocolConfigPath = "config/preview/config.json"
+                , nodeConfig
+                , protocolInfo
                 , localNodeSocketPath = "preview.socket"
                 , logging = Log.defaultConfig
                 }
