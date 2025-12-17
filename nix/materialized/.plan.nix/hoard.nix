@@ -152,67 +152,6 @@
           hsSourceDirs = [ "app/hoard" ];
           mainPath = [ "Main.hs" ];
         };
-        "test-connection" = {
-          depends = [
-            (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
-            (hsPkgs."async" or (errorHandler.buildDepError "async"))
-            (hsPkgs."base" or (errorHandler.buildDepError "base"))
-            (hsPkgs."base16-bytestring" or (errorHandler.buildDepError "base16-bytestring"))
-            (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
-            (hsPkgs."cardano-api" or (errorHandler.buildDepError "cardano-api"))
-            (hsPkgs."cardano-ledger-core" or (errorHandler.buildDepError "cardano-ledger-core"))
-            (hsPkgs."casing" or (errorHandler.buildDepError "casing"))
-            (hsPkgs."cborg" or (errorHandler.buildDepError "cborg"))
-            (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
-            (hsPkgs."contra-tracer" or (errorHandler.buildDepError "contra-tracer"))
-            (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
-            (hsPkgs."directory" or (errorHandler.buildDepError "directory"))
-            (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
-            (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
-            (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
-            (hsPkgs."effectful-th" or (errorHandler.buildDepError "effectful-th"))
-            (hsPkgs."filepath" or (errorHandler.buildDepError "filepath"))
-            (hsPkgs."hashable" or (errorHandler.buildDepError "hashable"))
-            (hsPkgs."hasql" or (errorHandler.buildDepError "hasql"))
-            (hsPkgs."hasql-pool" or (errorHandler.buildDepError "hasql-pool"))
-            (hsPkgs."hasql-transaction" or (errorHandler.buildDepError "hasql-transaction"))
-            (hsPkgs."hoard" or (errorHandler.buildDepError "hoard"))
-            (hsPkgs."iproute" or (errorHandler.buildDepError "iproute"))
-            (hsPkgs."ki" or (errorHandler.buildDepError "ki"))
-            (hsPkgs."network" or (errorHandler.buildDepError "network"))
-            (hsPkgs."network-mux" or (errorHandler.buildDepError "network-mux"))
-            (hsPkgs."network-uri" or (errorHandler.buildDepError "network-uri"))
-            (hsPkgs."optparse-applicative" or (errorHandler.buildDepError "optparse-applicative"))
-            (hsPkgs."ouroboros-consensus" or (errorHandler.buildDepError "ouroboros-consensus"))
-            (hsPkgs."ouroboros-consensus-cardano" or (errorHandler.buildDepError "ouroboros-consensus-cardano"))
-            (hsPkgs."ouroboros-consensus-diffusion" or (errorHandler.buildDepError "ouroboros-consensus-diffusion"))
-            (hsPkgs."ouroboros-consensus-protocol" or (errorHandler.buildDepError "ouroboros-consensus-protocol"))
-            (hsPkgs."ouroboros-network" or (errorHandler.buildDepError "ouroboros-network"))
-            (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
-            (hsPkgs."ouroboros-network-framework" or (errorHandler.buildDepError "ouroboros-network-framework"))
-            (hsPkgs."ouroboros-network-protocols" or (errorHandler.buildDepError "ouroboros-network-protocols"))
-            (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
-            (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
-            (hsPkgs."serialise" or (errorHandler.buildDepError "serialise"))
-            (hsPkgs."servant" or (errorHandler.buildDepError "servant"))
-            (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
-            (hsPkgs."string-conversions" or (errorHandler.buildDepError "string-conversions"))
-            (hsPkgs."text" or (errorHandler.buildDepError "text"))
-            (hsPkgs."time" or (errorHandler.buildDepError "time"))
-            (hsPkgs."transformers" or (errorHandler.buildDepError "transformers"))
-            (hsPkgs."typed-process" or (errorHandler.buildDepError "typed-process"))
-            (hsPkgs."typed-protocols" or (errorHandler.buildDepError "typed-protocols"))
-            (hsPkgs."unagi-chan" or (errorHandler.buildDepError "unagi-chan"))
-            (hsPkgs."unordered-containers" or (errorHandler.buildDepError "unordered-containers"))
-            (hsPkgs."uuid" or (errorHandler.buildDepError "uuid"))
-            (hsPkgs."warp" or (errorHandler.buildDepError "warp"))
-            (hsPkgs."yaml" or (errorHandler.buildDepError "yaml"))
-          ];
-          buildable = true;
-          modules = [ "Paths_hoard" ];
-          hsSourceDirs = [ "app/test-connection" ];
-          mainPath = [ "Main.hs" ];
-        };
       };
       tests = {
         "hoard-test" = {
