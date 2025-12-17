@@ -36,6 +36,7 @@ data Row f = Row
     , firstDiscovered :: Column f UTCTime
     , lastSeen :: Column f UTCTime
     , lastConnected :: Column f (Maybe UTCTime)
+    , lastFailureTime :: Column f (Maybe UTCTime)
     , discoveredVia :: Column f Text
     }
     deriving stock (Generic)
@@ -62,6 +63,7 @@ peerFromRow row =
         , firstDiscovered = row.firstDiscovered
         , lastSeen = row.lastSeen
         , lastConnected = row.lastConnected
+        , lastFailureTime = row.lastFailureTime
         , discoveredVia = row.discoveredVia
         }
 
@@ -76,6 +78,7 @@ rowFromPeer peer =
         , firstDiscovered = lit peer.firstDiscovered
         , lastSeen = lit peer.lastSeen
         , lastConnected = lit peer.lastConnected
+        , lastFailureTime = lit peer.lastFailureTime
         , discoveredVia = lit peer.discoveredVia
         }
 

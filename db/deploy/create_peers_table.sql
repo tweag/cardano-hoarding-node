@@ -10,6 +10,7 @@ CREATE TABLE hoard.peers (
     first_discovered TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_connected TIMESTAMPTZ,
+    last_failure_time TIMESTAMPTZ,
     discovered_via TEXT NOT NULL,
     UNIQUE (address, port)
 );

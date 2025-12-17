@@ -9,6 +9,8 @@ SELECT
     port,
     first_discovered,
     last_seen,
+    last_connected,
+    last_failure_time,
     discovered_via
 FROM hoard.peers
 WHERE FALSE;
