@@ -1,12 +1,14 @@
-module Hoard.Collector (dispatchDiscoveredNodes, runCollector) where
+module Hoard.Collector (dispatchDiscoveredNodes, runCollector, forkCollector, runCollectors) where
 
 import Control.Concurrent (threadDelay)
 import Data.Set qualified as S
+import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (bracket)
 import Effectful.State.Static.Shared (State, gets, modify, state)
 import Prelude hiding (State, gets, modify, state)
 
+import Hoard.Bootstrap (bootstrapPeer)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan)
@@ -21,7 +23,7 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (Config (..), NodeToNode, connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events
@@ -59,20 +61,76 @@ dispatchDiscoveredNodes = \case
         let peersToConnect = S.difference upsertedPeers currPeers
         Log.info $ "Dispatch: " <> show (S.size peersToConnect) <> " new peers to connect to"
 
-        forM_ peersToConnect $ \peer -> do
-            _ <-
-                Conc.forkTry @SomeException
-                    . withExceptionLogging ("collector " <> show peer.address)
-                    $ bracket
-                        ( state \r ->
-                            (peer, r {connectedPeers = S.insert peer r.connectedPeers})
-                        )
-                        ( \p ->
-                            modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
-                        )
-                        runCollector
-            pure ()
+        forM_ peersToConnect forkCollector
     _ -> pure ()
+
+
+-- | Start collectors for all known peers, or bootstrap if none exist.
+--
+-- This queries the database for known peers and:
+-- - If peers exist, starts collectors for all of them
+-- - If no peers exist, bootstraps from the hardcoded preview-node peer
+runCollectors
+    :: ( Pub :> es
+       , NodeToNode :> es
+       , Chan :> es
+       , Conc :> es
+       , PeerRepo :> es
+       , Clock :> es
+       , Log :> es
+       , State HoardState :> es
+       , IOE :> es
+       )
+    => Eff es ()
+runCollectors = do
+    -- Check if there are any known peers in the database
+    knownPeers <- getAllPeers
+
+    if Set.null knownPeers
+        then do
+            -- No known peers, bootstrap from hardcoded peer
+            Log.debug "No known peers found, bootstrapping from hardcoded peer"
+            peer <- bootstrapPeer
+            forkCollector peer
+        else do
+            -- Start collectors for all known peers
+            let peerCount = Set.size knownPeers
+            Log.debug $ "Found " <> show peerCount <> " known peers, starting collectors"
+            forM_ (Set.toList knownPeers) forkCollector
+
+
+-- | Fork a collector with exception handling and state management.
+--
+-- This wraps runCollector with:
+-- - Proper exception handling (forkTry + withExceptionLogging)
+-- - Connected peers state management (adds peer on start, removes on termination)
+--
+-- The peer is automatically removed from connectedPeers when the collector
+-- terminates, whether due to an exception or normal completion.
+forkCollector
+    :: ( Conc :> es
+       , Chan :> es
+       , IOE :> es
+       , Log :> es
+       , NodeToNode :> es
+       , Pub :> es
+       , State HoardState :> es
+       )
+    => Peer
+    -> Eff es ()
+forkCollector peer = do
+    _ <-
+        Conc.forkTry @SomeException
+            . withExceptionLogging ("collector " <> show peer.address)
+            $ bracket
+                ( state \r ->
+                    (peer, r {connectedPeers = S.insert peer r.connectedPeers})
+                )
+                ( \p ->
+                    modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
+                )
+                runCollector
+    pure ()
 
 
 runCollector

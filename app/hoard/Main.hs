@@ -10,7 +10,7 @@ import Hoard.Effects (runEffectStack)
 import Hoard.Listeners (runListeners)
 import Hoard.Types.Deployment (Deployment (..))
 
-import Hoard.Bootstrap (bootstrapCollection)
+import Hoard.Collector (runCollectors)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Server (runServer)
 
@@ -28,5 +28,5 @@ main = withIOManager $ \ioManager -> do
     runEffectStack env $ do
         runServer env
         runListeners
-        bootstrapCollection
+        runCollectors
         Conc.awaitAll
