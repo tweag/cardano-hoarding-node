@@ -24,7 +24,7 @@ import Codec.CBOR.Read (DeserialiseFailure)
 import Control.Tracer (Tracer (..), stdoutTracer)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Dispatch.Dynamic (LocalEnv, interpret, localUnlift)
+import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
@@ -154,18 +154,20 @@ runNodeToNode
     -> FilePath
     -> Eff (NodeToNode : es) a
     -> Eff es a
-runNodeToNode ioManager protocolConfigPath = interpret $ \env -> \case
-    ConnectToPeer conf -> connectToPeerImpl ioManager protocolConfigPath $ hoistConfig env conf
-    DisconnectPeer conn -> disconnectPeerImpl conn
-    IsConnected conn -> isConnectedImpl conn
+runNodeToNode ioManager protocolConfigPath =
+    interpret $ \env -> \case
+        ConnectToPeer conf -> localUnlift env concStrat \unlift ->
+            connectToPeerImpl ioManager protocolConfigPath $ hoistConfig unlift conf
+        DisconnectPeer conn -> disconnectPeerImpl conn
+        IsConnected conn -> isConnectedImpl conn
 
 
-hoistConfig :: LocalEnv localEs es -> Config (Eff localEs) -> Config (Eff es)
-hoistConfig env conf =
+hoistConfig :: (forall x. Eff localEs x -> Eff es x) -> Config (Eff localEs) -> Config (Eff es)
+hoistConfig unlift conf =
     Config
-        { awaitBlockFetchRequest = localUnlift env concStrat \unlift -> unlift conf.awaitBlockFetchRequest
-        , emitFetchedHeader = \header -> localUnlift env concStrat \unlift -> unlift $ conf.emitFetchedHeader header
-        , emitFetchedBlock = \block -> localUnlift env concStrat \unlift -> unlift $ conf.emitFetchedBlock block
+        { awaitBlockFetchRequest = unlift conf.awaitBlockFetchRequest
+        , emitFetchedHeader = unlift . conf.emitFetchedHeader
+        , emitFetchedBlock = unlift . conf.emitFetchedBlock
         , peer = conf.peer
         }
 
