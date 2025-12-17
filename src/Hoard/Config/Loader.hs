@@ -15,10 +15,10 @@ import System.IO.Error (userError)
 import Data.Yaml qualified as Yaml
 
 import Data.String.Conversions (cs)
-import Hoard.Effects (Config (..), Env (..), Handles (..), ServerConfig (..))
 import Hoard.Effects.Log qualified as Log
 import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment, deploymentName)
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), ServerConfig (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
