@@ -41,12 +41,13 @@ import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
-import Hoard.Effects (Config (..), Env (..), Handles (..), ServerConfig (..), runEffectStack)
+import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), ServerConfig (..))
 import Hoard.Types.HoardState (HoardState)
 
 

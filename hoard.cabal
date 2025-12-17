@@ -69,6 +69,7 @@ library
       Hoard.Types.Collector
       Hoard.Types.DBConfig
       Hoard.Types.Deployment
+      Hoard.Types.Environment
       Hoard.Types.Header
       Hoard.Types.HoardState
       Hoard.Types.JsonReadShow
