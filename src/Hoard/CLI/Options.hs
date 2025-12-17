@@ -7,12 +7,12 @@ where
 
 import Options.Applicative qualified as Opt
 
-import Hoard.Types.Environment (Environment, parseEnvironment)
+import Hoard.Types.Deployment (Deployment, parseDeployment)
 
 
 -- | Command line options
 data Options = Options
-    { environment :: Maybe Environment
+    { deployment :: Maybe Deployment
     }
     deriving stock (Eq, Show)
 
@@ -23,17 +23,17 @@ parseOptions =
     Options
         <$> Opt.optional
             ( Opt.option
-                readEnvironment
+                readDeployment
                 ( Opt.long "env"
                     <> Opt.metavar "ENV"
-                    <> Opt.help "Environment to run in (dev, staging, prod, ci)"
+                    <> Opt.help "Deployment environment to run in (dev, staging, prod, ci)"
                 )
             )
   where
-    readEnvironment = Opt.eitherReader $ \s ->
-        case parseEnvironment (toText s) of
+    readDeployment = Opt.eitherReader $ \s ->
+        case parseDeployment (toText s) of
             Just env -> Right env
-            Nothing -> Left $ "Invalid environment: " <> s <> ". Must be one of: dev, staging, prod, ci"
+            Nothing -> Left $ "Invalid deployment: " <> s <> ". Must be one of: dev, staging, prod, ci"
 
 
 -- | Main options parser with program description

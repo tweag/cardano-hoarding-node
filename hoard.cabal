@@ -68,7 +68,7 @@ library
       Hoard.Types.Cardano
       Hoard.Types.Collector
       Hoard.Types.DBConfig
-      Hoard.Types.Environment
+      Hoard.Types.Deployment
       Hoard.Types.Header
       Hoard.Types.HoardState
       Hoard.Types.JsonReadShow

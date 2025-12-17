@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Hoard.Config.Loader
-    ( loadConfig
+    ( loadEnv
     )
 where
 
@@ -14,10 +14,11 @@ import System.IO.Error (userError)
 
 import Data.Yaml qualified as Yaml
 
-import Hoard.Effects (Config (..), ServerConfig (..))
+import Data.String.Conversions (cs)
+import Hoard.Effects (Config (..), Env (..), Handles (..), ServerConfig (..))
 import Hoard.Effects.Log qualified as Log
 import Hoard.Types.DBConfig (DBConfig (..), PoolConfig (..), acquireDatabasePools)
-import Hoard.Types.Environment (Environment, environmentName)
+import Hoard.Types.Deployment (Deployment, deploymentName)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -99,25 +100,19 @@ data LoggingConfig = LoggingConfig
     deriving (FromJSON) via QuietSnake LoggingConfig
 
 
--- | Load the full application configuration for a given environment
--- Loads both the public config YAML and the secrets YAML file
-loadConfig :: IOManager -> Environment -> IO Config
-loadConfig ioManager env = do
-    let envName = toString $ environmentName env
-
+-- | Load the full application environment for a given deployment
+-- Loads both the public config YAML and the secrets YAML file,
+-- then acquires all necessary runtime handles
+loadEnv :: IOManager -> Deployment -> IO Env
+loadEnv ioManager deployment = do
     -- Load non-sensitive config from YAML
-    configFile <- loadYaml @ConfigFile $ "config" </> envName <> ".yaml"
+    configFile <- loadYaml @ConfigFile $ "config" </> cs (deploymentName deployment) <> ".yaml"
+
     -- Load secrets from YAML (path specified in config file)
     -- Note: In production, this file should be decrypted by sops first
     secrets <- loadYaml @SecretConfig $ configFile.secretsFile
 
-    -- Create DB configs by combining database config with user credentials
-    let readerConfig = toDBConfig configFile.database secrets.database.users.reader
-    let writerConfig = toDBConfig configFile.database secrets.database.users.writer
-
-    -- Acquire database pools
-    dbPools <- acquireDatabasePools readerConfig writerConfig
-
+    -- Build pure config
     logging <- do
         log <- (>>= readMaybe) <$> lookupEnv "LOG"
         logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
@@ -127,18 +122,33 @@ loadConfig ioManager env = do
         let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
         pure $ Log.defaultConfig {Log.minimumSeverity}
 
-    -- Create pub/sub channel
+    let config =
+            Config
+                { server = configFile.server
+                , protocolConfigPath = configFile.protocolConfigPath
+                , localNodeSocketPath = configFile.localNodeSocketPath
+                , logging
+                }
+
+    -- Acquire runtime handles
+    handles <- acquireHandles ioManager configFile secrets
+
+    pure Env {config, handles}
+
+
+-- | Acquire runtime handles
+acquireHandles :: IOManager -> ConfigFile -> SecretConfig -> IO Handles
+acquireHandles ioManager configFile secrets = do
+    let readerConfig = toDBConfig configFile.database secrets.database.users.reader
+    let writerConfig = toDBConfig configFile.database secrets.database.users.writer
+    dbPools <- acquireDatabasePools readerConfig writerConfig
     (inChan, _) <- newChan
 
     pure
-        Config
+        Handles
             { ioManager
             , dbPools
             , inChan
-            , server = configFile.server
-            , protocolConfigPath = configFile.protocolConfigPath
-            , localNodeSocketPath = configFile.localNodeSocketPath
-            , logging
             }
 
 

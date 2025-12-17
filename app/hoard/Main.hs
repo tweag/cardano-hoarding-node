@@ -5,10 +5,10 @@ import Ouroboros.Network.IOManager (withIOManager)
 import Options.Applicative qualified as Opt
 
 import Hoard.CLI.Options (Options (..), optsParser)
-import Hoard.Config.Loader (loadConfig)
+import Hoard.Config.Loader (loadEnv)
 import Hoard.Effects (runEffectStack)
 import Hoard.Listeners (runListeners)
-import Hoard.Types.Environment (Environment (..))
+import Hoard.Types.Deployment (Deployment (..))
 
 import Hoard.Bootstrap (bootstrapCollection)
 import Hoard.Effects.Conc qualified as Conc
@@ -19,14 +19,14 @@ main :: IO ()
 main = withIOManager $ \ioManager -> do
     options <- Opt.execParser optsParser
 
-    -- Determine environment: CLI flag > default to Dev
-    let env = fromMaybe Dev options.environment
+    -- Determine deployment: CLI flag > default to Dev
+    let deployment = fromMaybe Dev options.deployment
 
-    putTextLn $ "Loading configuration for environment: " <> show env
-    config <- loadConfig ioManager env
+    putTextLn $ "Loading configuration for deployment: " <> show deployment
+    env <- loadEnv ioManager deployment
 
-    runEffectStack config $ do
-        runServer config
+    runEffectStack env $ do
+        runServer env
         runListeners
         bootstrapCollection
         Conc.awaitAll
