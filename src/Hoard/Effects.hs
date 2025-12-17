@@ -29,7 +29,7 @@ import System.IO.Error (userError)
 
 import Hoard.Effects.Chan (Chan, InChan, runChan)
 import Hoard.Effects.Clock (Clock, runClock)
-import Hoard.Effects.Conc (Conc, runConcWithKi, scoped)
+import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
@@ -122,21 +122,19 @@ runEffectStack config action = liftIO $ do
             . runClock
             . runFileSystem
             . runConcurrent
-            . scoped
-            $ \scope ->
-                runConcWithKi scope
-                    . runNodeToClient config
-                    . runChan
-                    . runSub config.inChan
-                    . runPub config.inChan
-                    . runErrorNoCallStack @Text
-                    . runNodeToNode config.ioManager config.protocolConfigPath
-                    . runDBRead config.dbPools.readerPool
-                    . runDBWrite config.dbPools.writerPool
-                    . runHeaderRepo
-                    . runPeerRepo
-                    . evalState def
-                    $ action
+            . runConcNewScope
+            . runNodeToClient config
+            . runChan
+            . runSub config.inChan
+            . runPub config.inChan
+            . runErrorNoCallStack @Text
+            . runNodeToNode config.ioManager config.protocolConfigPath
+            . runDBRead config.dbPools.readerPool
+            . runDBWrite config.dbPools.writerPool
+            . runHeaderRepo
+            . runPeerRepo
+            . evalState def
+            $ action
     case result of
         Left err -> throwIO $ userError $ toString err
         Right value -> pure value
@@ -151,21 +149,19 @@ runEffectStackReturningState config action = liftIO $ do
             . runClock
             . runFileSystem
             . runConcurrent
-            . scoped
-            $ \scope ->
-                runConcWithKi scope
-                    . runNodeToClient config
-                    . runChan
-                    . runSub config.inChan
-                    . runPub config.inChan
-                    . runErrorNoCallStack @Text
-                    . runNodeToNode config.ioManager config.protocolConfigPath
-                    . runDBRead config.dbPools.readerPool
-                    . runDBWrite config.dbPools.writerPool
-                    . runHeaderRepo
-                    . runPeerRepo
-                    . runState def
-                    $ action
+            . runConcNewScope
+            . runNodeToClient config
+            . runChan
+            . runSub config.inChan
+            . runPub config.inChan
+            . runErrorNoCallStack @Text
+            . runNodeToNode config.ioManager config.protocolConfigPath
+            . runDBRead config.dbPools.readerPool
+            . runDBWrite config.dbPools.writerPool
+            . runHeaderRepo
+            . runPeerRepo
+            . runState def
+            $ action
     case result of
         Left err -> throwIO $ userError $ toString err
         Right value -> pure value

@@ -14,6 +14,7 @@ module Hoard.Effects.Conc
 
       -- * Interpreters
     , runConcWithKi
+    , runConcNewScope
 
       -- * Unlift Strategy
     , concStrat
@@ -82,6 +83,12 @@ runConcWithKi (Scope scope) = interpret $ \env -> \case
                 . liftIO
                 . Ki.forkTry scope
                 $ unlift action
+
+
+runConcNewScope :: (IOE :> es) => Eff (Conc : es) a -> Eff es a
+runConcNewScope eff = withEffToIO concStrat $ \unlift ->
+    Ki.scoped $ \scope ->
+        unlift $ runConcWithKi (Scope scope) eff
 
 
 concStrat :: UnliftStrategy
