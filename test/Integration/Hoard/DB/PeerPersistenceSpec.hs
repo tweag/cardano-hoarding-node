@@ -181,6 +181,7 @@ mkTestSourcePeer now = do
             , firstDiscovered = now
             , lastSeen = now
             , lastConnected = Nothing
+            , lastFailureTime = Nothing
             , discoveredVia = "bootstrap"
             }
 

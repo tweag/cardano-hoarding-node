@@ -1,15 +1,15 @@
-module Hoard.Collector (dispatchDiscoveredNodes, runCollector, forkCollector, runCollectors) where
+module Hoard.Collector (runCollector, runCollectors) where
 
 import Control.Concurrent (threadDelay)
 import Data.Set qualified as S
 import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
-import Effectful.Exception (bracket)
-import Effectful.State.Static.Shared (State, gets, modify, state)
+import Effectful.Exception (ExitCase (..), generalBracket)
+import Effectful.State.Static.Shared (State, modify, state)
 import Prelude hiding (State, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeer)
-import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
@@ -23,46 +23,15 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (Config (..), NodeToNode, connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, updatePeerFailure)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events
     ( BlockFetchRequest (..)
     , BlockReceivedData (..)
     , HeaderReceivedData (..)
-    , PeerSharingEvent (..)
-    , PeersReceivedData (..)
     )
 import Hoard.Types.HoardState (HoardState, connectedPeers)
-
-
-dispatchDiscoveredNodes
-    :: ( Chan :> es
-       , Conc :> es
-       , IOE :> es
-       , Log :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub :> es
-       , State HoardState :> es
-       , Clock :> es
-       )
-    => PeerSharingEvent
-    -> Eff es ()
-dispatchDiscoveredNodes = \case
-    (PeersReceived (PeersReceivedData {peer = sourcePeer, peerAddresses})) -> do
-        Log.info "Dispatch: Received peers"
-
-        -- First, upsert all discovered peer addresses to create Peer records
-        timestamp <- Clock.currentTime
-        upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
-
-        currPeers <- gets connectedPeers
-        let peersToConnect = S.difference upsertedPeers currPeers
-        Log.info $ "Dispatch: " <> show (S.size peersToConnect) <> " new peers to connect to"
-
-        forM_ peersToConnect forkCollector
-    _ -> pure ()
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.
@@ -91,12 +60,12 @@ runCollectors = do
             -- No known peers, bootstrap from hardcoded peer
             Log.debug "No known peers found, bootstrapping from hardcoded peer"
             peer <- bootstrapPeer
-            forkCollector peer
+            runCollector peer
         else do
             -- Start collectors for all known peers
             let peerCount = Set.size knownPeers
             Log.debug $ "Found " <> show peerCount <> " known peers, starting collectors"
-            forM_ (Set.toList knownPeers) forkCollector
+            forM_ (Set.toList knownPeers) runCollector
 
 
 -- | Fork a collector with exception handling and state management.
@@ -104,36 +73,45 @@ runCollectors = do
 -- This wraps runCollector with:
 -- - Proper exception handling (forkTry + withExceptionLogging)
 -- - Connected peers state management (adds peer on start, removes on termination)
+-- - Failure time tracking (updates peer's lastFailureTime on exception)
 --
 -- The peer is automatically removed from connectedPeers when the collector
 -- terminates, whether due to an exception or normal completion.
-forkCollector
+runCollector
     :: ( Conc :> es
        , Chan :> es
+       , Clock :> es
        , IOE :> es
        , Log :> es
        , NodeToNode :> es
+       , PeerRepo :> es
        , Pub :> es
        , State HoardState :> es
        )
     => Peer
     -> Eff es ()
-forkCollector peer = do
+runCollector peer = do
     _ <-
         Conc.forkTry @SomeException
             . withExceptionLogging ("collector " <> show peer.address)
-            $ bracket
-                ( state \r ->
-                    (peer, r {connectedPeers = S.insert peer r.connectedPeers})
-                )
-                ( \p ->
+            $ generalBracket
+                (state \r -> (peer, r {connectedPeers = S.insert peer r.connectedPeers}))
+                ( \p exitCase -> do
+                    case exitCase of
+                        -- Only update failure time for real errors, not clean shutdowns
+                        ExitCaseException e ->
+                            unless (isGracefulShutdown e) $ do
+                                timestamp <- Clock.currentTime
+                                updatePeerFailure peer timestamp
+                        _ -> pure ()
+
                     modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
                 )
-                runCollector
+                runCollectorImpl
     pure ()
 
 
-runCollector
+runCollectorImpl
     :: ( Conc :> es
        , Chan :> es
        , IOE :> es
@@ -142,7 +120,7 @@ runCollector
        )
     => Peer
     -> Eff es Void
-runCollector peer =
+runCollectorImpl peer =
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceivedData
         . withBridge @BlockReceivedData

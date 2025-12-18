@@ -23,6 +23,7 @@ data Peer = Peer
     , firstDiscovered :: UTCTime
     , lastSeen :: UTCTime
     , lastConnected :: Maybe UTCTime
+    , lastFailureTime :: Maybe UTCTime
     , discoveredVia :: Text
     }
     deriving stock (Eq, Generic, Ord, Show)

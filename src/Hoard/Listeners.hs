@@ -3,7 +3,6 @@ module Hoard.Listeners (runListeners) where
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (threadDelay)
 import Effectful.State.Static.Shared (State, modify)
-import Hoard.Collector (dispatchDiscoveredNodes)
 import Hoard.Effects (AppEff)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.NodeToClient (NodeToClient)
@@ -11,6 +10,7 @@ import Hoard.Effects.NodeToClient qualified as N
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
 import Hoard.Listeners.CollectorEventListener (collectorEventListener)
+import Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Listeners.NetworkEventListener (networkEventListener)
 import Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener)

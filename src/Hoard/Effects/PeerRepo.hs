@@ -3,6 +3,7 @@ module Hoard.Effects.PeerRepo
     , upsertPeers
     , getPeerByAddress
     , getAllPeers
+    , updatePeerFailure
     , runPeerRepo
     )
 where
@@ -47,6 +48,13 @@ data PeerRepo :: Effect where
     -- | Get all peers from the database
     GetAllPeers
         :: PeerRepo m (Set Peer)
+    -- | Update a peer's last failure time
+    UpdatePeerFailure
+        :: Peer
+        -- ^ The peer that failed
+        -> UTCTime
+        -- ^ The failure timestamp
+        -> PeerRepo m ()
 
 
 -- | Template Haskell to generate smart constructors
@@ -67,6 +75,9 @@ runPeerRepo = interpret $ \_ -> \case
             getPeerByAddressImpl peerAddr
     GetAllPeers ->
         runQuery "get-all-peers" getAllPeersImpl
+    UpdatePeerFailure peer timestamp ->
+        runTransaction "update-peer-failure" $
+            updatePeerFailureImpl peer timestamp
 
 
 upsertPeersImpl
@@ -97,6 +108,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                                     , PeersSchema.firstDiscovered = lit timestamp
                                     , PeersSchema.lastSeen = lit timestamp
                                     , PeersSchema.lastConnected = lit Nothing
+                                    , PeersSchema.lastFailureTime = lit Nothing
                                     , PeersSchema.discoveredVia = lit discoveredVia
                                     }
                     , onConflict =
@@ -138,3 +150,21 @@ getAllPeersImpl =
         Rel8.run $
             select $
                 Rel8.each PeersSchema.schema
+
+
+-- | Update a peer's last failure time
+updatePeerFailureImpl :: Peer -> UTCTime -> Transaction ()
+updatePeerFailureImpl peer timestamp = do
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.update
+            Rel8.Update
+                { target = PeersSchema.schema
+                , from = pure ()
+                , updateWhere = \_ row -> row.id Rel8.==. lit peer.id
+                , set = \_ row ->
+                    row
+                        { PeersSchema.lastFailureTime = lit (Just timestamp)
+                        }
+                , returning = Rel8.NoReturning
+                }

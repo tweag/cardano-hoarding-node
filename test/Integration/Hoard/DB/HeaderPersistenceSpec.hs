@@ -163,6 +163,7 @@ mkTestPeerWithPort now port = do
             , firstDiscovered = now
             , lastSeen = now
             , lastConnected = Nothing
+            , lastFailureTime = Nothing
             , discoveredVia = "test"
             }
 

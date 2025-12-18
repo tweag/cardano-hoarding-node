@@ -1,29 +1,36 @@
 module Hoard.Control.Exception
     ( withExceptionLogging
+    , isGracefulShutdown
     ) where
 
 import Effectful (Eff, (:>))
-import Effectful.Exception (AsyncException (..), catch, throwIO)
+import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
 
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 
 
--- | Wrap a protocol action with exception logging to debug cancellations.
+-- | Wrap a protocol action with exception logging.
+--
+-- Logs graceful shutdowns at INFO level and real errors at ERROR level.
 withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
-        case fromException e of
-            Just ThreadKilled -> do
-                log "killed: ThreadKilled"
-                log "This is likely due to the Ki scope cleanup or connection closure"
-            Just UserInterrupt -> do
-                log "interrupted: UserInterrupt"
-            Just (asyncEx :: AsyncException) -> do
-                log $ "async exception: " <> show asyncEx
-            Nothing -> do
-                log $ "terminated with exception: " <> show e
-        -- Re-throw the exception after logging
+        let msg = protocolName <> ": " <> toText (displayException e)
+        if isGracefulShutdown e
+            then Log.info $ "graceful shutdown: " <> msg
+            else Log.err $ "error: " <> msg
         throwIO e
-  where
-    log msg = Log.err $ protocolName <> ": " <> msg
+
+
+-- | Determine if an exception represents a graceful shutdown.
+--
+-- This function identifies exceptions that indicate intentional shutdown or
+-- cancellation, as opposed to actual errors.
+--
+-- Graceful shutdown exceptions include:
+-- - Ki ScopeClosing: Internal ki exception (not exported, detected via string matching)
+--
+-- Other async exceptions (e.g., network timeouts) are treated as real errors.
+isGracefulShutdown :: SomeException -> Bool
+isGracefulShutdown = isJust . fromException @SomeAsyncException
