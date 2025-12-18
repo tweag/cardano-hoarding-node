@@ -44,11 +44,16 @@ import Hoard.API (API, Routes, server)
 import Hoard.Config.Loader (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Log (Log, runLog)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
 import Hoard.Types.DBConfig (DBPools (..))
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), ServerConfig (..))
+import Hoard.Types.Environment
+    ( Config (..)
+    , Env (..)
+    , Handles (..)
+    , ServerConfig (..)
+    , defaultLogConfig
+    )
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -101,7 +106,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , nodeConfig
                 , protocolInfo
                 , localNodeSocketPath = "preview.socket"
-                , logging = Log.defaultConfig
+                , logging = defaultLogConfig
                 }
     let handles =
             Handles

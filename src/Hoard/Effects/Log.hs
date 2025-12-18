@@ -10,31 +10,18 @@ module Hoard.Effects.Log
       -- * Interpreters
     , runLog
     , runLogNoOp
-    , Config (..)
-    , Severity (..)
-    , defaultConfig
     ) where
 
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 
-import Data.Aeson (FromJSON)
 import Data.Text.IO qualified as T
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
+import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 
 data Log :: Effect where
     Log :: Severity -> Text -> Log m ()
-
-
-data Severity
-    = DEBUG
-    | INFO
-    | WARN
-    | ERROR
-    deriving stock (Eq, Ord, Enum, Bounded, Show, Read)
-    deriving (FromJSON) via (JsonReadShow Severity)
 
 
 makeEffect ''Log
@@ -61,21 +48,7 @@ runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
 
 
-data Config = Config
-    { minimumSeverity :: Severity
-    , output :: Handle
-    }
-
-
-defaultConfig :: Config
-defaultConfig =
-    Config
-        { minimumSeverity = minBound
-        , output = stdout
-        }
-
-
-runLog :: (IOE :> es) => Config -> Eff (Log : es) a -> Eff es a
+runLog :: (IOE :> es) => LogConfig -> Eff (Log : es) a -> Eff es a
 runLog config = interpret_ $ \(Log severity msg) -> liftIO $
     when (severity >= config.minimumSeverity) $ do
         T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
