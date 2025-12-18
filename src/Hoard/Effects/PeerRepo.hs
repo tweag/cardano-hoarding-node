@@ -2,6 +2,7 @@ module Hoard.Effects.PeerRepo
     ( PeerRepo (..)
     , upsertPeers
     , getPeerByAddress
+    , getAllPeers
     , runPeerRepo
     )
 where
@@ -43,6 +44,9 @@ data PeerRepo :: Effect where
         :: PeerAddress
         -- ^ The address to search for
         -> PeerRepo m (Maybe Peer)
+    -- | Get all peers from the database
+    GetAllPeers
+        :: PeerRepo m (Set Peer)
 
 
 -- | Template Haskell to generate smart constructors
@@ -61,6 +65,8 @@ runPeerRepo = interpret $ \_ -> \case
     GetPeerByAddress peerAddr ->
         runQuery "get-peer-by-address" $
             getPeerByAddressImpl peerAddr
+    GetAllPeers ->
+        runQuery "get-all-peers" getAllPeersImpl
 
 
 upsertPeersImpl
@@ -123,3 +129,12 @@ getPeerByAddressImpl peerAddr =
     extractMaybePeer [] = Nothing
     extractMaybePeer [row] = Just (PeersSchema.peerFromRow row)
     extractMaybePeer _ = Nothing -- Multiple matches shouldn't happen due to unique constraint
+
+
+-- | Get all peers from the database
+getAllPeersImpl :: Statement () (Set Peer)
+getAllPeersImpl =
+    fmap (fromList . map PeersSchema.peerFromRow) $
+        Rel8.run $
+            select $
+                Rel8.each PeersSchema.schema

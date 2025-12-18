@@ -1,40 +1,17 @@
-module Hoard.Bootstrap (bootstrapCollection) where
+module Hoard.Bootstrap (bootstrapPeer) where
 
 import Data.IP (IP)
 import Data.IP qualified as IP
 import Data.Set qualified as S
 import Effectful (Eff, IOE, (:>))
-import Network.Socket (PortNumber)
+import Network.Socket (HostName, PortNumber)
 import Network.Socket qualified as Socket
-import Prelude hiding (State, evalState)
 
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Types.NodeIP (NodeIP (..))
-
-import Hoard.Collector (runCollector)
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.NodeToNode (NodeToNode)
-import Hoard.Effects.Pub (Pub)
-
-
-bootstrapCollection
-    :: ( Pub :> es
-       , NodeToNode :> es
-       , Chan :> es
-       , Conc :> es
-       , PeerRepo :> es
-       , Clock :> es
-       , IOE :> es
-       )
-    => Eff es ()
-bootstrapCollection = do
-    peer <- bootstrapPeer
-    _ <- runCollector peer
-    pure ()
 
 
 bootstrapPeer :: (PeerRepo :> es, Clock :> es, IOE :> es) => Eff es Peer
@@ -57,7 +34,7 @@ bootstrapPeer = do
         _ -> error "Expected exactly one peer from upsert"
 
 
-resolvePeerAddress :: Text -> Int -> IO (IP, PortNumber)
+resolvePeerAddress :: HostName -> Int -> IO (IP, PortNumber)
 resolvePeerAddress address port = do
     let hints = Socket.defaultHints {Socket.addrSocketType = Socket.Stream}
     addrs <- Socket.getAddrInfo (Just hints) (Just $ toString address) (Just $ show port)
