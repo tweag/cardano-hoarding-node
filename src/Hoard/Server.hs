@@ -3,19 +3,28 @@ module Hoard.Server
     )
 where
 
-import Effectful (Eff)
+import Effectful (Eff, IOE, withEffToIO, (:>))
+import Effectful.Exception (try)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
-import Servant
+import Servant (Handler (..), hoistServer, serve)
 
 import Hoard.API (API, server)
-import Hoard.Effects (AppEff, runEffectStack)
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log (Log)
+import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Pub (Pub)
 import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
 
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log qualified as Log
 
-
-runServer :: (AppEff es) => Env -> Eff es ()
+runServer
+    :: ( Conc :> es
+       , IOE :> es
+       , Log :> es
+       , Pub :> es
+       )
+    => Env
+    -> Eff es ()
 runServer env = do
     _ <- Conc.fork $ do
         -- Log startup messages
@@ -26,10 +35,11 @@ runServer env = do
 
         -- Run Warp server (needs liftIO since Warp's runSettings is in IO)
         let settings = setPort port $ setHost (fromString host) defaultSettings
-            servantApp =
+        servantApp <- withEffToIO Conc.concStrat \unlift -> do
+            pure $
                 hoistServer
                     (Proxy @API)
-                    (Handler . runEffectStack env)
+                    (Handler . ExceptT . unlift . try)
                     Hoard.API.server
 
         liftIO $ runSettings settings (serve (Proxy @API) servantApp)
