@@ -1,16 +1,15 @@
 module Hoard.Collector (runCollector, runCollectors) where
 
 import Control.Concurrent (threadDelay)
-import Data.List (isInfixOf)
 import Data.Set qualified as S
 import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
-import Effectful.Exception (AsyncException (..), bracket, catch, throwIO)
+import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.State.Static.Shared (State, modify, state)
 import Prelude hiding (State, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeer)
-import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
@@ -95,28 +94,20 @@ runCollector peer = do
     _ <-
         Conc.forkTry @SomeException
             . withExceptionLogging ("collector " <> show peer.address)
-            $ catch
-                ( bracket
-                    ( state \r ->
-                        (peer, r {connectedPeers = S.insert peer r.connectedPeers})
-                    )
-                    ( \p ->
-                        modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
-                    )
-                    runCollectorImpl
-                )
-                ( \(e :: SomeException) -> do
-                    -- Only update failure time for real errors, not clean shutdowns
-                    let isShutdownException =
-                            isJust (fromException @AsyncException e)
-                                || "scope closing" `isInfixOf` displayException e
+            $ generalBracket
+                (state \r -> (peer, r {connectedPeers = S.insert peer r.connectedPeers}))
+                ( \p exitCase -> do
+                    case exitCase of
+                        -- Only update failure time for real errors, not clean shutdowns
+                        ExitCaseException e ->
+                            unless (isGracefulShutdown e) $ do
+                                timestamp <- Clock.currentTime
+                                updatePeerFailure peer timestamp
+                        _ -> pure ()
 
-                    unless isShutdownException $ do
-                        timestamp <- Clock.currentTime
-                        updatePeerFailure peer timestamp
-
-                    throwIO e
+                    modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
                 )
+                runCollectorImpl
     pure ()
 
 
