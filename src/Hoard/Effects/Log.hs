@@ -12,11 +12,13 @@ module Hoard.Effects.Log
     , runLogNoOp
     ) where
 
+import Data.Text.IO qualified as T
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
+import Prelude hiding (Reader, ask)
 
-import Data.Text.IO qualified as T
 import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 
@@ -48,8 +50,9 @@ runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
 
 
-runLog :: (IOE :> es) => LogConfig -> Eff (Log : es) a -> Eff es a
-runLog config = interpret_ $ \(Log severity msg) -> liftIO $
-    when (severity >= config.minimumSeverity) $ do
+runLog :: (IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
+runLog = interpret_ $ \(Log severity msg) -> do
+    config <- ask
+    liftIO $ when (severity >= config.minimumSeverity) $ do
         T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
         hFlush stdout

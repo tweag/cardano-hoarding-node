@@ -2,18 +2,18 @@ module Integration.DBEffects (spec_DBEffects) where
 
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
-import Test.Hspec
-
+import Effectful.Reader.Static (runReader)
 import Hasql.Decoders qualified as D
 import Hasql.Encoders qualified as E
 import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
+import Test.Hspec
+import Prelude hiding (runReader)
 
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
 import Hoard.Effects.Log qualified as Log
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (defaultLogConfig)
 
 
@@ -24,7 +24,8 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runDBRead config.pools.readerPool
+                    . runReader config.pools
+                    . runDBRead
                     $ runQuery "count-metadata" countMetadataStmt
 
             result `shouldSatisfy` isRight
@@ -36,9 +37,11 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First write some data
             _ <-
                 runEff
-                    . Log.runLog defaultLogConfig
+                    . runReader defaultLogConfig
+                    . Log.runLog
                     . runErrorNoCallStack @Text
-                    . runDBWrite config.pools.writerPool
+                    . runReader config.pools
+                    . runDBWrite
                     $ runTransaction "insert-test"
                     $ do
                         TX.statement () insertTestStmt
@@ -47,7 +50,8 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runDBRead config.pools.readerPool
+                    . runReader config.pools
+                    . runDBRead
                     $ runQuery "count-after-insert" countMetadataStmt
 
             case result of
@@ -58,9 +62,11 @@ spec_DBEffects = withCleanTestDatabase $ do
         it "can write to the database" $ \config -> do
             result <-
                 runEff
-                    . Log.runLog defaultLogConfig
+                    . runReader defaultLogConfig
+                    . Log.runLog
                     . runErrorNoCallStack @Text
-                    . runDBWrite config.pools.writerPool
+                    . runReader config.pools
+                    . runDBWrite
                     $ runTransaction "insert-test"
                     $ do
                         TX.statement () insertTestStmt
@@ -71,18 +77,22 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First insert
             _ <-
                 runEff
-                    . Log.runLog defaultLogConfig
+                    . runReader defaultLogConfig
+                    . Log.runLog
                     . runErrorNoCallStack @Text
-                    . runDBWrite config.pools.writerPool
+                    . runReader config.pools
+                    . runDBWrite
                     $ runTransaction "insert"
                     $ TX.statement () insertTestStmt
 
             -- Then delete
             result <-
                 runEff
-                    . Log.runLog defaultLogConfig
+                    . runReader defaultLogConfig
+                    . Log.runLog
                     . runErrorNoCallStack @Text
-                    . runDBWrite config.pools.writerPool
+                    . runReader config.pools
+                    . runDBWrite
                     $ runTransaction "delete"
                     $ TX.statement () deleteTestStmt
 
@@ -92,7 +102,8 @@ spec_DBEffects = withCleanTestDatabase $ do
             countResult <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runDBRead config.pools.readerPool
+                    . runReader config.pools
+                    . runDBRead
                     $ runQuery "count-after-delete" countMetadataStmt
 
             case countResult of
@@ -105,7 +116,8 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runDBRead config.pools.readerPool
+                    . runReader config.pools
+                    . runDBRead
                     $ runQuery "illegal-insert" insertAsSelectStmt
 
             -- We expect this to fail with a permission error

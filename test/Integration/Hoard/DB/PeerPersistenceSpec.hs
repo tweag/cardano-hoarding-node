@@ -1,13 +1,15 @@
 module Integration.Hoard.DB.PeerPersistenceSpec (spec_PeerPersistence) where
 
 import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.UUID.V4 qualified as UUID
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
-import Test.Hspec
-
-import Data.UUID.V4 qualified as UUID
+import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
 import Rel8 qualified
+import Test.Hspec
+import Text.Read (read)
+import Prelude hiding (runReader)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Data.ID (ID (..))
@@ -17,26 +19,27 @@ import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment (defaultLogConfig)
-import Text.Read (read)
 
 
 spec_PeerPersistence :: Spec
 spec_PeerPersistence = do
     let runWrite config action =
             runEff
-                . Log.runLog defaultLogConfig
+                . runReader defaultLogConfig
+                . Log.runLog
                 . runErrorNoCallStack @Text
-                . runDBRead config.pools.readerPool
-                . runDBWrite config.pools.writerPool
+                . runReader config.pools
+                . runDBRead
+                . runDBWrite
                 . runPeerRepo
                 $ action
 
     let runRead config action =
             runEff
                 . runErrorNoCallStack @Text
-                . runDBRead config.pools.readerPool
+                . runReader config.pools
+                . runDBRead
                 $ action
 
     withCleanTestDatabase $ describe "Peer persistence (database)" $ do
@@ -62,7 +65,8 @@ spec_PeerPersistence = do
             queryResult <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runDBRead config.pools.readerPool
+                    . runReader config.pools
+                    . runDBRead
                     $ runQuery "count-peers" countPeersStmt
 
             case queryResult of

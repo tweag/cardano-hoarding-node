@@ -5,8 +5,10 @@ where
 
 import Effectful (Eff, IOE, withEffToIO, (:>))
 import Effectful.Exception (try)
+import Effectful.Reader.Static (Reader, ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant (Handler (..), hoistServer, serve)
+import Prelude hiding (Reader, ask)
 
 import Hoard.API (API, server)
 import Hoard.Effects.Conc (Conc)
@@ -22,10 +24,11 @@ runServer
        , IOE :> es
        , Log :> es
        , Pub :> es
+       , Reader Env :> es
        )
-    => Env
-    -> Eff es ()
-runServer env = do
+    => Eff es ()
+runServer = do
+    env <- ask
     _ <- Conc.fork $ do
         -- Log startup messages
         let host = toString env.config.server.host
@@ -35,7 +38,7 @@ runServer env = do
 
         -- Run Warp server (needs liftIO since Warp's runSettings is in IO)
         let settings = setPort port $ setHost (fromString host) defaultSettings
-        servantApp <- withEffToIO Conc.concStrat \unlift -> do
+        servantApp <- withEffToIO Conc.concStrat \unlift ->
             pure $
                 hoistServer
                     (Proxy @API)

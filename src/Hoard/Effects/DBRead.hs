@@ -5,14 +5,18 @@ module Hoard.Effects.DBRead
     )
 where
 
-import Effectful
-import Effectful.Dispatch.Dynamic
+import Effectful (Eff, Effect, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH
-import Hasql.Statement (Statement)
-
 import Hasql.Pool qualified as Pool
 import Hasql.Session qualified as Session
+import Hasql.Statement (Statement)
+import Prelude hiding (Reader, asks)
+
+import Hoard.Types.DBConfig (DBPools)
+import Hoard.Types.DBConfig qualified as DB
 
 
 -- | Effect for read-only database queries
@@ -25,13 +29,14 @@ makeEffect ''DBRead
 
 -- | Run the DBRead effect with a connection pool
 runDBRead
-    :: (Error Text :> es, IOE :> es)
-    => Pool.Pool
-    -> Eff (DBRead : es) a
+    :: (Error Text :> es, IOE :> es, Reader DBPools :> es)
+    => Eff (DBRead : es) a
     -> Eff es a
-runDBRead pool = interpret $ \_ -> \case
-    RunQuery queryName stmt -> do
-        result <- liftIO $ Pool.use pool (Session.statement () stmt)
-        case result of
-            Left err -> throwError $ "Query failed: " <> queryName <> " - " <> show err
-            Right value -> pure value
+runDBRead eff = do
+    pool <- asks $ DB.readerPool
+    interpretWith_ eff \case
+        RunQuery queryName stmt -> do
+            result <- liftIO $ Pool.use pool (Session.statement () stmt)
+            case result of
+                Left err -> throwError $ "Query failed: " <> queryName <> " - " <> show err
+                Right value -> pure value

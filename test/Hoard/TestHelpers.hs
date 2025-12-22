@@ -7,8 +7,6 @@ module Hoard.TestHelpers
     )
 where
 
-import Prelude hiding (State, atomicModifyIORef', newIORef, readIORef, runState)
-
 import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Chan.Unagi (dupChan, newChan, readChan)
 import Data.Default (def)
@@ -27,7 +25,10 @@ import Effectful
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
+import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, runState)
+import Hasql.Pool qualified as Pool
+import Hasql.Pool.Config qualified as Pool
 import Hoard.Effects.Chan (Chan, OutChan, runChan)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
@@ -38,12 +39,11 @@ import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEn
 import Servant.Client.Core (ClientError)
 import Servant.Client.Generic (genericClient)
 import Servant.Server (Handler (..))
-
-import Hasql.Pool qualified as Pool
-import Hasql.Pool.Config qualified as Pool
+import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, runReader, runState)
 
 import Hoard.API (API, Routes, server)
-import Hoard.Config.Loader (loadNodeConfig, loadProtocolInfo)
+import Hoard.Effects.Chan (InChan)
+import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
@@ -52,6 +52,7 @@ import Hoard.Types.Environment
     ( Config (..)
     , Env (..)
     , Handles (..)
+    , LogConfig
     , ServerConfig (..)
     , defaultLogConfig
     )
@@ -93,7 +94,8 @@ makeApp env =
                         . runEff
                         . try
                         . runChan
-                        . runPub env.handles.inChan
+                        . runReader env.handles.inChan
+                        . runPub
                     )
                     Hoard.API.server
         pure $ serve (Proxy @API) servantApp
@@ -107,8 +109,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     (inChan, _) <- newChan
     wireTap <- dupChan inChan
     pool <- Pool.acquire $ Pool.settings []
-    nodeConfig <- loadNodeConfig "config/preview/config.json"
-    protocolInfo <- loadProtocolInfo nodeConfig
+    nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
+    protocolInfo <- runEff $ loadProtocolInfo nodeConfig
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let config =
@@ -130,13 +132,15 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     wireTapThreadID <- forkIO $ recordMessages wireTapOutput wireTap
     (a, finalState) <-
         runEff
-            . runLog env.config.logging
             . runFileSystem
             . runConcurrent
             . runChan
-            . runSub env.handles.inChan
-            . runPub env.handles.inChan
-            . runState def
+            . runReader env.config.logging
+            . runReader env.handles.inChan
+            . runLog
+            . runSub
+            . runPub
+            . runState @HoardState def
             $ mkEff env
     killThread wireTapThreadID
     publishes <- fmap reverse $ readIORef wireTapOutput
@@ -153,10 +157,12 @@ type TestAppEffs =
     [ State HoardState
     , Pub
     , Sub
+    , Log
+    , Reader (InChan Dynamic)
+    , Reader LogConfig
     , Chan
     , Concurrent
     , FileSystem
-    , Log
     , IOE
     ]
 

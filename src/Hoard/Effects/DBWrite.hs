@@ -5,18 +5,20 @@ module Hoard.Effects.DBWrite
     )
 where
 
-import Effectful
-import Effectful.Dispatch.Dynamic
+import Effectful (Eff, Effect, IOE, (:>))
+import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH
-import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write), transaction)
-
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
+import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write), transaction)
+import Prelude hiding (Reader, asks)
 
 import Hoard.Effects.Log (Log)
-
 import Hoard.Effects.Log qualified as Log
+import Hoard.Types.DBConfig (DBPools)
+import Hoard.Types.DBConfig qualified as DB
 
 
 -- | Effect for write database transactions
@@ -29,15 +31,16 @@ makeEffect ''DBWrite
 
 -- | Run the DBWrite effect with a connection pool
 runDBWrite
-    :: (Error Text :> es, IOE :> es, Log :> es)
-    => Pool.Pool
-    -> Eff (DBWrite : es) a
+    :: (Error Text :> es, IOE :> es, Log :> es, Reader DBPools :> es)
+    => Eff (DBWrite : es) a
     -> Eff es a
-runDBWrite pool = interpret $ \_ -> \case
-    RunTransaction txName tx -> do
-        result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
-        case result of
-            Left err -> do
-                Log.debug $ "DBWrite: " <> txName <> " failed: " <> show err
-                throwError $ "Transaction failed: " <> txName <> " - " <> show err
-            Right value -> pure value
+runDBWrite eff = do
+    pool <- asks $ DB.writerPool
+    interpretWith_ eff \case
+        RunTransaction txName tx -> do
+            result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
+            case result of
+                Left err -> do
+                    Log.debug $ "DBWrite: " <> txName <> " failed: " <> show err
+                    throwError $ "Transaction failed: " <> txName <> " - " <> show err
+                Right value -> pure value
