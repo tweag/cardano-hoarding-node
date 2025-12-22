@@ -66,6 +66,7 @@ library
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.Collector
       Hoard.Types.DBConfig
