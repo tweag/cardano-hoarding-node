@@ -179,8 +179,19 @@ schema = mkSchema "peers"
 
 -- Conversion functions
 peerFromRow :: Row Result -> Peer
-rowFromPeer :: Peer -> Row Result
+peerFromRow row = Peer { ... }
+
+-- For inserting into database, wrap values with lit
+rowFromPeer :: Peer -> Row Expr
+rowFromPeer peer = Row
+  { id = lit peer.peerId
+  , address = lit peer.address
+  , port = lit peer.port
+  -- ... other fields wrapped with lit
+  }
 ```
+
+**Important**: Use `Row Expr` (not `Row Result`) for the domain-to-row conversion. Each field value must be wrapped with `lit` to convert it to an expression suitable for database operations.
 
 **3. Migration** (`db/deploy/create_peers_table.sql`):
 
