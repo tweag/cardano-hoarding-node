@@ -148,8 +148,19 @@ loadLoggingConfig configFile = do
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
-    let readerConfig = toDBConfig configFile.database secrets.database.users.reader
-    let writerConfig = toDBConfig configFile.database secrets.database.users.writer
+    databaseHost <- lookupNonEmpty "DB_HOST"
+    databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
+    databaseName <- lookupNonEmpty "DB_NAME"
+    let
+        database =
+            DatabaseConfig
+                { host = fromMaybe configFile.database.host databaseHost
+                , port = fromMaybe configFile.database.port databasePort
+                , databaseName = fromMaybe configFile.database.databaseName databaseName
+                , pool = configFile.database.pool
+                }
+    let readerConfig = toDBConfig database secrets.database.users.reader
+    let writerConfig = toDBConfig database secrets.database.users.writer
     dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
     (inChan, _) <- Chan.newChan
 
@@ -159,6 +170,13 @@ acquireHandles ioManager configFile secrets = do
             , dbPools
             , inChan
             }
+
+
+lookupNonEmpty :: (MonadIO m) => Text -> m (Maybe Text)
+lookupNonEmpty n =
+    lookupEnv (toString n) <&> \case
+        Just [] -> Nothing
+        s -> toText <$> s
 
 
 loadYaml :: forall a es. (IOE :> es) => (FromJSON a) => String -> Eff es a
