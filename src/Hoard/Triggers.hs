@@ -2,31 +2,22 @@ module Hoard.Triggers (runTriggers) where
 
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.State.Static.Shared (State, modify)
-import Hoard.Effects (AppEff)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.NodeToClient qualified as N
-import Hoard.Types.HoardState (HoardState (immutableTip))
-import Prelude hiding (State, modify)
+import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
 
 
-runTriggers :: (AppEff es) => Eff es ()
+-- | Starts all periodic triggers.
+runTriggers :: (Concurrent :> es, Conc :> es, Pub :> es) => Eff es ()
 runTriggers = do
-    nowAndEvery 20 refreshImmutableTip
+    every 20 $ publish ImmutableTipRefreshTriggered
 
 
-refreshImmutableTip :: (NodeToClient :> es, State HoardState :> es) => Eff es ()
-refreshImmutableTip =
-    do
-        tip <- N.immutableTip
-        modify (\hoardState -> hoardState {immutableTip = tip})
-
-
-nowAndEvery :: (Concurrent :> es, Conc :> es) => Int -> Eff es () -> Eff es ()
-nowAndEvery delay action = do
-    action
+-- | Runs an action repeatedly every @delay@ seconds in a background thread, starting
+-- immediately.
+every :: (Concurrent :> es, Conc :> es) => Int -> Eff es () -> Eff es ()
+every delay action = do
     Conc.fork_ $ forever $ do
-        threadDelay (delay * 1000000)
         action
+        threadDelay (delay * 1000000)
