@@ -54,18 +54,21 @@ library
       Hoard.Events
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
+      Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
       Hoard.Listeners
       Hoard.Listeners.ChainSyncEventListener
       Hoard.Listeners.CollectorEventListener
       Hoard.Listeners.DiscoveredNodesListener
       Hoard.Listeners.HeaderReceivedListener
+      Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
       Hoard.Listeners.PeerSharingEventListener
       Hoard.Listeners.PeersReceivedListener
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.Collector
       Hoard.Types.DBConfig
