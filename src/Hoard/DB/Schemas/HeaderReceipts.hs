@@ -9,10 +9,12 @@ where
 import Data.Time (UTCTime)
 import Rel8
     ( Column
+    , Expr
     , Name
     , Rel8able
     , Result
     , TableSchema
+    , lit
     )
 
 import Hoard.DB.Schema (mkSchema)
@@ -55,11 +57,11 @@ headerReceiptFromRow row =
 
 
 -- | Convert a HeaderReceipt domain type to a database row
-rowFromHeaderReceipt :: HeaderReceipt -> Row Result
+rowFromHeaderReceipt :: HeaderReceipt -> Row Expr
 rowFromHeaderReceipt receipt =
     Row
-        { id = receipt.id
-        , hash = receipt.hash
-        , peerId = receipt.peerId
-        , receivedAt = receipt.receivedAt
+        { id = lit receipt.id
+        , hash = lit receipt.hash
+        , peerId = lit receipt.peerId
+        , receivedAt = lit receipt.receivedAt
         }

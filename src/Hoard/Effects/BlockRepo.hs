@@ -14,10 +14,10 @@ import Rel8 (in_, lit, where_)
 import Rel8 qualified
 
 import Hasql.Statement (Statement)
+import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.DB.Schemas.Blocks qualified as Blocks
-import Hoard.Data.Block (Block (..), encodeCardanoBlock)
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
-import Hoard.Data.Eras (blockToEra)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Types.Cardano (CardanoHeader)
@@ -48,20 +48,7 @@ insertBlocksTrans blocks =
         $ Rel8.insert
             Rel8.Insert
                 { into = Blocks.schema
-                , rows =
-                    Rel8.values $
-                        blocks <&> \block ->
-                            Blocks.Row
-                                { hash = lit block.hash
-                                , slotNumber = lit block.slotNumber
-                                , poolId = lit block.poolId
-                                , blockEra = lit $ blockToEra block.blockData
-                                , blockData = lit $ encodeCardanoBlock block.blockData
-                                , validationStatus = lit block.validationStatus
-                                , validationReason = lit block.validationReason
-                                , isCanonical = lit block.isCanonical
-                                , firstSeen = lit block.firstSeen
-                                }
+                , rows = Rel8.values $ rowFromBlock <$> blocks
                 , onConflict = Rel8.DoNothing
                 , returning = Rel8.NoReturning
                 }

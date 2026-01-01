@@ -8,10 +8,12 @@ module Hoard.DB.Schemas.Blocks
 import Data.Time (UTCTime)
 import Rel8
     ( Column
+    , Expr
     , Name
     , Rel8able
     , Result
     , TableSchema
+    , lit
     )
 
 import Hoard.DB.Schema (mkSchema)
@@ -59,16 +61,16 @@ blockFromRow row = do
             }
 
 
-rowFromBlock :: Block -> Row Result
+rowFromBlock :: Block -> Row Expr
 rowFromBlock blk = do
     Row
-        { hash = blk.hash
-        , slotNumber = blk.slotNumber
-        , poolId = blk.poolId
-        , blockEra = blockToEra blk.blockData
-        , blockData = encodeCardanoBlock blk.blockData
-        , validationStatus = blk.validationStatus
-        , validationReason = blk.validationReason
-        , isCanonical = blk.isCanonical
-        , firstSeen = blk.firstSeen
+        { hash = lit blk.hash
+        , slotNumber = lit blk.slotNumber
+        , poolId = lit blk.poolId
+        , blockEra = lit $ blockToEra blk.blockData
+        , blockData = lit $ encodeCardanoBlock blk.blockData
+        , validationStatus = lit blk.validationStatus
+        , validationReason = lit blk.validationReason
+        , isCanonical = lit blk.isCanonical
+        , firstSeen = lit blk.firstSeen
         }
