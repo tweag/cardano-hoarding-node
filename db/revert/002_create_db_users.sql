@@ -1,4 +1,4 @@
--- Revert hoard:create_db_users from pg
+-- Revert hoard:002_create_db_users from pg
 
 BEGIN;
 

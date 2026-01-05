@@ -1,4 +1,4 @@
--- Verify hoard:create_blocks_table on pg
+-- Verify hoard:004_create_blocks_table on pg
 
 BEGIN;
 

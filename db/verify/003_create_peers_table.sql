@@ -1,4 +1,4 @@
--- Verify hoard:create_peers_table on pg
+-- Verify hoard:003_create_peers_table on pg
 
 BEGIN;
 

@@ -1,4 +1,4 @@
--- Deploy hoard:create_db_users to pg
+-- Deploy hoard:002_create_db_users to pg
 -- requires: init_schema
 
 BEGIN;

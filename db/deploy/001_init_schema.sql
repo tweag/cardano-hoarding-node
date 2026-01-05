@@ -1,4 +1,4 @@
--- Deploy hoard:init_schema to pg
+-- Deploy hoard:001_init_schema to pg
 
 BEGIN;
 

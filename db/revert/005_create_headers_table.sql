@@ -1,4 +1,4 @@
--- Revert hoard:create_headers_table from pg
+-- Revert hoard:005_create_headers_table from pg
 
 BEGIN;
 
