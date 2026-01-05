@@ -27,7 +27,7 @@ import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, ServerConfig (..))
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, NodeSocketsConfig, ServerConfig (..))
 import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -38,7 +38,7 @@ data ConfigFile = ConfigFile
     , database :: DatabaseConfig
     , secretsFile :: String
     , protocolConfigPath :: FilePath
-    , localNodeSocketPath :: FilePath
+    , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
     }
     deriving stock (Eq, Generic, Show)
@@ -212,7 +212,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 { server = configFile.server
                 , protocolInfo
                 , nodeConfig
-                , localNodeSocketPath = configFile.localNodeSocketPath
+                , nodeSockets = configFile.nodeSockets
                 , logging
                 }
         env = Env {config, handles}

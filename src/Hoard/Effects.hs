@@ -22,6 +22,8 @@ import System.IO.Error (userError)
 import Prelude hiding (Reader, State, evalState)
 
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
+import Effectful.Labeled (Labeled)
+import Effectful.Temporary (Temporary, runTemporary)
 import Hoard.Effects.Chan (Chan, InChan, runChan)
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConcNewScope)
@@ -36,6 +38,7 @@ import Hoard.Effects.Options (Options, loadOptions)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Effects.Pub (Pub, runPub)
 import Hoard.Effects.Sub (Sub, runSub)
+import Hoard.Effects.WithSocket (WithSocket, withNodeSockets)
 import Hoard.Types.DBConfig (DBPools)
 import Hoard.Types.Environment (Config, Env, LogConfig)
 import Hoard.Types.HoardState (HoardState)
@@ -87,6 +90,9 @@ type AppEffects =
      , Pub
      , Sub
      , NodeToClient
+     , Labeled "nodeToClient" WithSocket
+     , Labeled "tracer" WithSocket
+     , Temporary
      , Conc
      , Concurrent
      , FileSystem
@@ -118,6 +124,8 @@ runEffectStack action = liftIO $ do
             . runFileSystem
             . runConcurrent
             . runConcNewScope
+            . runTemporary
+            . withNodeSockets
             . runNodeToClient
             . runSub
             . runPub
