@@ -1,13 +1,9 @@
-{-# LANGUAGE NoFieldSelectors #-}
-{-# OPTIONS_GHC -Wno-partial-fields #-}
-
 module Hoard.Effects.WithSocket
     ( -- * Effect
       WithSocket (..)
 
       -- * Handlers
     , withNodeSockets
-    , NodeSocketsConfig (..)
     , sshTunnelSocket
     , localSocket
 
@@ -19,9 +15,12 @@ import Cardano.Api (File (File), SocketPath)
 import Effectful (Eff, Effect, IOE, type (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Labeled (Labeled, runLabeled)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
+import Hoard.Types.Environment
 import System.Process.Typed (proc, withProcessTerm)
+import Prelude hiding (Reader, asks)
 
 
 data WithSocket :: Effect where
@@ -31,31 +30,20 @@ data WithSocket :: Effect where
 makeEffect ''WithSocket
 
 
-data NodeSocketsConfig
-    = SshTunnel
-        { nodeToClientSocket :: FilePath
-        , tracerSocket :: FilePath
-        , user :: Text
-        , remoteHost :: Text
-        , sshKey :: Maybe FilePath
-        }
-    | Local
-        { nodeToClientSocket :: FilePath
-        , tracerSocket :: FilePath
-        }
-
-
 withNodeSockets
-    :: (Temporary :> es, IOE :> es)
-    => NodeSocketsConfig
-    -> Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
+    :: (Temporary :> es, IOE :> es, Reader Config :> es)
+    => Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
     -> Eff es a
-withNodeSockets (SshTunnel {nodeToClientSocket, tracerSocket, user, remoteHost, sshKey}) =
-    runLabeled @"tracer" (sshTunnelSocket user remoteHost tracerSocket sshKey)
-        . runLabeled @"nodeToClient" (sshTunnelSocket user remoteHost nodeToClientSocket sshKey)
-withNodeSockets (Local {nodeToClientSocket, tracerSocket}) =
-    runLabeled @"tracer" (localSocket $ File tracerSocket)
-        . runLabeled @"nodeToClient" (localSocket $ File nodeToClientSocket)
+withNodeSockets action =
+    asks (.nodeSockets) >>= \case
+        SshTunnel (MakeSshTunnel {nodeToClientSocket, tracerSocket, user, remoteHost, sshKey}) ->
+            runLabeled @"tracer" (sshTunnelSocket user remoteHost tracerSocket sshKey)
+                . runLabeled @"nodeToClient" (sshTunnelSocket user remoteHost nodeToClientSocket sshKey)
+                $ action
+        Local (MakeLocal {nodeToClientSocket, tracerSocket}) ->
+            runLabeled @"tracer" (localSocket $ File tracerSocket)
+                . runLabeled @"nodeToClient" (localSocket $ File nodeToClientSocket)
+                $ action
 
 
 sshTunnelSocket

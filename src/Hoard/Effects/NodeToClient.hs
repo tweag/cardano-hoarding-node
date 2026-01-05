@@ -12,7 +12,6 @@ import Cardano.Api
     ( ChainPoint
     , ConsensusModeParams (CardanoModeParams)
     , EpochSize
-    , File (File)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
         ( LocalNodeClientProtocols
@@ -50,9 +49,11 @@ import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Prelude hiding (Reader, ask)
 
+import Effectful.Labeled (Labeled, labeled)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Effects.Conc (Conc, fork_)
 import Hoard.Effects.Log (Log)
+import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Environment (Config (..))
 
 
@@ -66,7 +67,8 @@ makeEffect ''NodeToClient
 
 -- to do. remove after issue 102
 runNodeToClient
-    :: ( Conc :> es
+    :: ( Labeled "nodeToClient" WithSocket :> es
+       , Conc :> es
        , Log :> es
        , IOE :> es
        , Reader Config :> es
@@ -79,7 +81,8 @@ runNodeToClient = interpret_ $ \case
 
 
 runNodeToClient'
-    :: ( Conc :> es
+    :: ( Labeled "nodeToClient" WithSocket :> es
+       , Conc :> es
        , Log :> es
        , IOE :> es
        , Reader Config :> es
@@ -91,6 +94,7 @@ runNodeToClient' nodeToClient = do
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
     epochSize <- loadEpochSize config
+    nodeToClientSocket <- labeled @"nodeToClient" getSocket
     _ <-
         withExceptionLogging "NodeToClient"
             . fork_
@@ -98,8 +102,8 @@ runNodeToClient' nodeToClient = do
             $ localNodeClient
                 ( LocalNodeConnectInfo
                     { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
-                    , localNodeNetworkId = Testnet $ NetworkMagic $ 2
-                    , localNodeSocketPath = File config.localNodeSocketPath
+                    , localNodeNetworkId = Testnet $ NetworkMagic $ 1
+                    , localNodeSocketPath = nodeToClientSocket
                     }
                 )
                 immutableTipQueriesOut
