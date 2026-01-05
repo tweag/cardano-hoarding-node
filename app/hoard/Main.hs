@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Effectful (Eff)
 import Hoard.Collector (runCollectors)
 import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Conc qualified as Conc
@@ -9,9 +10,14 @@ import Hoard.Triggers (runTriggers)
 
 
 main :: IO ()
-main = runEffectStack do
-    runServer
-    runListeners
-    runCollectors
-    runTriggers
-    Conc.awaitAll
+main = runEffectStack mainEffectful
+
+
+mainEffectful :: (_) => Eff es ()
+mainEffectful =
+    do
+        runServer
+        runListeners
+        runCollectors
+        runTriggers
+        Conc.awaitAll

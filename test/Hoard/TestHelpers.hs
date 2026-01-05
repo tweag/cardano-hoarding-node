@@ -20,7 +20,6 @@ import Effectful
     , UnliftStrategy (..)
     , runEff
     , withEffToIO
-    , (:>)
     )
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (try)
@@ -70,7 +69,7 @@ withEffectStackServer action = runEffectStackTest $ \env -> withServer env actio
 
 withServer
     :: forall b es
-     . (IOE :> es)
+     . (_)
     => Env
     -> (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> Eff es b
@@ -85,7 +84,7 @@ withServer env action = do
         unlift $ action port runClient
 
 
-makeApp :: (IOE :> es) => Env -> Eff es Application
+makeApp :: (_) => Env -> Eff es Application
 makeApp env =
     liftIO $ do
         let servantApp =

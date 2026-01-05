@@ -11,7 +11,7 @@ import Data.Aeson (FromJSON (..))
 import Data.Dynamic (Dynamic)
 import Data.String.Conversions (cs)
 import Data.Yaml qualified as Yaml
-import Effectful (Eff, IOE, withSeqEffToIO, (:>))
+import Effectful (Eff, withSeqEffToIO)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
@@ -20,9 +20,8 @@ import System.FilePath ((</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
-import Hoard.Effects.Chan (Chan, InChan)
+import Hoard.Effects.Chan (InChan)
 import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
@@ -90,7 +89,7 @@ data DBUserCredentials = DBUserCredentials
     deriving (FromJSON) via QuietSnake DBUserCredentials
 
 
-loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
+loadNodeConfig :: (_) => FilePath -> Eff es NodeConfig
 loadNodeConfig configPath = do
     let configFile = File configPath
     nodeConfigResult <- runExceptT $ readNodeConfig configFile
@@ -101,7 +100,7 @@ loadNodeConfig configPath = do
 
 -- | Load the Cardano protocol info from config files.
 -- This is needed to get the CodecConfig for creating proper codecs.
-loadProtocolInfo :: (IOE :> es) => NodeConfig -> Eff es (ProtocolInfo CardanoBlock)
+loadProtocolInfo :: (_) => NodeConfig -> Eff es (ProtocolInfo CardanoBlock)
 loadProtocolInfo nodeConfig = do
     -- Load GenesisConfig
     genesisConfigResult <- runExceptT $ readCardanoGenesisConfig nodeConfig
@@ -134,7 +133,7 @@ data LoggingConfig = LoggingConfig
     deriving (FromJSON) via QuietSnake LoggingConfig
 
 
-loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.LogConfig
+loadLoggingConfig :: (_) => ConfigFile -> Eff es Log.LogConfig
 loadLoggingConfig configFile = do
     log <- (>>= readMaybe) <$> lookupEnv "LOG"
     logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
@@ -146,7 +145,7 @@ loadLoggingConfig configFile = do
 
 
 -- | Acquire runtime handles
-acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
+acquireHandles :: (_) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
@@ -179,7 +178,7 @@ lookupNonEmpty n =
         s -> toText <$> s
 
 
-loadYaml :: forall a es. (IOE :> es) => (FromJSON a) => String -> Eff es a
+loadYaml :: forall a es. (_) => (FromJSON a) => String -> Eff es a
 loadYaml path = do
     result <- liftIO $ Yaml.decodeFileEither path
     case result of
@@ -190,13 +189,7 @@ loadYaml path = do
 -- | Load the full application environment for a given deployment
 -- Loads both the public config YAML and the secrets YAML file,
 -- then acquires all necessary runtime handles
-loadEnv
-    :: ( Chan :> es
-       , IOE :> es
-       , Reader Options :> es
-       )
-    => Eff (Reader Env : es) a
-    -> Eff es a
+loadEnv :: (_) => Eff (Reader Env : es) a -> Eff es a
 loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     deployment <- asks $ fromMaybe Dev . Options.deployment
     putTextLn $ "Loading configuration for deployment: " <> show deployment
@@ -220,7 +213,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     runReader env eff
 
 
-runConfigReader :: (Reader Env :> es) => Eff (Reader LogConfig : Reader Config : es) a -> Eff es a
+runConfigReader :: (_) => Eff (Reader LogConfig : Reader Config : es) a -> Eff es a
 runConfigReader eff = do
     cfg <- asks config
     runReader cfg
@@ -228,7 +221,7 @@ runConfigReader eff = do
         $ eff
 
 
-runHandlesReader :: (Reader Env :> es) => Eff (Reader (InChan Dynamic) : Reader DBPools : es) a -> Eff es a
+runHandlesReader :: (_) => Eff (Reader (InChan Dynamic) : Reader DBPools : es) a -> Eff es a
 runHandlesReader eff = do
     handles <- asks handles
     runReader handles.dbPools

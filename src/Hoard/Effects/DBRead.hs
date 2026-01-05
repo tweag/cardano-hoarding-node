@@ -5,17 +5,16 @@ module Hoard.Effects.DBRead
     )
 where
 
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Eff, Effect)
 import Effectful.Dispatch.Dynamic (interpretWith_)
-import Effectful.Error.Static (Error, throwError)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Error.Static (throwError)
+import Effectful.Reader.Static (asks)
 import Effectful.TH
 import Hasql.Pool qualified as Pool
 import Hasql.Session qualified as Session
 import Hasql.Statement (Statement)
 import Prelude hiding (Reader, asks)
 
-import Hoard.Types.DBConfig (DBPools)
 import Hoard.Types.DBConfig qualified as DB
 
 
@@ -28,10 +27,7 @@ makeEffect ''DBRead
 
 
 -- | Run the DBRead effect with a connection pool
-runDBRead
-    :: (Error Text :> es, IOE :> es, Reader DBPools :> es)
-    => Eff (DBRead : es) a
-    -> Eff es a
+runDBRead :: (_) => Eff (DBRead : es) a -> Eff es a
 runDBRead eff = do
     pool <- asks $ DB.readerPool
     interpretWith_ eff \case

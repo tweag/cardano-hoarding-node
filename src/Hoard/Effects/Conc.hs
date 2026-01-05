@@ -23,7 +23,7 @@ where
 
 import Prelude hiding (atomically)
 
-import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
+import Effectful (Eff, Effect, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO)
 import Effectful.Concurrent.STM (atomically, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret, localUnliftIO)
 import Effectful.TH (makeEffect)
@@ -48,7 +48,7 @@ newtype Thread a = Thread (Ki.Thread a)
 makeEffect ''Conc
 
 
-scoped :: (IOE :> es) => (Scope -> Eff es a) -> Eff es a
+scoped :: (_) => (Scope -> Eff es a) -> Eff es a
 scoped action = withEffToIO concStrat $ \unlift ->
     Ki.scoped $ \scope ->
         unlift
@@ -56,7 +56,7 @@ scoped action = withEffToIO concStrat $ \unlift ->
             $ Scope scope
 
 
-runConcWithKi :: (IOE :> es) => Scope -> Eff (Conc : es) a -> Eff es a
+runConcWithKi :: (_) => Scope -> Eff (Conc : es) a -> Eff es a
 runConcWithKi (Scope scope) = interpret $ \env -> \case
     Fork action ->
         localUnliftIO env concStrat $ \unlift ->
@@ -85,7 +85,7 @@ runConcWithKi (Scope scope) = interpret $ \env -> \case
                 $ unlift action
 
 
-runConcNewScope :: (IOE :> es) => Eff (Conc : es) a -> Eff es a
+runConcNewScope :: (_) => Eff (Conc : es) a -> Eff es a
 runConcNewScope eff = withEffToIO concStrat $ \unlift ->
     Ki.scoped $ \scope ->
         unlift $ runConcWithKi (Scope scope) eff

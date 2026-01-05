@@ -29,19 +29,19 @@ data Log :: Effect where
 makeEffect ''Log
 
 
-debug :: (Log :> es) => Text -> Eff es ()
+debug :: (_) => Text -> Eff es ()
 debug = log DEBUG
 
 
-info :: (Log :> es) => Text -> Eff es ()
+info :: (_) => Text -> Eff es ()
 info = log INFO
 
 
-warn :: (Log :> es) => Text -> Eff es ()
+warn :: (_) => Text -> Eff es ()
 warn = log WARN
 
 
-err :: (Log :> es) => Text -> Eff es ()
+err :: (_) => Text -> Eff es ()
 err = log ERROR
 
 

@@ -20,7 +20,7 @@ module Hoard.Effects.Chan
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import Control.Concurrent.Chan.Unagi qualified as Unagi
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Eff, Effect)
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
 
@@ -51,7 +51,7 @@ makeEffect ''Chan
 --     value2 <- readChan outChan2  -- Both readers get the same value
 --     ...
 -- @
-runChan :: (IOE :> es) => Eff (Chan : es) a -> Eff es a
+runChan :: (_) => Eff (Chan : es) a -> Eff es a
 runChan = interpret $ \_ -> \case
     NewChan -> liftIO Unagi.newChan
     ReadChan outChan -> liftIO $ Unagi.readChan outChan

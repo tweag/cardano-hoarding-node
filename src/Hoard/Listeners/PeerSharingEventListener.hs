@@ -1,9 +1,8 @@
 module Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener) where
 
-import Effectful (Eff, (:>))
+import Effectful (Eff)
 
 import Hoard.Data.Peer (PeerAddress (..))
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Network.Events
     ( PeerSharingEvent (..)
@@ -14,7 +13,7 @@ import Hoard.Network.Events
 
 
 -- | Listener that logs peer sharing events
-peerSharingEventListener :: (Log :> es) => PeerSharingEvent -> Eff es ()
+peerSharingEventListener :: (_) => PeerSharingEvent -> Eff es ()
 peerSharingEventListener = \case
     PeerSharingStarted dat -> do
         Log.info $ "🔍 PeerSharing protocol started at " <> show dat.timestamp

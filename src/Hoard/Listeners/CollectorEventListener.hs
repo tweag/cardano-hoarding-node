@@ -1,15 +1,14 @@
 module Hoard.Listeners.CollectorEventListener (collectorEventListener) where
 
-import Effectful (Eff, (:>))
+import Effectful (Eff)
 
 import Hoard.Data.Peer (PeerAddress (..))
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Events.Collector (CollectorEvent (..))
 
 
 -- | Listener that logs collector events
-collectorEventListener :: (Log :> es) => CollectorEvent -> Eff es ()
+collectorEventListener :: (_) => CollectorEvent -> Eff es ()
 collectorEventListener = \case
     CollectorStarted addr ->
         Log.info $ "Collector: started for " <> show addr.host

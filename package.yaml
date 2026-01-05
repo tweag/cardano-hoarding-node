@@ -21,6 +21,7 @@ ghc-options:
 - -O0
 - -fplugin=Effectful.Plugin
 - -threaded
+- -Wno-partial-type-signatures
 
 dependencies:
 - name: base
@@ -97,6 +98,7 @@ default-extensions:
 - StrictData
 - TemplateHaskell
 - TypeFamilies
+- PartialTypeSignatures
 
 library:
   source-dirs: src

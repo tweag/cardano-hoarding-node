@@ -3,20 +3,17 @@ module Hoard.Bootstrap (bootstrapPeer) where
 import Data.IP (IP)
 import Data.IP qualified as IP
 import Data.Set qualified as S
-import Effectful (Eff, IOE, (:>))
+import Effectful (Eff)
 import Network.Socket (HostName, PortNumber)
 import Network.Socket qualified as Socket
 
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
+import Hoard.Effects.PeerRepo (upsertPeers)
 import Hoard.Types.NodeIP (NodeIP (..))
 
 
-bootstrapPeer :: (PeerRepo :> es, Clock :> es, IOE :> es) => Eff es Peer
+bootstrapPeer :: (_) => Eff es Peer
 bootstrapPeer = do
     -- Correct port from Preview testnet topology.json
     (ip, portNumber) <- liftIO $ resolvePeerAddress "preview-node.world.dev.cardano.org" 3001

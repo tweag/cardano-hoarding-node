@@ -39,21 +39,18 @@ import Control.Concurrent.Chan.Unagi
 import Effectful
     ( Eff
     , Effect
-    , IOE
-    , (:>)
     )
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.Reader.Static (Reader, ask)
+import Effectful.Reader.Static (ask)
 import Effectful.TH (makeEffect)
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Prelude hiding (Reader, ask)
 
-import Effectful.Labeled (Labeled, labeled)
+import Effectful.Labeled (labeled)
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Effects.Conc (Conc, fork_)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.WithSocket (WithSocket, getSocket)
+import Hoard.Effects.Conc (fork_)
+import Hoard.Effects.WithSocket (getSocket)
 import Hoard.Types.Environment (Config (..))
 
 
@@ -66,29 +63,13 @@ makeEffect ''NodeToClient
 
 
 -- to do. remove after issue 102
-runNodeToClient
-    :: ( Labeled "nodeToClient" WithSocket :> es
-       , Conc :> es
-       , Log :> es
-       , IOE :> es
-       , Reader Config :> es
-       )
-    => Eff (NodeToClient : es) a
-    -> Eff es a
+runNodeToClient :: (_) => Eff (NodeToClient : es) a -> Eff es a
 runNodeToClient = interpret_ $ \case
     ImmutableTip -> pure C.ChainPointAtGenesis
     IsOnChain _ -> pure False
 
 
-runNodeToClient'
-    :: ( Labeled "nodeToClient" WithSocket :> es
-       , Conc :> es
-       , Log :> es
-       , IOE :> es
-       , Reader Config :> es
-       )
-    => Eff (NodeToClient : es) a
-    -> Eff es a
+runNodeToClient' :: (_) => Eff (NodeToClient : es) a -> Eff es a
 runNodeToClient' nodeToClient = do
     config <- ask
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
@@ -158,7 +139,7 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                     }
 
 
-loadEpochSize :: (IOE :> es) => Config -> Eff es EpochSize
+loadEpochSize :: (_) => Config -> Eff es EpochSize
 loadEpochSize Config {nodeConfig} = do
     genesisConfigResult <- runExceptT $ readShelleyGenesisConfig nodeConfig
     ShelleyConfig {scConfig = ShelleyGenesis {sgEpochLength}} <- case genesisConfigResult of

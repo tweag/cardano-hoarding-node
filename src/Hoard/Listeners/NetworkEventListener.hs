@@ -1,8 +1,7 @@
 module Hoard.Listeners.NetworkEventListener (networkEventListener) where
 
-import Effectful (Eff, (:>))
+import Effectful (Eff)
 
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Network.Events
     ( ConnectionEstablishedData (..)
@@ -14,7 +13,7 @@ import Hoard.Network.Events
 
 
 -- | Listener that logs network events
-networkEventListener :: (Log :> es) => NetworkEvent -> Eff es ()
+networkEventListener :: (_) => NetworkEvent -> Eff es ()
 networkEventListener = \case
     ConnectionEstablished dat -> do
         Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp

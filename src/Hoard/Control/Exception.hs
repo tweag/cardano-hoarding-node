@@ -3,17 +3,16 @@ module Hoard.Control.Exception
     , isGracefulShutdown
     ) where
 
-import Effectful (Eff, (:>))
+import Effectful (Eff)
 import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
 
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 
 
 -- | Wrap a protocol action with exception logging.
 --
 -- Logs graceful shutdowns at INFO level and real errors at ERROR level.
-withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
+withExceptionLogging :: (_) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         let msg = protocolName <> ": " <> toText (displayException e)

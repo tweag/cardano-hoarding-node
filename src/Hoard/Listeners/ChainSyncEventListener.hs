@@ -1,11 +1,10 @@
 module Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener) where
 
-import Effectful (Eff, (:>))
+import Effectful (Eff)
 
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.Header.Extract (extractHeaderData)
-import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
-import Hoard.Effects.Log (Log)
+import Hoard.Effects.HeaderRepo (upsertHeader)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Network.Events
     ( ChainSyncEvent (..)
@@ -17,7 +16,7 @@ import Hoard.Network.Events
 -- | Listener that handles chain sync events
 --
 -- For HeaderReceived events, extracts header data and persists it to the database.
-chainSyncEventListener :: (Log :> es, HeaderRepo :> es) => ChainSyncEvent -> Eff es ()
+chainSyncEventListener :: (_) => ChainSyncEvent -> Eff es ()
 chainSyncEventListener = \case
     ChainSyncStarted dat -> do
         Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp

@@ -22,7 +22,7 @@ data Sub :: Effect where
 type instance DispatchOf Sub = Dynamic
 
 
-listen :: (Sub :> es, Typeable a) => (a -> Eff es ()) -> Eff es Void
+listen :: (_) => (a -> Eff es ()) -> Eff es Void
 listen = send . Listen
 
 

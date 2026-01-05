@@ -1,7 +1,7 @@
 module Unit.Hoard.Listeners.HeaderReceivedListenerSpec (spec_HeaderReceivedListener) where
 
-import Effectful (Eff, runPureEff, (:>))
-import Effectful.Writer.Static.Local (Writer, runWriter, tell)
+import Effectful (Eff, runPureEff)
+import Effectful.Writer.Static.Local (runWriter, tell)
 import Test.Hspec
 
 import Data.ByteString.Char8 qualified as BS
@@ -21,7 +21,7 @@ runListenerWithWriter event =
 
 
 -- | Version of headerReceivedListener that uses Writer instead of Console
-headerReceivedListenerWithWriter :: (Writer [BS.ByteString] :> es) => HeaderReceived -> Eff es ()
+headerReceivedListenerWithWriter :: (_) => HeaderReceived -> Eff es ()
 headerReceivedListenerWithWriter event = do
     tell [BS.pack "Header received:"]
     tell [BS.pack $ show event]

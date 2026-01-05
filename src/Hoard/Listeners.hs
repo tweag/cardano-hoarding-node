@@ -1,7 +1,6 @@
 module Hoard.Listeners (runListeners) where
 
 import Effectful (Eff)
-import Hoard.Effects (AppEff)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Sub (listen)
 import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
@@ -14,7 +13,7 @@ import Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener)
 import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
 
 
-runListeners :: (AppEff es) => Eff es ()
+runListeners :: (_) => Eff es ()
 runListeners = do
     _ <- Conc.fork $ listen headerReceivedListener
     _ <- Conc.fork $ listen peersReceivedListener

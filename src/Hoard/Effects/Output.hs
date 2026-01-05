@@ -12,13 +12,13 @@ where
 import Prelude hiding (modify, runState)
 
 import Data.Dynamic qualified as Dyn
-import Effectful (Eff, Effect, (:>))
+import Effectful (Eff, Effect)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)
 import Effectful.State.Static.Local (modify, runState)
 import Effectful.TH (makeEffect)
-import Hoard.Effects.Chan (Chan, InChan)
+import Hoard.Effects.Chan (InChan)
 import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Pub (publish)
 
 
 -- | Output something to whomever cares in a manner that is of no concern for
@@ -41,12 +41,12 @@ runOutputEff eff = interpret_ $ \(Output x) -> eff x
 
 
 -- | Run an Output effect by writing to an `InChan`.
-runOutputChan :: (Chan :> es) => InChan a -> Eff (Output a : es) x -> Eff es x
+runOutputChan :: (_) => InChan a -> Eff (Output a : es) x -> Eff es x
 runOutputChan inChan = runOutputEff $ Chan.writeChan inChan
 
 
 -- | Run an Output by publishing values with the `Pub` effect.
-runOutputAsPub :: (Typeable a, Pub :> es) => Eff (Output a : es) x -> Eff es x
+runOutputAsPub :: (_) => Eff (Output a : es) x -> Eff es x
 runOutputAsPub = runOutputEff $ publish . Dyn.toDyn
 
 

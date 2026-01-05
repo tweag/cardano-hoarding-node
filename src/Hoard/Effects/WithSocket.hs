@@ -12,12 +12,12 @@ module Hoard.Effects.WithSocket
     ) where
 
 import Cardano.Api (File (File), SocketPath)
-import Effectful (Eff, Effect, IOE, type (:>))
+import Effectful (Eff, Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Labeled (Labeled, runLabeled)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (asks)
 import Effectful.TH (makeEffect)
-import Effectful.Temporary (Temporary, withSystemTempFile)
+import Effectful.Temporary (withSystemTempFile)
 import Hoard.Types.Environment
 import System.Process.Typed (proc, withProcessTerm)
 import Prelude hiding (Reader, asks)
@@ -31,11 +31,11 @@ makeEffect ''WithSocket
 
 
 withNodeSockets
-    :: (Temporary :> es, IOE :> es, Reader Config :> es)
+    :: (_)
     => Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
     -> Eff es a
 withNodeSockets action =
-    asks (.nodeSockets) >>= \case
+    asks @Config (.nodeSockets) >>= \case
         SshTunnel (MakeSshTunnel {nodeToClientSocket, tracerSocket, user, remoteHost, sshKey}) ->
             runLabeled @"tracer" (sshTunnelSocket user remoteHost tracerSocket sshKey)
                 . runLabeled @"nodeToClient" (sshTunnelSocket user remoteHost nodeToClientSocket sshKey)
@@ -47,7 +47,7 @@ withNodeSockets action =
 
 
 sshTunnelSocket
-    :: (Temporary :> es, IOE :> es)
+    :: (_)
     => Text
     -- ^ user
     -> Text

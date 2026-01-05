@@ -3,24 +3,17 @@ module Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes) where
 import Data.Set qualified as S
 import Data.Time (UTCTime)
 import Data.Time.Clock (NominalDiffTime, diffUTCTime)
-import Effectful (Eff, IOE, (:>))
-import Effectful.State.Static.Shared (State, gets)
+import Effectful (Eff)
+import Effectful.State.Static.Shared (gets)
 import Prelude hiding (State, gets)
 
 import Hoard.Collector (runCollector)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode (NodeToNode)
-import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
-import Hoard.Effects.Pub (Pub)
+import Hoard.Effects.PeerRepo (upsertPeers)
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
-import Hoard.Types.HoardState (HoardState (..))
+import Hoard.Types.HoardState (HoardState (connectedPeers))
 
 
 -- | Cooldown period after a peer failure before retrying (5 minutes)
@@ -35,20 +28,7 @@ peerFailureCooldown = 300 -- 5 minutes in seconds
 -- - Filters out peers already connected
 -- - Filters out peers in cooldown period (recent failures)
 -- - Starts collectors for all eligible peers
-dispatchDiscoveredNodes
-    :: ( BlockRepo :> es
-       , Chan :> es
-       , Conc :> es
-       , IOE :> es
-       , Log :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub :> es
-       , State HoardState :> es
-       , Clock :> es
-       )
-    => PeerSharingEvent
-    -> Eff es ()
+dispatchDiscoveredNodes :: (_) => PeerSharingEvent -> Eff es ()
 dispatchDiscoveredNodes = \case
     (PeersReceived (PeersReceivedData {peer = sourcePeer, peerAddresses})) -> do
         Log.info "Dispatch: Received peers"
@@ -57,7 +37,7 @@ dispatchDiscoveredNodes = \case
         timestamp <- Clock.currentTime
         upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
 
-        currPeers <- gets (.connectedPeers)
+        currPeers <- gets @HoardState (.connectedPeers)
         let newPeers = S.difference upsertedPeers currPeers
 
         -- Filter out peers in cooldown period

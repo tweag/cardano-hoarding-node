@@ -3,32 +3,22 @@ module Hoard.Server
     )
 where
 
-import Effectful (Eff, IOE, withEffToIO, (:>))
+import Effectful (Eff, withEffToIO)
 import Effectful.Exception (try)
-import Effectful.Reader.Static (Reader, ask)
+import Effectful.Reader.Static (ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant (Handler (..), hoistServer, serve)
 import Prelude hiding (Reader, ask)
 
 import Hoard.API (API, server)
-import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Pub (Pub)
 import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
 
 
-runServer
-    :: ( Conc :> es
-       , IOE :> es
-       , Log :> es
-       , Pub :> es
-       , Reader Env :> es
-       )
-    => Eff es ()
+runServer :: (_) => Eff es ()
 runServer = do
-    env <- ask
+    env <- ask @Env
     _ <- Conc.fork $ do
         -- Log startup messages
         let host = toString env.config.server.host

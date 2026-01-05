@@ -7,11 +7,11 @@ module Hoard.Effects.Input
     , runInputList
     ) where
 
-import Effectful (Eff, Effect, inject, (:>))
+import Effectful (Eff, Effect, inject)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.State.Static.Shared (evalState, state)
 import Effectful.TH (makeEffect)
-import Hoard.Effects.Chan (Chan, OutChan)
+import Hoard.Effects.Chan (OutChan)
 import Hoard.Effects.Chan qualified as Chan
 import Prelude hiding (evalState, modify, state)
 
@@ -36,7 +36,7 @@ runInputConst = runInputEff . pure
 
 
 -- | Run an Input effect by reading from an `OutChan`.
-runInputChan :: (Chan :> es) => OutChan a -> Eff (Input a : es) b -> Eff es b
+runInputChan :: (_) => OutChan a -> Eff (Input a : es) b -> Eff es b
 runInputChan = runInputEff . Chan.readChan
 
 

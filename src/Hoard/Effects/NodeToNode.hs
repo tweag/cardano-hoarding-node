@@ -295,10 +295,7 @@ connectToPeerImpl conf = do
 --
 -- Note: With the current connectTo-based implementation, we don't have direct control
 -- over disconnection. The connection is managed by ouroboros-network's internal state.
-disconnectPeerImpl
-    :: (Pub :> es, Clock :> es)
-    => Connection
-    -> Eff es ()
+disconnectPeerImpl :: (_) => Connection -> Eff es ()
 disconnectPeerImpl conn = do
     -- Publish connection lost event
     timestamp <- Clock.currentTime
@@ -331,10 +328,7 @@ isConnectedImpl _conn = do
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: ( Clock :> es
-       , Concurrent :> es
-       , Log :> es
-       , Pub :> es
+    :: ( _
        )
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
@@ -475,7 +469,7 @@ mkApplication unlift conf codecs peer =
 -- 3. Waits 1 hour
 -- 4. Loops
 peerSharingClientImpl
-    :: (Concurrent :> es, Clock :> es, Log :> es, Pub :> es)
+    :: (_)
     => (forall x. Eff es x -> IO x)
     -> Peer
     -> PeerSharingClient SockAddr IO ()
@@ -506,11 +500,7 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
 -- This client:
 blockFetchClientImpl
     :: forall es
-     . ( Clock :> es
-       , Concurrent :> es
-       , Log :> es
-       , Pub :> es
-       )
+     . (_)
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
     -> PeerAddress
@@ -584,10 +574,7 @@ blockFetchClientImpl unlift conf peer =
 -- Note: This runs forever, continuously requesting the next header.
 chainSyncClientImpl
     :: forall es
-     . ( Clock :> es
-       , Log :> es
-       , Pub :> es
-       )
+     . (_)
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
     -> Peer
@@ -689,7 +676,7 @@ chainSyncClientImpl unlift conf peer =
 -- This client sends periodic keepalive messages to maintain the connection
 -- and detect network failures. It sends a message immediately, then waits 10
 -- seconds before sending the next one.
-keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
+keepAliveClientImpl :: (_) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
 keepAliveClientImpl unlift = KeepAliveClient sendFirst
   where
     -- Send the first message immediately
@@ -705,6 +692,6 @@ keepAliveClientImpl unlift = KeepAliveClient sendFirst
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
 
-logTracer :: (Log :> es) => (forall x. Eff es x -> m x) -> Log.Severity -> Tracer m String
+logTracer :: (_) => (forall x. Eff es x -> m x) -> Log.Severity -> Tracer m String
 logTracer unlift severity =
     Tracer $ \msg -> unlift $ Log.log severity $ toText msg

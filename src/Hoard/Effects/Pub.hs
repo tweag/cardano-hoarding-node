@@ -25,7 +25,7 @@ data Pub :: Effect where
 type instance DispatchOf Pub = Dynamic
 
 
-publish :: (Pub :> es, Typeable a) => a -> Eff es ()
+publish :: (_) => a -> Eff es ()
 publish = send . Publish
 
 
@@ -44,7 +44,7 @@ runPubToList =
             (\(Publish event) -> modify (Dyn.toDyn event :))
 
 
-runPubWithList :: (Chan :> es, Reader (InChan Dyn.Dynamic) :> es) => Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
+runPubWithList :: (_) => Eff (Pub : es) a -> Eff es (a, [Dyn.Dynamic])
 runPubWithList eff = do
     x <- runPub eff
     (_, xs) <- runPubToList eff

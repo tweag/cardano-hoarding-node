@@ -3,7 +3,7 @@ module Hoard.Effects.Options (Options (..), loadOptions) where
 import Options.Applicative qualified as Opt
 import Prelude hiding (Reader, runReader)
 
-import Effectful (Eff, IOE, (:>))
+import Effectful (Eff)
 import Effectful.Reader.Static (Reader, runReader)
 import Hoard.Types.Deployment (Deployment, parseDeployment)
 
@@ -45,7 +45,7 @@ optsParser =
         )
 
 
-loadOptions :: (IOE :> es) => Eff (Reader Options : es) a -> Eff es a
+loadOptions :: (_) => Eff (Reader Options : es) a -> Eff es a
 loadOptions eff = do
     options <- liftIO $ Opt.execParser optsParser
     runReader options eff

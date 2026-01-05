@@ -3,37 +3,32 @@ module Hoard.Collector (runCollector, runCollectors) where
 import Control.Concurrent (threadDelay)
 import Data.Set qualified as S
 import Data.Set qualified as Set
-import Effectful (Eff, IOE, (:>))
+import Effectful (Eff)
 import Effectful.Exception (ExitCase (..), generalBracket)
-import Effectful.State.Static.Shared (State, modify, state)
+import Effectful.State.Static.Shared (modify, state)
 import Prelude hiding (State, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeer)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
-import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Input (Input, input, runInputChan)
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode (Config (..), NodeToNode, connectToPeer)
+import Hoard.Effects.NodeToNode (Config (..), connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, updatePeerFailure)
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.PeerRepo (getAllPeers, updatePeerFailure)
+import Hoard.Effects.Pub (publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events
     ( BlockFetchRequest (..)
     , BlockReceivedData (..)
     , HeaderReceivedData (..)
     )
-import Hoard.Types.HoardState (HoardState, connectedPeers)
+import Hoard.Types.HoardState (connectedPeers)
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.
@@ -41,19 +36,7 @@ import Hoard.Types.HoardState (HoardState, connectedPeers)
 -- This queries the database for known peers and:
 -- - If peers exist, starts collectors for all of them
 -- - If no peers exist, bootstraps from the hardcoded preview-node peer
-runCollectors
-    :: ( BlockRepo :> es
-       , Pub :> es
-       , NodeToNode :> es
-       , Chan :> es
-       , Conc :> es
-       , PeerRepo :> es
-       , Clock :> es
-       , Log :> es
-       , State HoardState :> es
-       , IOE :> es
-       )
-    => Eff es ()
+runCollectors :: (_) => Eff es ()
 runCollectors = do
     -- Check if there are any known peers in the database
     knownPeers <- getAllPeers
@@ -80,20 +63,7 @@ runCollectors = do
 --
 -- The peer is automatically removed from connectedPeers when the collector
 -- terminates, whether due to an exception or normal completion.
-runCollector
-    :: ( BlockRepo :> es
-       , Conc :> es
-       , Chan :> es
-       , Clock :> es
-       , IOE :> es
-       , Log :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub :> es
-       , State HoardState :> es
-       )
-    => Peer
-    -> Eff es ()
+runCollector :: (_) => Peer -> Eff es ()
 runCollector peer = do
     _ <-
         Conc.forkTry @SomeException
@@ -115,16 +85,7 @@ runCollector peer = do
     pure ()
 
 
-runCollectorImpl
-    :: ( BlockRepo :> es
-       , Conc :> es
-       , Chan :> es
-       , IOE :> es
-       , NodeToNode :> es
-       , Pub :> es
-       )
-    => Peer
-    -> Eff es Void
+runCollectorImpl :: (_) => Peer -> Eff es Void
 runCollectorImpl peer =
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceivedData
@@ -151,14 +112,9 @@ runCollectorImpl peer =
 
 
 -- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
-pickBlockFetchRequest
-    :: ( BlockRepo :> es
-       , Input HeaderReceivedData :> es
-       , Output BlockFetchRequest :> es
-       )
-    => Eff es Void
+pickBlockFetchRequest :: (_) => Eff es Void
 pickBlockFetchRequest = forever do
-    dat <- input
+    dat <- input @HeaderReceivedData
     blocks <- BlockRepo.hasBlocks [dat.header]
     when (not $ null blocks) $
         output $
@@ -179,7 +135,7 @@ pickBlockFetchRequest = forever do
 -- 2. Interprets 'Input' and 'Output' effects over these channels
 -- 3. Provides these effects to the wrapped action
 -- 4. The action can fork threads that communicate via these effects
-withBridge :: forall b es a. (Chan :> es) => Eff (Input b : Output b : es) a -> Eff es a
+withBridge :: forall b es a. (_) => Eff (Input b : Output b : es) a -> Eff es a
 withBridge action = do
     (inChan, outChan) <- Chan.newChan
     runOutputChan inChan . runInputChan outChan $ action
