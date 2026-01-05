@@ -1,4 +1,4 @@
--- Verify hoard:create_headers_table on pg
+-- Verify hoard:005_create_headers_table on pg
 
 BEGIN;
 

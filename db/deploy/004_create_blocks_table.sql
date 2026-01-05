@@ -1,4 +1,4 @@
--- Deploy hoard:create_blocks_table to pg
+-- Deploy hoard:004_create_blocks_table to pg
 
 BEGIN;
 

@@ -1,4 +1,4 @@
--- Revert hoard:create_blocks_table from pg
+-- Revert hoard:004_create_blocks_table from pg
 
 BEGIN;
 

@@ -1,4 +1,4 @@
--- Revert hoard:create_peers_table from pg
+-- Revert hoard:003_create_peers_table from pg
 
 BEGIN;
 

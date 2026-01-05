@@ -1,4 +1,4 @@
--- Verify hoard:init_schema on pg
+-- Verify hoard:001_init_schema on pg
 
 BEGIN;
 

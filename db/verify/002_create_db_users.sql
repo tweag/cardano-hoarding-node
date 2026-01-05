@@ -1,4 +1,4 @@
--- Verify hoard:create_db_users on pg
+-- Verify hoard:002_create_db_users on pg
 
 BEGIN;
 

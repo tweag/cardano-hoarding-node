@@ -1,4 +1,4 @@
--- Revert hoard:init_schema from pg
+-- Revert hoard:001_init_schema from pg
 
 BEGIN;
 

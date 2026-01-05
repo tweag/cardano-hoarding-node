@@ -244,7 +244,7 @@ db/
 
 ## Example Migration Files
 
-### deploy/init_schema.sql
+### deploy/001_init_schema.sql
 
 ```sql
 BEGIN;
@@ -258,7 +258,7 @@ CREATE TABLE hoard.schema_metadata (
 COMMIT;
 ```
 
-### revert/init_schema.sql
+### revert/001_init_schema.sql
 
 ```sql
 BEGIN;
@@ -267,7 +267,7 @@ DROP SCHEMA IF EXISTS hoard CASCADE;
 COMMIT;
 ```
 
-### verify/init_schema.sql
+### verify/001_init_schema.sql
 
 ```sql
 BEGIN;

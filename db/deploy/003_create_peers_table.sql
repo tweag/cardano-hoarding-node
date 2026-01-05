@@ -1,4 +1,4 @@
--- Deploy hoard:create_peers_table to pg
+-- Deploy hoard:003_create_peers_table to pg
 
 BEGIN;
 

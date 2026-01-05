@@ -1,4 +1,4 @@
--- Deploy hoard:create_headers_table to pg
+-- Deploy hoard:005_create_headers_table to pg
 -- requires: create_peers_table
 
 BEGIN;
