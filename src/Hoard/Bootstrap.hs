@@ -8,6 +8,8 @@ import Network.Socket (HostName, PortNumber)
 import Network.Socket qualified as Socket
 
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
