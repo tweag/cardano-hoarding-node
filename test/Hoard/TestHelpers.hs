@@ -30,6 +30,7 @@ import Effectful.State.Static.Shared (State, runState)
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 import Hoard.Effects.Chan (Chan, OutChan, runChan)
+import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (testWithApplication)
@@ -137,6 +138,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runFileSystem
             . runConcurrent
             . runChan
+            . runConcNewScope
             . runReader env.config.logging
             . runReader env.handles.inChan
             . runLog
@@ -162,6 +164,7 @@ type TestAppEffs =
     , Log
     , Reader (InChan Dynamic)
     , Reader LogConfig
+    , Conc
     , Chan
     , Concurrent
     , FileSystem
