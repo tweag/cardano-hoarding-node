@@ -40,6 +40,7 @@ data ConfigFile = ConfigFile
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
+    , maxFileDescriptors :: Maybe Word32
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -214,6 +215,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , nodeConfig
                 , nodeSockets = configFile.nodeSockets
                 , logging
+                , maxFileDescriptors = configFile.maxFileDescriptors
                 }
         env = Env {config, handles}
 
