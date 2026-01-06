@@ -19,15 +19,13 @@ import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.Environment (defaultLogConfig)
 
 
 spec_PeerPersistence :: Spec
 spec_PeerPersistence = do
     let runWrite config action =
             runEff
-                . runReader defaultLogConfig
-                . Log.runLog
+                . Log.runLogNoOp
                 . runErrorNoCallStack @Text
                 . runReader config.pools
                 . runDBRead
