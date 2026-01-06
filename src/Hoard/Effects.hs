@@ -94,10 +94,10 @@ type AppEffects =
      , Labeled "tracer" WithSocket
      , Temporary
      , Conc
-     , Concurrent
      , FileSystem
      , Clock
      , Log
+     , Concurrent
      , Reader (InChan Dynamic)
      , Reader DBPools
      , Reader LogConfig
@@ -119,10 +119,10 @@ runEffectStack action = liftIO $ do
             . loadEnv
             . runConfigReader
             . runHandlesReader
+            . runConcurrent
             . runLog
             . runClock
             . runFileSystem
-            . runConcurrent
             . runConcNewScope
             . runTemporary
             . withNodeSockets

@@ -14,11 +14,13 @@ module Hoard.Effects.Log
 
 import Data.Text.IO qualified as T
 import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Concurrent.STM (Concurrent)
+import Effectful.Dispatch.Dynamic (interpretWith_, interpret_)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Prelude hiding (Reader, ask)
 
+import Effectful.Concurrent.MVar (withMVar)
 import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 
@@ -50,9 +52,13 @@ runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
 
 
-runLog :: (IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
-runLog = interpret_ $ \(Log severity msg) -> do
+-- | Thread-safe logging to the configured handle using `hPutStrLn`.
+runLog :: (Concurrent :> es, IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
+runLog eff = do
     config <- ask
-    liftIO $ when (severity >= config.minimumSeverity) $ do
-        T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
-        hFlush stdout
+    var <- newMVar ()
+    interpretWith_ eff $ \(Log severity msg) ->
+        when (severity >= config.minimumSeverity) $
+            withMVar var $ \_ -> liftIO $ do
+                T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
+                hFlush config.output
