@@ -35,13 +35,14 @@ import Ouroboros.Consensus.Shelley.Ledger
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..))
+import Hoard.Data.PoolID (PoolID)
 import Hoard.Types.Cardano (CardanoBlock, Crypto)
 
 
 data Block = Block
     { hash :: BlockHash
     , slotNumber :: Int64
-    , poolId :: Text
+    , poolId :: PoolID
     , blockData :: CardanoBlock
     , validationStatus :: Text
     , validationReason :: Text

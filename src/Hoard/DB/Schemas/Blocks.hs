@@ -20,12 +20,13 @@ import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.Block (Block (..), decodeCardanoBlock, encodeCardanoBlock)
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..), blockToEra)
+import Hoard.Data.PoolID (PoolID)
 
 
 data Row f = Row
     { hash :: Column f BlockHash
     , slotNumber :: Column f Int64
-    , poolId :: Column f Text
+    , poolId :: Column f PoolID
     , blockEra :: Column f BlockEra
     , blockData :: Column f ByteString
     , validationStatus :: Column f Text
