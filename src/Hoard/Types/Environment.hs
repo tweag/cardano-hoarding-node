@@ -5,6 +5,9 @@ module Hoard.Types.Environment
     , Config (..)
     , Handles (..)
     , Env (..)
+    , NodeSocketsConfig (..)
+    , SshTunnel (..)
+    , Local (..)
     , defaultLogConfig
     )
 where
@@ -57,7 +60,7 @@ defaultLogConfig =
 -- | Pure configuration data loaded from config files
 data Config = Config
     { server :: ServerConfig
-    , localNodeSocketPath :: FilePath
+    , nodeSockets :: NodeSocketsConfig
     , logging :: LogConfig
     , protocolInfo :: ProtocolInfo CardanoBlock
     , nodeConfig :: NodeConfig
@@ -77,3 +80,29 @@ data Env = Env
     { config :: Config
     , handles :: Handles
     }
+
+
+data NodeSocketsConfig
+    = SshTunnel SshTunnel
+    | Local Local
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake NodeSocketsConfig
+
+
+data SshTunnel = MakeSshTunnel
+    { nodeToClientSocket :: FilePath
+    , tracerSocket :: FilePath
+    , user :: Text
+    , remoteHost :: Text
+    , sshKey :: Maybe FilePath
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake SshTunnel
+
+
+data Local = MakeLocal
+    { nodeToClientSocket :: FilePath
+    , tracerSocket :: FilePath
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake Local

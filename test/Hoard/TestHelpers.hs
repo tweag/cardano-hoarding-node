@@ -52,7 +52,9 @@ import Hoard.Types.Environment
     ( Config (..)
     , Env (..)
     , Handles (..)
+    , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
+    , NodeSocketsConfig (Local)
     , ServerConfig (..)
     , defaultLogConfig
     )
@@ -118,7 +120,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 { server = serverConfig
                 , nodeConfig
                 , protocolInfo
-                , localNodeSocketPath = "preview.socket"
+                , nodeSockets = Local $ MakeLocal {nodeToClientSocket = "preview.socket", tracerSocket = "preview_tracer.socket"}
                 , logging = defaultLogConfig
                 }
     let handles =
