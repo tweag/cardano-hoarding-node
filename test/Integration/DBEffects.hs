@@ -37,8 +37,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First write some data
             _ <-
                 runEff
-                    . runReader defaultLogConfig
-                    . Log.runLog
+                    . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runDBWrite
@@ -63,7 +62,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runReader defaultLogConfig
-                    . Log.runLog
+                    . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runDBWrite
@@ -78,7 +77,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             _ <-
                 runEff
                     . runReader defaultLogConfig
-                    . Log.runLog
+                    . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runDBWrite
@@ -89,7 +88,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runReader defaultLogConfig
-                    . Log.runLog
+                    . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runDBWrite

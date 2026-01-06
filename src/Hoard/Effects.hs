@@ -93,7 +93,6 @@ type AppEffects =
      , Labeled "nodeToClient" WithSocket
      , Labeled "tracer" WithSocket
      , Temporary
-     , Conc
      , Concurrent
      , FileSystem
      , Clock
@@ -104,6 +103,7 @@ type AppEffects =
      , Reader Config
      , Reader Env
      , Reader Options
+     , Conc
      , Chan
      , IOE
      ]
@@ -115,6 +115,7 @@ runEffectStack action = liftIO $ do
     result <-
         runEff
             . runChan
+            . runConcNewScope
             . loadOptions
             . loadEnv
             . runConfigReader
@@ -123,7 +124,6 @@ runEffectStack action = liftIO $ do
             . runClock
             . runFileSystem
             . runConcurrent
-            . runConcNewScope
             . runTemporary
             . withNodeSockets
             . runNodeToClient

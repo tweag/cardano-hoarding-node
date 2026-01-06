@@ -23,17 +23,15 @@ import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.Environment (defaultLogConfig)
 
 
 spec_HeaderPersistence :: Spec
 spec_HeaderPersistence = do
     let runWrite config action =
             runEff
-                . runReader defaultLogConfig
-                . runReader config.pools
-                . Log.runLog
+                . Log.runLogNoOp
                 . runErrorNoCallStack @Text
+                . runReader config.pools
                 . runDBRead
                 . runDBWrite
                 . runPeerRepo

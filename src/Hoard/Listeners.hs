@@ -4,6 +4,7 @@ import Effectful (Eff)
 import Hoard.Effects (AppEff)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Sub (listen)
+import Hoard.Listeners.BlockFetchEventListener (blockFetchEventListener)
 import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
 import Hoard.Listeners.CollectorEventListener (collectorEventListener)
 import Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes)
@@ -22,6 +23,7 @@ runListeners = do
     _ <- Conc.fork $ listen networkEventListener
     _ <- Conc.fork $ listen peerSharingEventListener
     _ <- Conc.fork $ listen chainSyncEventListener
+    _ <- Conc.fork $ listen blockFetchEventListener
     _ <- Conc.fork $ listen collectorEventListener
     _ <- Conc.fork $ listen immutableTipRefreshTriggeredListener
     pure ()
