@@ -56,7 +56,9 @@ import Hoard.Types.Environment
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
     , NodeSocketsConfig (Local)
+    , PeerSnapshotFile (..)
     , ServerConfig (..)
+    , Topology (..)
     , defaultLogConfig
     )
 import Hoard.Types.HoardState (HoardState)
@@ -124,6 +126,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , nodeSockets = Local $ MakeLocal {nodeToClientSocket = "preview.socket", tracerSocket = "preview_tracer.socket"}
                 , logging = defaultLogConfig
                 , maxFileDescriptors = Nothing
+                , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
+                , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 }
     let handles =
             Handles

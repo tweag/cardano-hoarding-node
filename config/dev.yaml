@@ -13,7 +13,7 @@ node_sockets:
     tracer_socket: preprod_tracer.socket
 
 # Path to Cardano protocol config file
-protocol_config_path: config/preview/config.json
+protocol_config_path: config/preprod/config.json
 
 database:
   host: /home/cgeorgii/code/cardano-hoarding-node/postgres-data

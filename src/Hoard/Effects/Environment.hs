@@ -4,10 +4,11 @@ module Hoard.Effects.Environment
     , runHandlesReader
     , loadNodeConfig
     , loadProtocolInfo
+    , loadTopology
     ) where
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
-import Data.Aeson (FromJSON (..))
+import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
 import Data.Dynamic (Dynamic)
 import Data.String.Conversions (cs)
 import Data.Yaml qualified as Yaml
@@ -16,7 +17,7 @@ import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
@@ -27,7 +28,7 @@ import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, NodeSocketsConfig, ServerConfig (..))
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, NodeSocketsConfig, PeerSnapshotFile (..), ServerConfig (..), Topology (..))
 import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -113,6 +114,29 @@ loadProtocolInfo nodeConfig = do
     -- Create ProtocolInfo
     let (protocolInfo, _mkBlockForging) = mkProtocolInfoCardano genesisConfig
     pure protocolInfo
+
+
+-- | Load topology configuration from the same directory as the protocol config
+loadTopology :: (IOE :> es) => FilePath -> Eff es (Topology, PeerSnapshotFile)
+loadTopology protocolConfigPath = do
+    let configDir = takeDirectory protocolConfigPath
+        topologyPath = configDir </> "topology.json"
+
+    -- Load topology.json
+    topologyResult <- liftIO $ eitherDecodeFileStrict topologyPath
+    topologyData <- case topologyResult of
+        Left err -> throwIO $ userError $ "Failed to parse " <> topologyPath <> ": " <> err
+        Right topology -> pure topology
+
+    -- Load peer-snapshot.json from the same directory
+    let peerSnapshotPath = configDir </> topologyData.peerSnapshotFile
+    peerSnapshotResult <- liftIO $ eitherDecodeFileStrict peerSnapshotPath
+    peerSnapshot <- case peerSnapshotResult of
+        Left err -> throwIO $ userError $ "Failed to parse " <> peerSnapshotPath <> ": " <> err
+        Right snapshot -> pure (snapshot :: PeerSnapshotFile)
+
+    -- Return both the topology data and the loaded peer snapshot
+    pure (topologyData, peerSnapshot)
 
 
 -- | Convert config types to DBConfig for database connection
@@ -205,6 +229,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     secrets <- loadYaml @SecretConfig $ configFile.secretsFile
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
     protocolInfo <- loadProtocolInfo nodeConfig
+    (topology, peerSnapshot) <- loadTopology configFile.protocolConfigPath
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
 
@@ -216,6 +241,8 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , nodeSockets = configFile.nodeSockets
                 , logging
                 , maxFileDescriptors = configFile.maxFileDescriptors
+                , topology
+                , peerSnapshot
                 }
         env = Env {config, handles}
 
