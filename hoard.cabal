@@ -71,6 +71,7 @@ library
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
+      Hoard.Setup
       Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.Collector
@@ -155,6 +156,7 @@ library
     , typed-process
     , typed-protocols
     , unagi-chan
+    , unix
     , unordered-containers
     , uuid
     , warp
@@ -241,6 +243,7 @@ executable hoard-exe
     , typed-process
     , typed-protocols
     , unagi-chan
+    , unix
     , unordered-containers
     , uuid
     , warp

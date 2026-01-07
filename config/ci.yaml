@@ -27,3 +27,6 @@ database:
 
 logging:
   minimum_severity: DEBUG
+
+# Maximum number of file descriptors
+max_file_descriptors: 16384

@@ -5,11 +5,13 @@ import Hoard.Effects (runEffectStack)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Listeners (runListeners)
 import Hoard.Server (runServer)
+import Hoard.Setup (setup)
 import Hoard.Triggers (runTriggers)
 
 
 main :: IO ()
 main = runEffectStack do
+    setup
     runServer
     runListeners
     runCollectors

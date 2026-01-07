@@ -64,6 +64,7 @@ data Config = Config
     , logging :: LogConfig
     , protocolInfo :: ProtocolInfo CardanoBlock
     , nodeConfig :: NodeConfig
+    , maxFileDescriptors :: Maybe Word32
     }
 
 

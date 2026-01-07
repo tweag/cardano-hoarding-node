@@ -123,6 +123,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , protocolInfo
                 , nodeSockets = Local $ MakeLocal {nodeToClientSocket = "preview.socket", tracerSocket = "preview_tracer.socket"}
                 , logging = defaultLogConfig
+                , maxFileDescriptors = Nothing
                 }
     let handles =
             Handles

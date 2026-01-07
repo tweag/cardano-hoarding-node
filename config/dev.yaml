@@ -27,3 +27,7 @@ database:
 
 logging:
   minimum_severity: DEBUG
+
+# Maximum number of file descriptors
+# Increase this to support many concurrent peer connections
+max_file_descriptors: 16384
