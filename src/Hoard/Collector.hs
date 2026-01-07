@@ -1,14 +1,19 @@
-module Hoard.Collector (runCollector, runCollectors) where
+module Hoard.Collector
+    ( runCollector
+    , runCollectors
+    , bracketCollector
+    ) where
 
-import Control.Concurrent (threadDelay)
 import Data.Set qualified as S
 import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader)
-import Effectful.State.Static.Shared (State, modify, stateM)
+import Effectful.State.Static.Shared (State, gets, stateM)
 import Prelude hiding (Reader, State, gets, modify, state)
 
+import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
+import Effectful.Concurrent (Concurrent, threadDelay)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
@@ -51,6 +56,7 @@ runCollectors
        , Conc :> es
        , PeerRepo :> es
        , Reader Config :> es
+       , Concurrent :> es
        , Clock :> es
        , Log :> es
        , State HoardState :> es
@@ -61,6 +67,11 @@ runCollectors = do
     -- Check if there are any known peers in the database
     knownPeers <- getAllPeers
 
+    Conc.fork_ $ forever do
+        numPeers <- gets (S.size . (.connectedPeers))
+        Log.info $ "Currently connected to " <> show numPeers <> " peers"
+        threadDelay 10_000_000
+
     if Set.null knownPeers
         then do
             -- No known peers, bootstrap from peer snapshot
@@ -68,29 +79,34 @@ runCollectors = do
             bootstrappedPeers <- bootstrapPeers
             let peerCount = Set.size bootstrappedPeers
             Log.debug $ "Bootstrapped " <> show peerCount <> " peers from peer snapshot"
-            for_ (Set.toList bootstrappedPeers) runCollector
+            for_ (Set.toList bootstrappedPeers) bracketCollector
         else do
             -- Start collectors for all known peers
             let peerCount = Set.size knownPeers
             Log.debug $ "Found " <> show peerCount <> " known peers, starting collectors"
-            for_ (Set.toList knownPeers) runCollector
+            for_ (Set.toList knownPeers) bracketCollector
 
 
--- | Fork a collector with exception handling and state management.
+-- | Fork a collector with exception handling and state management. The forked
+-- collector verifies that the supplied peer is a valid peer to connect to.
 --
 -- This wraps runCollector with:
 -- - Proper exception handling (forkTry + withExceptionLogging)
 -- - Connected peers state management (adds peer on start, removes on termination)
 -- - Failure time tracking (updates peer's lastFailureTime on exception)
 --
+-- The peer is skipped if:
+-- - It is already connected to by another collector.
+-- - If we have attempted to connect to the peer too recently.
+--
 -- The peer is automatically removed from connectedPeers when the collector
 -- terminates, whether due to an exception or normal completion.
-runCollector
+bracketCollector
     :: ( BlockRepo :> es
+       , Concurrent :> es
        , Conc :> es
        , Chan :> es
        , Clock :> es
-       , IOE :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -99,51 +115,51 @@ runCollector
        )
     => Peer
     -> Eff es ()
-runCollector peer = do
+bracketCollector peer = do
     _ <-
         Conc.forkTry @SomeException
             . withExceptionLogging ("collector " <> show peer.address)
             $ generalBracket
-                ( stateM \r ->
-                    if S.member peer r.connectedPeers
+                ( stateM \r -> do
+                    timestamp <- Clock.currentTime
+                    if not (peer.id `S.member` r.connectedPeers) && isPeerEligible timestamp peer
                         then do
+                            Log.info $ "Adding peer to connectedPeers: " <> show peer.address
+                            pure (Just peer, r {connectedPeers = S.insert peer.id r.connectedPeers})
+                        else do
                             Log.info $ "Peer is already connected to: " <> show peer.address
                             pure (Nothing, r)
-                        else do
-                            Log.info $ "Adding peer to connectedPeers: " <> show peer.address
-                            pure (Just peer, r {connectedPeers = S.insert peer r.connectedPeers})
                 )
                 ( \mp exitCase -> case mp of
-                    Just p -> do
+                    Just _ -> do
                         case exitCase of
                             -- Only update failure time for real errors, not clean shutdowns
                             ExitCaseException e ->
-                                unless (isGracefulShutdown e) $ do
+                                unless (isGracefulShutdown e) do
                                     timestamp <- Clock.currentTime
                                     updatePeerFailure peer timestamp
                             _ -> pure ()
 
                         Log.info $ "Removing peer to connectedPeers: " <> show peer.address
                         Log.info $ "ExitCase: " <> show exitCase
-                        modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
-                    Nothing -> do
-                        Log.info $ "Did not connect to peer: " <> show peer.address
+                    Nothing ->
+                        Log.info $ "Peer skipped: " <> show peer.address
                 )
-                (traverse runCollectorImpl)
+                (traverse_ runCollector)
     pure ()
 
 
-runCollectorImpl
+runCollector
     :: ( BlockRepo :> es
        , Conc :> es
+       , Concurrent :> es
        , Chan :> es
-       , IOE :> es
        , NodeToNode :> es
        , Pub :> es
        )
     => Peer
     -> Eff es Void
-runCollectorImpl peer =
+runCollector peer =
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceivedData
         . withBridge @BlockReceivedData
@@ -165,7 +181,7 @@ runCollectorImpl peer =
             -- Connection is now running autonomously!
             -- Protocols publish events as they receive data
             -- For now, just keep the collector alive
-            forever $ liftIO $ threadDelay 1000000
+            forever $ threadDelay 1000000
 
 
 -- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
@@ -201,3 +217,18 @@ withBridge :: forall b es a. (Chan :> es) => Eff (Input b : Output b : es) a -> 
 withBridge action = do
     (inChan, outChan) <- Chan.newChan
     runOutputChan inChan . runInputChan outChan $ action
+
+
+-- | Check if a peer is eligible for connection based on failure cooldown
+isPeerEligible :: UTCTime -> Peer -> Bool
+isPeerEligible currentTime peer =
+    case peer.lastFailureTime of
+        Nothing -> True -- Never failed, eligible
+        Just failureTime ->
+            let timeSinceFailure = diffUTCTime currentTime failureTime
+            in  timeSinceFailure >= peerFailureCooldown
+
+
+-- | Cooldown period after a peer failure before retrying (5 minutes)
+peerFailureCooldown :: NominalDiffTime
+peerFailureCooldown = 300 -- 5 minutes in seconds
