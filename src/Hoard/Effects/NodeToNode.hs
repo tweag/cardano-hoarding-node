@@ -18,7 +18,7 @@ module Hoard.Effects.NodeToNode
 
 import Cardano.Api ()
 import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Tracer (Tracer (..), stdoutTracer)
+import Control.Tracer (Tracer (..), nullTracer, stdoutTracer)
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
@@ -366,9 +366,7 @@ mkApplication unlift conf codecs peer =
                             let codec = cChainSyncCodec codecs
                                 -- Note: Exception logging added inside chainSyncClientImpl via Effect
                                 client = chainSyncClientImpl unlift conf peer
-                                -- Use a tracer to see protocol messages
-                                tracer = (("[ChainSync] " <>) . show) >$< logTracer unlift Log.DEBUG
-                            in  (tracer, codec, client)
+                            in  (nullTracer, codec, client)
             }
         , -- BlockFetch mini-protocol
           MiniProtocol

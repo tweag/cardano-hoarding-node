@@ -15,7 +15,7 @@ node_sockets:
 
 # Path to Cardano protocol config file
 # TODO: Update to mainnet config in phase 2
-protocol_config_path: config/preview/config.json
+protocol_config_path: config/preprod/config.json
 
 database:
   host: prod-db.example.com
