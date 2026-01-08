@@ -40,7 +40,6 @@ import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
-import Ouroboros.Network.Block (genesisPoint)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
@@ -81,8 +80,11 @@ import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSha
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
-import Prelude hiding (Reader, asks)
+import Prelude hiding (Reader, State, asks, gets)
 
+import Cardano.Api.Block (toConsensusPointHF)
+import Data.List qualified as List
+import Effectful.State.Static.Shared (State, gets)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
@@ -115,6 +117,7 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.Environment qualified as Log (Severity (..))
+import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
 
@@ -158,6 +161,7 @@ runNodeToNode
        , Log :> es
        , Pub :> es
        , Reader Env :> es
+       , State HoardState :> es
        )
     => Eff (NodeToNode : es) a
     -> Eff es a
@@ -201,6 +205,7 @@ connectToPeerImpl
        , Log :> es
        , Pub :> es
        , Reader Env :> es
+       , State HoardState :> es
        )
     => Config (Eff es)
     -> Eff es Void
@@ -335,6 +340,7 @@ mkApplication
        , Concurrent :> es
        , Log :> es
        , Pub :> es
+       , State HoardState :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
@@ -585,6 +591,7 @@ chainSyncClientImpl
      . ( Clock :> es
        , Log :> es
        , Pub :> es
+       , State HoardState :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
@@ -601,11 +608,12 @@ chainSyncClientImpl unlift conf peer =
                         publish $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
                         Log.debug "ChainSync: Published ChainSyncStarted event"
                         Log.debug "ChainSync: Starting pipelined client, finding intersection from genesis"
-                        pure findIntersect
+                        initialPoints <- List.singleton . toConsensusPointHF <$> gets (.immutableTip)
+                        pure (findIntersect initialPoints)
   where
-    findIntersect :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
-    findIntersect =
-        Yield (ChainSync.MsgFindIntersect [genesisPoint]) $ Await $ \case
+    findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
+    findIntersect initialPoints =
+        Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
                 Log.debug "ChainSync: Intersection not found (continuing anyway)"
                 pure requestNext

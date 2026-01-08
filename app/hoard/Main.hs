@@ -53,13 +53,13 @@ main =
         . runSub
         . runPub
         . runErrorThrowing
+        . evalState @HoardState def
         . runNodeToNode
         . runDBRead
         . runDBWrite
         . runHeaderRepo
         . runPeerRepo
         . runBlockRepo
-        . evalState @HoardState def
         $ do
             setup
             runServer
