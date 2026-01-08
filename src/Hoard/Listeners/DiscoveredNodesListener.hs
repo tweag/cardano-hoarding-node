@@ -1,13 +1,12 @@
 module Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes) where
 
 import Data.Set qualified as S
-import Data.Time (UTCTime)
-import Data.Time.Clock (NominalDiffTime, diffUTCTime)
-import Effectful (Eff, IOE, (:>))
-import Effectful.State.Static.Shared (State, gets)
-import Prelude hiding (State, gets)
+import Effectful (Eff, (:>))
+import Effectful.State.Static.Shared (State)
+import Prelude hiding (Reader, State, gets, modify)
 
-import Hoard.Collector (runCollector)
+import Effectful.Concurrent (Concurrent)
+import Hoard.Collector (bracketCollector)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Chan (Chan)
@@ -23,11 +22,6 @@ import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 
--- | Cooldown period after a peer failure before retrying (5 minutes)
-peerFailureCooldown :: NominalDiffTime
-peerFailureCooldown = 300 -- 5 minutes in seconds
-
-
 -- | Dispatch discovered peer nodes for connection.
 --
 -- When peers are discovered via peer sharing:
@@ -39,10 +33,10 @@ dispatchDiscoveredNodes
     :: ( BlockRepo :> es
        , Chan :> es
        , Conc :> es
-       , IOE :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
+       , Concurrent :> es
        , Pub :> es
        , State HoardState :> es
        , Clock :> es
@@ -57,32 +51,7 @@ dispatchDiscoveredNodes = \case
         timestamp <- Clock.currentTime
         upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
 
-        currPeers <- gets (.connectedPeers)
-        let newPeers = S.difference upsertedPeers currPeers
+        Log.info $ "Dispatch: " <> show (S.size upsertedPeers) <> " new peers to connect to"
 
-        -- Filter out peers in cooldown period
-        let eligiblePeers = S.filter (isPeerEligible timestamp) newPeers
-            cooldownPeers = S.difference newPeers eligiblePeers
-
-        unless (S.null cooldownPeers) $
-            Log.info $
-                "Dispatch: Skipping "
-                    <> show (S.size cooldownPeers)
-                    <> " peers in cooldown (from "
-                    <> show sourcePeer.address
-                    <> ")"
-
-        Log.info $ "Dispatch: " <> show (S.size eligiblePeers) <> " new peers to connect to"
-
-        forM_ eligiblePeers runCollector
+        for_ upsertedPeers bracketCollector
     _ -> pure ()
-
-
--- | Check if a peer is eligible for connection based on failure cooldown
-isPeerEligible :: UTCTime -> Peer -> Bool
-isPeerEligible currentTime peer =
-    case peer.lastFailureTime of
-        Nothing -> True -- Never failed, eligible
-        Just failureTime ->
-            let timeSinceFailure = diffUTCTime currentTime failureTime
-            in  timeSinceFailure >= peerFailureCooldown

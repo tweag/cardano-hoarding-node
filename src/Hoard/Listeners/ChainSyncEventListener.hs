@@ -22,7 +22,7 @@ chainSyncEventListener = \case
     ChainSyncStarted dat -> do
         Log.info $ "⛓️  ChainSync protocol started at " <> show dat.timestamp
     HeaderReceived dat -> do
-        Log.info "📦 Header received!"
+        Log.debug "📦 Header received!"
         -- Extract header data from the event
         let header = extractHeaderData dat
         -- Upsert the header and record receipt
