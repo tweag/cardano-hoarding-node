@@ -17,6 +17,10 @@ library
   exposed-modules:
       Hoard.API
       Hoard.Bootstrap
+      Hoard.ChainSync
+      Hoard.ChainSync.Events
+      Hoard.ChainSync.Listeners
+      Hoard.ChainSync.NodeToNode
       Hoard.Collector
       Hoard.Control.Exception
       Hoard.Data.Block
@@ -24,7 +28,6 @@ library
       Hoard.Data.BlockHash
       Hoard.Data.Eras
       Hoard.Data.Header
-      Hoard.Data.Header.Extract
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.Data.PoolID
@@ -47,6 +50,7 @@ library
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.Codecs
+      Hoard.Effects.NodeToNode.Config
       Hoard.Effects.Options
       Hoard.Effects.Output
       Hoard.Effects.PeerRepo
@@ -60,7 +64,6 @@ library
       Hoard.Events.Node
       Hoard.Listeners
       Hoard.Listeners.BlockFetchEventListener
-      Hoard.Listeners.ChainSyncEventListener
       Hoard.Listeners.CollectorEventListener
       Hoard.Listeners.DiscoveredNodesListener
       Hoard.Listeners.HeaderReceivedListener
