@@ -9,7 +9,7 @@ import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader)
-import Effectful.State.Static.Shared (State, stateM)
+import Effectful.State.Static.Shared (State, gets, modify, stateM)
 import Prelude hiding (Reader, State, gets, modify, state)
 
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
@@ -119,26 +119,29 @@ bracketCollector peer = do
                     timestamp <- Clock.currentTime
                     if not (peer.id `S.member` r.connectedPeers) && isPeerEligible timestamp peer
                         then do
-                            Log.info $ "Adding peer to connectedPeers: " <> show peer.address
+                            Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
                             pure (Just peer, r {connectedPeers = S.insert peer.id r.connectedPeers})
                         else do
                             Log.info $ "Peer is already connected to: " <> show peer.address
                             pure (Nothing, r)
                 )
-                ( \mp exitCase -> case mp of
-                    Just _ -> do
-                        case exitCase of
-                            -- Only update failure time for real errors, not clean shutdowns
-                            ExitCaseException e ->
-                                unless (isGracefulShutdown e) do
-                                    timestamp <- Clock.currentTime
-                                    updatePeerFailure peer timestamp
-                            _ -> pure ()
+                ( \mp exitCase -> do
+                    case mp of
+                        Just p -> do
+                            case exitCase of
+                                -- Only update failure time for real errors, not clean shutdowns
+                                ExitCaseException e ->
+                                    unless (isGracefulShutdown e) do
+                                        timestamp <- Clock.currentTime
+                                        updatePeerFailure peer timestamp
+                                _ -> pure ()
 
-                        Log.info $ "Removing peer to connectedPeers: " <> show peer.address
-                        Log.info $ "ExitCase: " <> show exitCase
-                    Nothing ->
-                        Log.info $ "Peer skipped: " <> show peer.address
+                            Log.debug $ "Removing peer from connectedPeers: " <> show peer.address
+                            modify \r -> r {connectedPeers = S.delete p.id r.connectedPeers}
+
+                            Log.info $ "ExitCase: " <> show exitCase
+                        Nothing ->
+                            Log.info $ "Peer skipped: " <> show peer.address
                 )
                 (traverse_ runCollector)
     pure ()
