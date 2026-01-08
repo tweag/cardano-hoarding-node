@@ -1,10 +1,14 @@
 module Hoard.Control.Exception
     ( withExceptionLogging
     , isGracefulShutdown
+    , runErrorThrowing
     ) where
 
-import Effectful (Eff, (:>))
+import Control.Exception qualified as IOE
+import Effectful (Eff, IOE, (:>))
+import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
+import System.IO.Error (userError)
 
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
@@ -34,3 +38,10 @@ withExceptionLogging protocolName action =
 -- Other async exceptions (e.g., network timeouts) are treated as real errors.
 isGracefulShutdown :: SomeException -> Bool
 isGracefulShutdown = isJust . fromException @SomeAsyncException
+
+
+runErrorThrowing :: (IOE :> es) => Eff (Error Text : es) a -> Eff es a
+runErrorThrowing eff =
+    runErrorNoCallStack eff >>= \case
+        Left err -> liftIO $ IOE.throwIO $ userError $ toString err
+        Right value -> pure value
