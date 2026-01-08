@@ -1,4 +1,3 @@
--- to do. remove after issue 102
 {-# OPTIONS_GHC -Wno-unused-top-binds -Wno-redundant-constraints #-}
 
 module Hoard.Effects.NodeToClient
@@ -65,7 +64,6 @@ data NodeToClient :: Effect where
 makeEffect ''NodeToClient
 
 
--- to do. remove after issue 102
 runNodeToClient
     :: ( Labeled "nodeToClient" WithSocket :> es
        , Conc :> es
@@ -75,21 +73,7 @@ runNodeToClient
        )
     => Eff (NodeToClient : es) a
     -> Eff es a
-runNodeToClient = interpret_ $ \case
-    ImmutableTip -> pure C.ChainPointAtGenesis
-    IsOnChain _ -> pure False
-
-
-runNodeToClient'
-    :: ( Labeled "nodeToClient" WithSocket :> es
-       , Conc :> es
-       , Log :> es
-       , IOE :> es
-       , Reader Config :> es
-       )
-    => Eff (NodeToClient : es) a
-    -> Eff es a
-runNodeToClient' nodeToClient = do
+runNodeToClient nodeToClient = do
     config <- ask
     (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan

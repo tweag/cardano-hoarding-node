@@ -9,8 +9,8 @@ secrets_file: secrets/dev.yaml
 node_sockets:
   tag: Local
   contents:
-    node_to_client_socket: preprod.socket
-    tracer_socket: preprod_tracer.socket
+    node_to_client_socket: node-db/preprod/node.socket
+    tracer_socket: /tmp/cardano-tracer.sock
 
 # Path to Cardano protocol config file
 protocol_config_path: config/preprod/config.json
