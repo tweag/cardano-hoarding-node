@@ -21,7 +21,10 @@ library
       Hoard.ChainSync.Events
       Hoard.ChainSync.Listeners
       Hoard.ChainSync.NodeToNode
-      Hoard.Collector
+      Hoard.Collectors
+      Hoard.Collectors.Events
+      Hoard.Collectors.Listeners
+      Hoard.Collectors.State
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.Block.Extract
@@ -58,14 +61,11 @@ library
       Hoard.Effects.Sub
       Hoard.Effects.WithSocket
       Hoard.Events
-      Hoard.Events.Collector
       Hoard.Events.HeaderReceived
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
       Hoard.Listeners
       Hoard.Listeners.BlockFetchEventListener
-      Hoard.Listeners.CollectorEventListener
-      Hoard.Listeners.DiscoveredNodesListener
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
@@ -77,7 +77,6 @@ library
       Hoard.Setup
       Hoard.Triggers
       Hoard.Types.Cardano
-      Hoard.Types.Collector
       Hoard.Types.DBConfig
       Hoard.Types.Deployment
       Hoard.Types.Environment

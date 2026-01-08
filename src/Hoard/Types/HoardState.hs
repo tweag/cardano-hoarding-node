@@ -1,14 +1,10 @@
-module Hoard.Types.HoardState
-    ( HoardState (..)
-    , BlocksBeingFetched (..)
-    ) where
+module Hoard.Types.HoardState (HoardState (..)) where
 
 import Data.Default (Default (..))
 
 import Data.Set qualified as S
 
 import Cardano.Api (ChainPoint (ChainPointAtGenesis))
-import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 
@@ -27,10 +23,3 @@ instance Default HoardState where
             { connectedPeers = S.empty
             , immutableTip = ChainPointAtGenesis
             }
-
-
-newtype BlocksBeingFetched = BlocksBeingFetched {blocksBeingFetched :: (Set BlockHash)}
-
-
-instance Default BlocksBeingFetched where
-    def = BlocksBeingFetched S.empty

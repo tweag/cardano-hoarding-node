@@ -10,6 +10,7 @@ import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, modify)
 import Prelude hiding (State, modify)
 
+import Hoard.Collectors.State (BlocksBeingFetched (..))
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.Block.Extract (extractBlockData)
 import Hoard.Data.BlockHash (blockHashFromHeader)
@@ -22,7 +23,6 @@ import Hoard.Network.Events
     , BlockFetchStarted (..)
     , BlockReceived (..)
     )
-import Hoard.Types.HoardState (BlocksBeingFetched (..))
 
 
 -- | Listener that handles BlockFetch started events

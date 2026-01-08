@@ -1,6 +1,4 @@
-module Hoard.Events.Collector
-    ( CollectorEvent (..)
-    ) where
+module Hoard.Collectors.Events (CollectorEvent (..)) where
 
 import Hoard.Data.Peer (PeerAddress)
 
