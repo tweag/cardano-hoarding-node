@@ -40,10 +40,7 @@ setup
 setup = do
     Log.info "Running application setup..."
 
-    -- Set file descriptor limit (use default if not configured)
-    configLimit <- asks (.maxFileDescriptors)
-    let limit = fromMaybe defaultMaxFileDescriptors configLimit
-    setFileDescriptorLimit limit
+    setFileDescriptorLimit
 
     Log.info "Application setup complete"
 
@@ -53,25 +50,26 @@ setup = do
 -- This raises the soft limit for open file descriptors up to the specified limit,
 -- which must not exceed the hard limit. If the requested limit is higher than the
 -- hard limit, it will be capped at the hard limit.
-setFileDescriptorLimit
-    :: (IOE :> es, Log :> es)
-    => Word32
-    -> Eff es ()
-setFileDescriptorLimit requestedLimit = do
+setFileDescriptorLimit :: (IOE :> es, Log :> es, Reader Config :> es) => Eff es ()
+setFileDescriptorLimit = do
+    -- Set file descriptor limit (use default if not configured)
+    configLimit <- asks (.maxFileDescriptors)
+    let limit = fromMaybe defaultMaxFileDescriptors configLimit
+
     -- Get current limits
     ResourceLimits {softLimit, hardLimit} <- liftIO $ getResourceLimit ResourceOpenFiles
 
     Log.debug $ "Current file descriptor limits - soft: " <> show softLimit <> ", hard: " <> show hardLimit
 
     -- Convert requested limit to ResourceLimit
-    let requested = ResourceLimit (fromIntegral requestedLimit)
+    let requested = ResourceLimit (fromIntegral limit)
 
     -- Determine the new soft limit (capped by hard limit)
     let newSoftLimit = case hardLimit of
             ResourceLimitInfinity -> requested
             ResourceLimitUnknown -> requested
             ResourceLimit hard ->
-                if fromIntegral requestedLimit > hard
+                if fromIntegral limit > hard
                     then ResourceLimit hard
                     else requested
 
