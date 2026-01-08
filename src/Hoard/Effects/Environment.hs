@@ -22,6 +22,7 @@ import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
 import Data.Time.Clock (NominalDiffTime)
+import Effectful.Concurrent.QSem (Concurrent, QSem, newQSem)
 import Hoard.Effects.Chan (Chan, InChan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Options (Options)
@@ -44,6 +45,7 @@ data ConfigFile = ConfigFile
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
+    , blockFetchQsemLimit :: Maybe Int
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -172,6 +174,13 @@ loadLoggingConfig configFile = do
     pure $ Log.defaultLogConfig {Log.minimumSeverity}
 
 
+loadBlockFetchQSem :: (Concurrent :> es, IOE :> es) => ConfigFile -> Eff es QSem
+loadBlockFetchQSem configFile = do
+    qsemLimitEnv <- (>>= readMaybe) <$> lookupEnv "BLOCK_FETCH_QSEM_LIMIT"
+    let qsemLimit = fromMaybe 10 $ qsemLimitEnv <|> configFile.blockFetchQsemLimit
+    newQSem qsemLimit
+
+
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
@@ -219,6 +228,7 @@ loadYaml path = do
 -- then acquires all necessary runtime handles
 loadEnv
     :: ( Chan :> es
+       , Concurrent :> es
        , IOE :> es
        , Reader Options :> es
        )
@@ -234,6 +244,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     (topology, peerSnapshot) <- loadTopology configFile.protocolConfigPath
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
+    blockFetchQSem <- loadBlockFetchQSem configFile
 
     let config =
             Config
@@ -246,6 +257,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , topology
                 , peerSnapshot
                 , peerFailureCooldown = configFile.peerFailureCooldownSeconds
+                , blockFetchQSem
                 }
         env = Env {config, handles}
 

@@ -6,14 +6,16 @@ module Hoard.Collector
 
 import Data.Set qualified as S
 import Data.Set qualified as Set
+import Data.Time (diffUTCTime)
 import Effectful (Eff, IOE, (:>))
+import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, stateM)
+import Effectful.Timeout (Timeout)
+import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Prelude hiding (Reader, State, asks, gets, modify, state)
 
-import Data.Time (diffUTCTime)
-import Effectful.Concurrent (Concurrent, threadDelay)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
@@ -25,7 +27,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Input (Input, input, runInputChan)
+import Hoard.Effects.Input (Input, input, runInputChan, runTimedBatchedInput)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
@@ -41,7 +43,6 @@ import Hoard.Network.Events
     )
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState, connectedPeers)
-import Ouroboros.Consensus.Block.Abstract (headerPoint)
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.
@@ -51,17 +52,18 @@ import Ouroboros.Consensus.Block.Abstract (headerPoint)
 -- - If no peers exist, bootstraps from the hardcoded preview-node peer
 runCollectors
     :: ( BlockRepo :> es
-       , Pub :> es
-       , NodeToNode :> es
        , Chan :> es
-       , Conc :> es
-       , PeerRepo :> es
-       , Reader Config :> es
-       , Concurrent :> es
        , Clock :> es
-       , Log :> es
-       , State HoardState :> es
+       , Conc :> es
+       , Concurrent :> es
        , IOE :> es
+       , Log :> es
+       , NodeToNode :> es
+       , PeerRepo :> es
+       , Pub :> es
+       , Reader Config :> es
+       , State HoardState :> es
+       , Timeout :> es
        )
     => Eff es ()
 runCollectors = do
@@ -109,6 +111,7 @@ bracketCollector
        , Pub :> es
        , Reader Config :> es
        , State HoardState :> es
+       , Timeout :> es
        )
     => Peer
     -> Eff es ()
@@ -124,7 +127,7 @@ bracketCollector peer = do
                             Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
                             pure (Just peer, r {connectedPeers = S.insert peer.id r.connectedPeers})
                         else do
-                            Log.info $ "Peer is already connected to: " <> show peer.address
+                            Log.debug $ "Peer is already connected to: " <> show peer.address
                             pure (Nothing, r)
                 )
                 ( \mp exitCase -> do
@@ -143,7 +146,7 @@ bracketCollector peer = do
 
                             Log.info $ "ExitCase: " <> show exitCase
                         Nothing ->
-                            Log.info $ "Peer skipped: " <> show peer.address
+                            Log.debug $ "Peer skipped: " <> show peer.address
                 )
                 (traverse_ runCollector)
     pure ()
@@ -154,8 +157,10 @@ runCollector
        , Conc :> es
        , Concurrent :> es
        , Chan :> es
+       , Log :> es
        , NodeToNode :> es
        , Pub :> es
+       , Timeout :> es
        )
     => Peer
     -> Eff es Void
@@ -163,6 +168,7 @@ runCollector peer =
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceived
         . withBridge @BlockReceived
+        . runTimedBatchedInput @BlockFetchRequest 10 1_000_000
         $ do
             publish $ CollectorStarted peer.address
             publish $ ConnectingToPeer peer.address
@@ -174,7 +180,7 @@ runCollector peer =
                         { peer
                         , emitFetchedHeader = output
                         , emitFetchedBlock = output
-                        , awaitBlockFetchRequest = input
+                        , awaitBlockFetchRequests = input
                         }
             publish $ ConnectedToPeer peer.address
 
@@ -188,19 +194,24 @@ runCollector peer =
 pickBlockFetchRequest
     :: ( BlockRepo :> es
        , Input HeaderReceived :> es
+       , Log :> es
        , Output BlockFetchRequest :> es
        )
     => Eff es Void
 pickBlockFetchRequest = forever do
     event <- input
-    blocks <- BlockRepo.hasBlocks [event.header]
-    when (not $ null blocks) $
-        output $
-            BlockFetchRequest
-                { timestamp = event.timestamp
-                , point = headerPoint event.header
-                , peer = event.peer
-                }
+    let headers = [event.header]
+    existingBlocks <- BlockRepo.hasBlocks headers
+    if length existingBlocks < length headers
+        then do
+            output $
+                BlockFetchRequest
+                    { timestamp = event.timestamp
+                    , point = headerPoint event.header
+                    , peer = event.peer
+                    }
+        else
+            Log.info "BlockFetch: already have block of found header. Skipping..."
 
 
 -- | Bridge effects through bidirectional channels.

@@ -2,11 +2,12 @@ module Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes) where
 
 import Data.Set qualified as S
 import Effectful (Eff, (:>))
+import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
+import Effectful.Timeout (Timeout)
 import Prelude hiding (Reader, State, gets, modify)
 
-import Effectful.Concurrent (Concurrent)
 import Hoard.Collector (bracketCollector)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
@@ -34,15 +35,16 @@ import Hoard.Types.HoardState (HoardState (..))
 dispatchDiscoveredNodes
     :: ( BlockRepo :> es
        , Chan :> es
+       , Clock :> es
        , Conc :> es
+       , Concurrent :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Concurrent :> es
        , Pub :> es
        , Reader Config :> es
        , State HoardState :> es
-       , Clock :> es
+       , Timeout :> es
        )
     => PeersReceived
     -> Eff es ()

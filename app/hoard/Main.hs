@@ -6,6 +6,7 @@ import Effectful.Concurrent (runConcurrent)
 import Effectful.FileSystem (runFileSystem)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Temporary (runTemporary)
+import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
 import Hoard.Collector (runCollectors)
@@ -38,6 +39,8 @@ import Hoard.Types.HoardState (HoardState)
 main :: IO ()
 main =
     runEff
+        . runConcurrent
+        . runTimeout
         . runChan
         . runConcNewScope
         . loadOptions
@@ -47,7 +50,6 @@ main =
         . runLog
         . runClock
         . runFileSystem
-        . runConcurrent
         . runTemporary
         . withNodeSockets
         . runNodeToClient
