@@ -1,6 +1,6 @@
 module Hoard.ChainSync
     ( run
-    , listeners
+    , runListeners
     ) where
 
 import Cardano.Api.LedgerState ()
@@ -16,11 +16,11 @@ import Hoard.Effects.Sub qualified as Sub
 
 
 run :: (Log :> es, Conc :> es, HeaderRepo :> es, Sub :> es) => Eff es ()
-run = listeners
+run = runListeners
 
 
-listeners :: (Log :> es, Conc :> es, HeaderRepo :> es, Sub :> es) => Eff es ()
-listeners = do
+runListeners :: (Log :> es, Conc :> es, HeaderRepo :> es, Sub :> es) => Eff es ()
+runListeners = do
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncHeaderReceived
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncStarted
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncRollBackward

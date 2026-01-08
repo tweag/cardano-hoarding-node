@@ -10,7 +10,7 @@ import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
 import Hoard.ChainSync qualified as ChainSync
-import Hoard.Collector (runCollectors)
+import Hoard.Collectors qualified as Collectors
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -69,8 +69,8 @@ main =
             setup
             runServer
             runListeners
-            runCollectors
             runTriggers
             ChainSync.run
             Monitoring.run
+            Collectors.run
             Conc.awaitAll

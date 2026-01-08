@@ -30,7 +30,7 @@ import Data.Time (UTCTime)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
 import Hoard.Data.Peer (Peer, PeerAddress)
-import Hoard.Types.Cardano (CardanoBlock, CardanoPoint)
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
 --------------------------------------------------------------------------------
