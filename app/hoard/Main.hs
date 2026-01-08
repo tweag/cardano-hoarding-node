@@ -28,6 +28,7 @@ import Hoard.Effects.Pub (runPub)
 import Hoard.Effects.Sub (runSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Listeners (runListeners)
+import Hoard.Monitoring qualified as Monitoring
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
 import Hoard.Triggers (runTriggers)
@@ -66,4 +67,5 @@ main =
             runListeners
             runCollectors
             runTriggers
+            Monitoring.run
             Conc.awaitAll

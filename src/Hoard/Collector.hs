@@ -9,7 +9,7 @@ import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader)
-import Effectful.State.Static.Shared (State, gets, stateM)
+import Effectful.State.Static.Shared (State, stateM)
 import Prelude hiding (Reader, State, gets, modify, state)
 
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
@@ -66,11 +66,6 @@ runCollectors
 runCollectors = do
     -- Check if there are any known peers in the database
     knownPeers <- getAllPeers
-
-    Conc.fork_ $ forever do
-        numPeers <- gets (S.size . (.connectedPeers))
-        Log.info $ "Currently connected to " <> show numPeers <> " peers"
-        threadDelay 10_000_000
 
     if Set.null knownPeers
         then do

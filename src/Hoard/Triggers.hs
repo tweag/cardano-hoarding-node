@@ -1,7 +1,8 @@
-module Hoard.Triggers (runTriggers) where
+module Hoard.Triggers (runTriggers, every) where
 
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
+
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Pub (Pub, publish)

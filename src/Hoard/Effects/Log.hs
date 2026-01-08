@@ -10,6 +10,7 @@ module Hoard.Effects.Log
       -- * Interpreters
     , runLog
     , runLogNoOp
+    , runLogWriter
     ) where
 
 import Data.Text.IO qualified as T
@@ -17,6 +18,7 @@ import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
+import Effectful.Writer.Static.Shared (Writer, tell)
 import Prelude hiding (Reader, ask)
 
 import Hoard.Effects.Chan (Chan)
@@ -63,8 +65,18 @@ runLog action = do
     Conc.fork_ $ forever $ do
         (severity, msg) <- Chan.readChan outChan
         liftIO $ when (severity >= config.minimumSeverity) $ do
-            T.hPutStrLn config.output $ "[" <> (show severity) <> "] " <> msg
+            T.hPutStrLn config.output $ formatMessage severity msg
             hFlush stdout
 
     -- Interpret Log effect to write messages to channel
     interpret_ (\(Log severity msg) -> Chan.writeChan inChan (severity, msg)) action
+
+
+runLogWriter :: (Writer [Text] :> es) => Eff (Log : es) a -> Eff es a
+runLogWriter =
+    interpret_ \(Log severity msg) ->
+        tell [formatMessage severity msg]
+
+
+formatMessage :: Severity -> Text -> Text
+formatMessage severity msg = "[" <> show severity <> "] " <> msg
