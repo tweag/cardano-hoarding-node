@@ -57,7 +57,6 @@ library
       Hoard.Events.Collector
       Hoard.Events.HeaderReceived
       Hoard.Events.ImmutableTipRefreshTriggered
-      Hoard.Events.MonitoringRequest
       Hoard.Events.Node
       Hoard.Listeners
       Hoard.Listeners.BlockFetchEventListener
@@ -66,10 +65,10 @@ library
       Hoard.Listeners.DiscoveredNodesListener
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
-      Hoard.Listeners.MonitoringListener
       Hoard.Listeners.NetworkEventListener
       Hoard.Listeners.PeerSharingEventListener
       Hoard.Listeners.PeersReceivedListener
+      Hoard.Monitoring
       Hoard.Network.Events
       Hoard.Network.Types
       Hoard.Server
@@ -270,7 +269,7 @@ test-suite hoard-test
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
-      Unit.Hoard.Listeners.MonitoringListenerSpec
+      Unit.Hoard.MonitoringSpec
       Paths_hoard
   autogen-modules:
       Paths_hoard
