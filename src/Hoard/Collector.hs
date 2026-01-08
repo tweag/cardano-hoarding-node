@@ -5,10 +5,11 @@ import Data.Set qualified as S
 import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
-import Effectful.State.Static.Shared (State, modify, state)
-import Prelude hiding (State, gets, modify, state)
+import Effectful.Reader.Static (Reader)
+import Effectful.State.Static.Shared (State, modify, stateM)
+import Prelude hiding (Reader, State, gets, modify, state)
 
-import Hoard.Bootstrap (bootstrapPeer)
+import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
@@ -22,7 +23,7 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Input (Input, input, runInputChan)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode (Config (..), NodeToNode, connectToPeer)
+import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, updatePeerFailure)
@@ -33,6 +34,7 @@ import Hoard.Network.Events
     , BlockReceivedData (..)
     , HeaderReceivedData (..)
     )
+import Hoard.Types.Environment (Config)
 import Hoard.Types.HoardState (HoardState, connectedPeers)
 
 
@@ -48,6 +50,7 @@ runCollectors
        , Chan :> es
        , Conc :> es
        , PeerRepo :> es
+       , Reader Config :> es
        , Clock :> es
        , Log :> es
        , State HoardState :> es
@@ -60,15 +63,17 @@ runCollectors = do
 
     if Set.null knownPeers
         then do
-            -- No known peers, bootstrap from hardcoded peer
-            Log.debug "No known peers found, bootstrapping from hardcoded peer"
-            peer <- bootstrapPeer
-            runCollector peer
+            -- No known peers, bootstrap from peer snapshot
+            Log.debug "No known peers found, bootstrapping from peer snapshot"
+            bootstrappedPeers <- bootstrapPeers
+            let peerCount = Set.size bootstrappedPeers
+            Log.debug $ "Bootstrapped " <> show peerCount <> " peers from peer snapshot"
+            for_ (Set.toList bootstrappedPeers) runCollector
         else do
             -- Start collectors for all known peers
             let peerCount = Set.size knownPeers
             Log.debug $ "Found " <> show peerCount <> " known peers, starting collectors"
-            forM_ (Set.toList knownPeers) runCollector
+            for_ (Set.toList knownPeers) runCollector
 
 
 -- | Fork a collector with exception handling and state management.
@@ -99,19 +104,32 @@ runCollector peer = do
         Conc.forkTry @SomeException
             . withExceptionLogging ("collector " <> show peer.address)
             $ generalBracket
-                (state \r -> (peer, r {connectedPeers = S.insert peer r.connectedPeers}))
-                ( \p exitCase -> do
-                    case exitCase of
-                        -- Only update failure time for real errors, not clean shutdowns
-                        ExitCaseException e ->
-                            unless (isGracefulShutdown e) $ do
-                                timestamp <- Clock.currentTime
-                                updatePeerFailure peer timestamp
-                        _ -> pure ()
-
-                    modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
+                ( stateM \r ->
+                    if S.member peer r.connectedPeers
+                        then do
+                            Log.info $ "Peer is already connected to: " <> show peer.address
+                            pure (Nothing, r)
+                        else do
+                            Log.info $ "Adding peer to connectedPeers: " <> show peer.address
+                            pure (Just peer, r {connectedPeers = S.insert peer r.connectedPeers})
                 )
-                runCollectorImpl
+                ( \mp exitCase -> case mp of
+                    Just p -> do
+                        case exitCase of
+                            -- Only update failure time for real errors, not clean shutdowns
+                            ExitCaseException e ->
+                                unless (isGracefulShutdown e) $ do
+                                    timestamp <- Clock.currentTime
+                                    updatePeerFailure peer timestamp
+                            _ -> pure ()
+
+                        Log.info $ "Removing peer to connectedPeers: " <> show peer.address
+                        Log.info $ "ExitCase: " <> show exitCase
+                        modify \r -> r {connectedPeers = S.delete p r.connectedPeers}
+                    Nothing -> do
+                        Log.info $ "Did not connect to peer: " <> show peer.address
+                )
+                (traverse runCollectorImpl)
     pure ()
 
 
