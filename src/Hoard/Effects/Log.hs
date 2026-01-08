@@ -79,4 +79,4 @@ runLogWriter =
 
 
 formatMessage :: Severity -> Text -> Text
-formatMessage severity msg = "[" <> (show severity) <> "] " <> msg
+formatMessage severity msg = "[" <> show severity <> "] " <> msg
