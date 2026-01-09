@@ -116,7 +116,6 @@ import Hoard.Network.Types (Connection (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env
-import Hoard.Types.Environment qualified as Log (Severity (..))
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 

@@ -10,8 +10,9 @@ import Prelude hiding (evalState)
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Log (runLogWriter)
+import Hoard.Effects.Log (Message (..), runLogWriter)
 import Hoard.Monitoring qualified as Monitoring
+import Hoard.Types.Environment (Severity (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -20,8 +21,9 @@ spec_Monitoring = do
     describe "listener" do
         it "reports correct number of peers" do
             let logs =
-                    runPureEff
-                        . execWriter @[Text]
+                    fmap (\m -> (m.severity, m.text))
+                        . runPureEff
+                        . execWriter @[Message]
                         . runLogWriter
                         . evalState
                             ( def
@@ -29,7 +31,7 @@ spec_Monitoring = do
                                 }
                             )
                         $ Monitoring.listener Monitoring.Poll
-            logs `shouldBe` ["[INFO] Currently connected to 3 peers"]
+            logs `shouldBe` [(INFO, "Currently connected to 3 peers")]
 
 
 mkPeerIDs :: Int -> [ID Peer]
