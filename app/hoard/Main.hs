@@ -20,6 +20,7 @@ import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv, runConfigReader, runHandlesReader)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.Log (runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
@@ -45,6 +46,7 @@ main =
         . runConfigReader
         . runHandlesReader
         . runLog
+        . Log.filterWithLogConfig
         . runClock
         . runFileSystem
         . runConcurrent

@@ -10,6 +10,8 @@ module Hoard.Effects.Log
     , err
 
       -- * Interpreters
+    , filterLog
+    , filterWithLogConfig
     , runLog
     , runLogNoOp
     , runLogWriter
@@ -17,13 +19,13 @@ module Hoard.Effects.Log
 
 import Data.Text.IO qualified as T
 import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Dispatch.Dynamic (interpose_, interpret_)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
+import GHC.Stack (SrcLoc (..))
 import Prelude hiding (Reader, ask)
 
-import GHC.Stack (SrcLoc (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Conc (Conc)
@@ -72,6 +74,20 @@ err :: (HasCallStack, Log :> es) => Text -> Eff es ()
 err = withFrozenCallStack $ log ERROR
 
 
+filterLog :: (Message -> Bool) -> Eff (Log : es) a -> Eff (Log : es) a
+filterLog predicate = interpose_ \(LogMsg msg) ->
+    if predicate msg
+        then logMsg msg
+        else pure ()
+
+
+filterWithLogConfig :: (Reader LogConfig :> es) => Eff (Log : es) a -> Eff (Log : es) a
+filterWithLogConfig eff = do
+    config <- ask
+    flip filterLog eff \msg ->
+        msg.severity >= config.minimumSeverity
+
+
 -- | Consumes `Log` effects, and discards the logged messages
 runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(LogMsg _) -> pure ()
@@ -85,7 +101,7 @@ runLog action = do
     -- Fork worker thread that reads from channel and writes to handle
     Conc.fork_ $ forever $ do
         msg <- Chan.readChan outChan
-        liftIO $ when (msg.severity >= config.minimumSeverity) $ do
+        liftIO $ do
             T.hPutStrLn config.output $ formatMessage msg
             hFlush stdout
 

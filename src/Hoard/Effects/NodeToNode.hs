@@ -92,6 +92,8 @@ import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (concStrat)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Log.Labeled (LabeledLogger (..))
+import Hoard.Effects.Log.Labeled qualified as Log (labeled)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
@@ -486,8 +488,8 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
   where
     requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
     withPeers peerAddrs = unlift do
-        Log.debug "PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        Log.debug $ "PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        logger.debug "*** CALLBACK EXECUTED - GOT RESPONSE ***"
+        logger.debug $ "Received response with " <> show (length peerAddrs) <> " peers"
         timestamp <- Clock.currentTime
         publish $
             PeersReceived
@@ -496,12 +498,13 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
                     , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                     , timestamp
                     }
-        Log.debug "PeerSharing: Published PeersReceived event"
-        Log.debug "PeerSharing: Waiting 10 seconds"
+        logger.debug "Published PeersReceived event"
+        logger.debug "Waiting 10 seconds"
         threadDelay oneHour
-        Log.debug "PeerSharing: looping"
+        logger.debug "looping"
         pure $ requestPeers withPeers
     oneHour = 3_600_000_000
+    logger = Log.labeled "PeerSharing: "
 
 
 -- | Create a BlockFetch client that fetches blocks on request over a channel.
@@ -522,10 +525,11 @@ blockFetchClientImpl unlift conf peer =
     BlockFetch.BlockFetchClient $ unlift $ do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted $ BlockFetchStartedData {timestamp, peer}
-        Log.debug "BlockFetch: Published BlockFetchStarted event"
-        Log.debug "BlockFetch: Starting client, awaiting block download requests"
+        logger.debug "Published BlockFetchStarted event"
+        logger.debug "Starting client, awaiting block download requests"
         awaitMessage
   where
+    logger = Log.labeled @es "BlockFetch: "
     awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
     awaitMessage = do
         req <- conf.awaitBlockFetchRequest
@@ -605,19 +609,20 @@ chainSyncClientImpl unlift conf peer =
                         -- Publish started event
                         timestamp <- Clock.currentTime
                         publish $ ChainSyncStarted ChainSyncStartedData {peer, timestamp}
-                        Log.debug "ChainSync: Published ChainSyncStarted event"
-                        Log.debug "ChainSync: Starting pipelined client, finding intersection from genesis"
+                        logger.debug "Published ChainSyncStarted event"
+                        logger.debug "Starting pipelined client, finding intersection from genesis"
                         initialPoints <- List.singleton . toConsensusPointHF <$> gets (.immutableTip)
                         pure (findIntersect initialPoints)
   where
+    logger = Log.labeled "ChainSync: "
     findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect initialPoints =
         Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection not found (continuing anyway)"
+                logger.debug "Intersection not found (continuing anyway)"
                 pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection found"
+                logger.debug "Intersection found"
                 timestamp <- Clock.currentTime
                 publish $
                     ChainSyncIntersectionFound
@@ -633,7 +638,7 @@ chainSyncClientImpl unlift conf peer =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Received header (RollForward)"
+                logger.debug "Received header (RollForward)"
                 timestamp <- Clock.currentTime
                 let point = headerPoint header
                     headerReceived =
@@ -649,7 +654,7 @@ chainSyncClientImpl unlift conf peer =
                 publish $ HeaderReceived headerReceived
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Rollback"
+                logger.debug "Rollback"
                 timestamp <- Clock.currentTime
                 publish $
                     RollBackward
@@ -662,7 +667,7 @@ chainSyncClientImpl unlift conf peer =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Received header after await (RollForward)"
+                    logger.debug "Received header after await (RollForward)"
                     timestamp <- Clock.currentTime
                     let point = headerPoint header
                     publish $
@@ -676,7 +681,7 @@ chainSyncClientImpl unlift conf peer =
                                 }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Rollback after await"
+                    logger.debug "Rollback after await"
                     timestamp <- Clock.currentTime
                     publish $
                         RollBackward
@@ -697,16 +702,17 @@ chainSyncClientImpl unlift conf peer =
 keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
 keepAliveClientImpl unlift = KeepAliveClient sendFirst
   where
+    logger = Log.labeled "KeepAlive: "
     -- Send the first message immediately
     sendFirst = unlift $ do
-        Log.debug "KeepAlive: Sending first keepalive message"
+        logger.debug "Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     -- Wait 10 seconds before sending subsequent messages
     sendNext = unlift $ do
-        Log.debug "KeepAlive: Response received, waiting 10s before next message"
+        logger.debug "Response received, waiting 10s before next message"
         threadDelay 10_000_000 -- 10 seconds in microseconds
-        Log.debug "KeepAlive: Sending keepalive message"
+        logger.debug "Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
 
