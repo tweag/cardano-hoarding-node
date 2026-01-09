@@ -32,3 +32,6 @@ logging:
 # Maximum number of file descriptors (soft limit)
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384
+
+# Cooldown period after a peer failure before retrying (in seconds)
+peer_failure_cooldown_seconds: 300

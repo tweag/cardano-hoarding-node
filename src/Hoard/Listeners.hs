@@ -2,8 +2,9 @@ module Hoard.Listeners (runListeners) where
 
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
+import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
-import Prelude hiding (State)
+import Prelude hiding (Reader, State)
 
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Chan (Chan)
@@ -26,6 +27,7 @@ import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefresh
 import Hoard.Listeners.NetworkEventListener (networkEventListener)
 import Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener)
 import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
+import Hoard.Types.Environment (Config)
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -41,6 +43,7 @@ runListeners
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
+       , Reader Config :> es
        , State HoardState :> es
        , Sub :> es
        )

@@ -8,11 +8,11 @@ import Data.Set qualified as S
 import Data.Set qualified as Set
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
-import Effectful.Reader.Static (Reader)
-import Effectful.State.Static.Shared (State, gets, modify, stateM)
-import Prelude hiding (Reader, State, gets, modify, state)
+import Effectful.Reader.Static (Reader, asks)
+import Effectful.State.Static.Shared (State, modify, stateM)
+import Prelude hiding (Reader, State, asks, gets, modify, state)
 
-import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
+import Data.Time (diffUTCTime)
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
@@ -39,7 +39,7 @@ import Hoard.Network.Events
     , BlockReceivedData (..)
     , HeaderReceivedData (..)
     )
-import Hoard.Types.Environment (Config)
+import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState, connectedPeers)
 
 
@@ -106,6 +106,7 @@ bracketCollector
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
+       , Reader Config :> es
        , State HoardState :> es
        )
     => Peer
@@ -116,8 +117,8 @@ bracketCollector peer = do
             . withExceptionLogging ("collector " <> show peer.address)
             $ generalBracket
                 ( stateM \r -> do
-                    timestamp <- Clock.currentTime
-                    if not (peer.id `S.member` r.connectedPeers) && isPeerEligible timestamp peer
+                    eligible <- isPeerEligible peer
+                    if not (peer.id `S.member` r.connectedPeers) && eligible
                         then do
                             Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
                             pure (Just peer, r {connectedPeers = S.insert peer.id r.connectedPeers})
@@ -218,15 +219,12 @@ withBridge action = do
 
 
 -- | Check if a peer is eligible for connection based on failure cooldown
-isPeerEligible :: UTCTime -> Peer -> Bool
-isPeerEligible currentTime peer =
+isPeerEligible :: (Reader Config :> es, Clock :> es) => Peer -> Eff es Bool
+isPeerEligible peer = do
+    currentTime <- Clock.currentTime
+    cooldown <- asks (.peerFailureCooldown)
     case peer.lastFailureTime of
-        Nothing -> True -- Never failed, eligible
+        Nothing -> pure True -- Never failed, eligible
         Just failureTime ->
             let timeSinceFailure = diffUTCTime currentTime failureTime
-            in  timeSinceFailure >= peerFailureCooldown
-
-
--- | Cooldown period after a peer failure before retrying (5 minutes)
-peerFailureCooldown :: NominalDiffTime
-peerFailureCooldown = 300 -- 5 minutes in seconds
+            in  pure $ timeSinceFailure >= cooldown

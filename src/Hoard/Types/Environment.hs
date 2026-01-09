@@ -24,6 +24,7 @@ where
 import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.Dynamic (Dynamic)
+import Data.Time (NominalDiffTime)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
@@ -76,6 +77,7 @@ data Config = Config
     , maxFileDescriptors :: Maybe Word32
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
+    , peerFailureCooldown :: NominalDiffTime
     }
 
 
