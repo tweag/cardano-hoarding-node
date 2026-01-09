@@ -21,6 +21,7 @@ import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
+import Data.Time.Clock (NominalDiffTime)
 import Hoard.Effects.Chan (Chan, InChan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Options (Options)
@@ -42,6 +43,7 @@ data ConfigFile = ConfigFile
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
+    , peerFailureCooldownSeconds :: NominalDiffTime
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -243,6 +245,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , maxFileDescriptors = configFile.maxFileDescriptors
                 , topology
                 , peerSnapshot
+                , peerFailureCooldown = configFile.peerFailureCooldownSeconds
                 }
         env = Env {config, handles}
 

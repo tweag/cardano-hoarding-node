@@ -2,6 +2,7 @@ module Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes) where
 
 import Data.Set qualified as S
 import Effectful (Eff, (:>))
+import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Prelude hiding (Reader, State, gets, modify)
 
@@ -19,6 +20,7 @@ import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub)
 import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
+import Hoard.Types.Environment (Config)
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -38,6 +40,7 @@ dispatchDiscoveredNodes
        , PeerRepo :> es
        , Concurrent :> es
        , Pub :> es
+       , Reader Config :> es
        , State HoardState :> es
        , Clock :> es
        )

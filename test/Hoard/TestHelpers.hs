@@ -128,6 +128,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
+                , peerFailureCooldown = 300
                 }
     let handles =
             Handles
