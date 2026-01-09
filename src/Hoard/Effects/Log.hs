@@ -1,6 +1,8 @@
 module Hoard.Effects.Log
     ( -- * Effect
       Log
+    , Message (..)
+    , Severity (..)
     , log
     , info
     , warn
@@ -21,6 +23,7 @@ import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 import Prelude hiding (Reader, ask)
 
+import GHC.Stack (SrcLoc (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Conc (Conc)
@@ -29,31 +32,49 @@ import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 
 data Log :: Effect where
-    Log :: Severity -> Text -> Log m ()
+    LogMsg :: Message -> Log m ()
+
+
+data Message = Message
+    { text :: Text
+    , severity :: Severity
+    , stack :: CallStack
+    }
 
 
 makeEffect ''Log
 
 
-debug :: (Log :> es) => Text -> Eff es ()
-debug = log DEBUG
+log :: (HasCallStack, Log :> es) => Severity -> Text -> Eff es ()
+log severity text =
+    withFrozenCallStack $
+        logMsg
+            Message
+                { stack = callStack
+                , severity
+                , text
+                }
 
 
-info :: (Log :> es) => Text -> Eff es ()
-info = log INFO
+debug :: (HasCallStack, Log :> es) => Text -> Eff es ()
+debug = withFrozenCallStack $ log DEBUG
 
 
-warn :: (Log :> es) => Text -> Eff es ()
-warn = log WARN
+info :: (HasCallStack, Log :> es) => Text -> Eff es ()
+info = withFrozenCallStack $ log INFO
 
 
-err :: (Log :> es) => Text -> Eff es ()
-err = log ERROR
+warn :: (HasCallStack, Log :> es) => Text -> Eff es ()
+warn = withFrozenCallStack $ log WARN
+
+
+err :: (HasCallStack, Log :> es) => Text -> Eff es ()
+err = withFrozenCallStack $ log ERROR
 
 
 -- | Consumes `Log` effects, and discards the logged messages
 runLogNoOp :: Eff (Log : es) a -> Eff es a
-runLogNoOp = interpret_ $ \(Log _ _) -> pure ()
+runLogNoOp = interpret_ $ \(LogMsg _) -> pure ()
 
 
 runLog :: (IOE :> es, Reader LogConfig :> es, Chan :> es, Conc :> es) => Eff (Log : es) a -> Eff es a
@@ -63,20 +84,48 @@ runLog action = do
 
     -- Fork worker thread that reads from channel and writes to handle
     Conc.fork_ $ forever $ do
-        (severity, msg) <- Chan.readChan outChan
-        liftIO $ when (severity >= config.minimumSeverity) $ do
-            T.hPutStrLn config.output $ formatMessage severity msg
+        msg <- Chan.readChan outChan
+        liftIO $ when (msg.severity >= config.minimumSeverity) $ do
+            T.hPutStrLn config.output $ formatMessage msg
             hFlush stdout
 
     -- Interpret Log effect to write messages to channel
-    interpret_ (\(Log severity msg) -> Chan.writeChan inChan (severity, msg)) action
+    interpret_ (\(LogMsg msg) -> Chan.writeChan inChan msg) action
 
 
-runLogWriter :: (Writer [Text] :> es) => Eff (Log : es) a -> Eff es a
+runLogWriter :: (Writer [Message] :> es) => Eff (Log : es) a -> Eff es a
 runLogWriter =
-    interpret_ \(Log severity msg) ->
-        tell [formatMessage severity msg]
+    interpret_ \(LogMsg msg) ->
+        tell [msg]
 
 
-formatMessage :: Severity -> Text -> Text
-formatMessage severity msg = "[" <> show severity <> "] " <> msg
+formatMessage :: Message -> Text
+formatMessage msg =
+    mconcat
+        [ square $ show msg.severity
+        , " "
+        , square $ showSourceLoc msg.stack
+        , " "
+        , msg.text
+        ]
+
+
+showSourceLoc :: CallStack -> Text
+showSourceLoc cs = showCallStack
+  where
+    showCallStack = case getCallStack cs of
+        [] -> "<unknown loc>"
+        [(name, loc)] -> showLoc name loc
+        (_, loc) : (callerName, _) : _ -> showLoc callerName loc
+    showLoc name src =
+        mconcat
+            [ toText src.srcLocModule
+            , "."
+            , toText name
+            , "#"
+            , show src.srcLocStartLine
+            ]
+
+
+square :: Text -> Text
+square s = "[" <> s <> "]"
