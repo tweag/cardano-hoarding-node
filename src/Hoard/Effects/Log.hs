@@ -57,7 +57,7 @@ import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 data Log :: Effect where
     LogMsg :: Message -> Log m ()
-    WithNamespace :: Namespace -> m () -> Log m ()
+    WithNamespace :: Namespace -> m a -> Log m a
     GetNamespace :: Log m Namespace
 
 

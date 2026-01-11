@@ -24,5 +24,5 @@ runTriggers = do
 every :: (Concurrent :> es, Conc :> es) => Int -> Eff es () -> Eff es ()
 every delay action = do
     Conc.fork_ $ forever $ do
-        action
         threadDelay (delay * 1000000)
+        action
