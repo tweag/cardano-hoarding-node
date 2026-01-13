@@ -268,7 +268,7 @@ updatePeerFailure :: Peer -> UTCTime -> Eff es ()
 
 **Thread Safety:** Uses `Effectful.State.Static.Shared.State` which provides thread-safe state management across concurrent collectors.
 
-## ## Database Schema
+## Database Schema
 
 ### Peers Table
 
