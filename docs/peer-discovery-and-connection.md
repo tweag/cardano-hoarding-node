@@ -303,7 +303,7 @@ data Row f = Row
 **Update Failure:** Set `lastFailureTime` to current timestamp
 **Get All Peers:** Retrieve all known peers for collector spawning
 
-## ## Performance Considerations
+## Performance Considerations
 
 ### Connection Limits
 
