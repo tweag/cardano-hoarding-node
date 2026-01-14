@@ -15,19 +15,15 @@ module Hoard.Effects.Log
     , runLogWriter
     ) where
 
-import Data.Text.IO qualified as T
+import Data.ByteString.Char8 qualified as B8
 import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Dispatch.Dynamic (interpretWith_, interpret_)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
+import GHC.Stack (SrcLoc (..))
 import Prelude hiding (Reader, ask)
 
-import GHC.Stack (SrcLoc (..))
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Types.Environment (LogConfig (..), Severity (..))
 
 
@@ -77,20 +73,22 @@ runLogNoOp :: Eff (Log : es) a -> Eff es a
 runLogNoOp = interpret_ $ \(LogMsg _) -> pure ()
 
 
-runLog :: (IOE :> es, Reader LogConfig :> es, Chan :> es, Conc :> es) => Eff (Log : es) a -> Eff es a
+runLog :: (IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
 runLog action = do
     config <- ask
-    (inChan, outChan) <- Chan.newChan
-
-    -- Fork worker thread that reads from channel and writes to handle
-    Conc.fork_ $ forever $ do
-        msg <- Chan.readChan outChan
-        liftIO $ when (msg.severity >= config.minimumSeverity) $ do
-            T.hPutStrLn config.output $ formatMessage msg
-            hFlush stdout
 
     -- Interpret Log effect to write messages to channel
-    interpret_ (\(LogMsg msg) -> Chan.writeChan inChan msg) action
+    interpretWith_ action \(LogMsg msg) ->
+        liftIO $ when (msg.severity >= config.minimumSeverity) do
+            -- NOTE: We use hPutStr here with an appended newline because
+            -- hPutStrLn is not atomic for ByteStrings longer than 1024 bytes.
+            -- Data.Text.IO.hPutStrLn is not atomic for even short Texts.
+            B8.hPutStr config.output
+                . encodeUtf8
+                . (<> "\n")
+                . formatMessage
+                $ msg
+            hFlush stdout
 
 
 runLogWriter :: (Writer [Message] :> es) => Eff (Log : es) a -> Eff es a
