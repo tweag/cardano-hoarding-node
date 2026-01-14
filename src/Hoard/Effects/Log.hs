@@ -43,7 +43,7 @@ module Hoard.Effects.Log
 
 import Data.ByteString.Char8 qualified as B8
 import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret)
+import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
@@ -123,25 +123,21 @@ runLog :: (IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
 runLog action = do
     config <- ask
 
-    reinterpret
-        (runReader (Namespace ""))
-        ( \env -> \case
-            LogMsg msg ->
-                liftIO $ when (msg.severity >= config.minimumSeverity) do
-                    -- NOTE: We use hPutStr here with an appended newline because
-                    -- hPutStrLn is not atomic for ByteStrings longer than 1024 bytes.
-                    -- Data.Text.IO.hPutStrLn is not atomic for even short Texts.
-                    B8.hPutStr config.output
-                        . encodeUtf8
-                        . (<> "\n")
-                        . formatMessage
-                        $ msg
-                    hFlush stdout
-            WithNamespace ns act -> localSeqUnlift env $ \unlift ->
-                local (<> ns) $ unlift act
-            GetNamespace -> ask
-        )
-        action
+    reinterpretWith (runReader (Namespace "")) action \env -> \case
+        LogMsg msg ->
+            liftIO $ when (msg.severity >= config.minimumSeverity) do
+                -- NOTE: We use hPutStr here with an appended newline because
+                -- hPutStrLn is not atomic for ByteStrings longer than 1024 bytes.
+                -- Data.Text.IO.hPutStrLn is not atomic for even short Texts.
+                B8.hPutStr config.output
+                    . encodeUtf8
+                    . (<> "\n")
+                    . formatMessage
+                    $ msg
+                hFlush stdout
+        WithNamespace ns act -> localSeqUnlift env $ \unlift ->
+            local (<> ns) $ unlift act
+        GetNamespace -> ask
 
 
 runLogWriter :: (Writer [Message] :> es) => Eff (Log : es) a -> Eff es a
@@ -154,7 +150,7 @@ runLogWriter = reinterpret (runReader (Namespace "")) $ \env -> \case
 
 formatMessage :: Message -> Text
 formatMessage msg =
-    mconcat $
+    mconcat
         [ square $ show msg.severity
         , " "
         , showNamespace msg.namespace

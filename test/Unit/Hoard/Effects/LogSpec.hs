@@ -1,10 +1,17 @@
 module Unit.Hoard.Effects.LogSpec (spec_Log) where
 
-import Effectful (runPureEff)
-import Effectful.Writer.Static.Shared (execWriter)
+import Effectful (Eff, runPureEff)
+import Effectful.Writer.Static.Shared (Writer, execWriter)
 import Test.Hspec (Spec, describe, it, shouldBe)
 
-import Hoard.Effects.Log (Message (..), info, runLogWriter, withNamespace)
+import Hoard.Effects.Log (Log, Message (..), info, runLogWriter, withNamespace)
+
+
+runLogTest :: Eff [Log, Writer [Message]] a -> [Message]
+runLogTest =
+    runPureEff
+        . execWriter @[Message]
+        . runLogWriter
 
 
 spec_Log :: Spec
@@ -13,18 +20,14 @@ spec_Log = do
         it "logs without namespace when not provided" $ do
             let logs =
                     fmap (\m -> (m.namespace, m.text))
-                        . runPureEff
-                        . execWriter @[Message]
-                        . runLogWriter
+                        . runLogTest
                         $ info "test message"
             logs `shouldBe` [("", "test message")]
 
         it "prepends a namespace to the logged message" $ do
             let logs =
                     fmap (\m -> (m.namespace, m.text))
-                        . runPureEff
-                        . execWriter @[Message]
-                        . runLogWriter
+                        . runLogTest
                         . withNamespace "component"
                         $ info "test message"
             logs `shouldBe` [("component", "test message")]
@@ -33,9 +36,7 @@ spec_Log = do
             it "appends a namespace to the current namespace" $ do
                 let logs =
                         fmap (\m -> (m.namespace, m.text))
-                            . runPureEff
-                            . execWriter @[Message]
-                            . runLogWriter
+                            . runLogTest
                             . withNamespace "parent"
                             . withNamespace "child"
                             $ info "test message"
@@ -44,9 +45,7 @@ spec_Log = do
             it "handles multiple levels of nesting" $ do
                 let logs =
                         fmap (\m -> (m.namespace, m.text))
-                            . runPureEff
-                            . execWriter @[Message]
-                            . runLogWriter
+                            . runLogTest
                             . withNamespace "level1"
                             . withNamespace "level2"
                             . withNamespace "level3"
