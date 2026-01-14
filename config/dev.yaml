@@ -25,9 +25,6 @@ database:
     aging_timeout_seconds: 1800
     idleness_timeout_seconds: 600
 
-logging:
-  minimum_severity: DEBUG
-
 # Maximum number of file descriptors
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384

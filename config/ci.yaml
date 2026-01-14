@@ -25,9 +25,6 @@ database:
     aging_timeout_seconds: 600
     idleness_timeout_seconds: 300
 
-logging:
-  minimum_severity: DEBUG
-
 # Maximum number of file descriptors
 max_file_descriptors: 16384
 

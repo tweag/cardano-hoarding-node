@@ -44,9 +44,8 @@ data ServerConfig = ServerConfig
     deriving (FromJSON) via QuietSnake ServerConfig
 
 
-data LogConfig = LogConfig
-    { minimumSeverity :: Severity
-    , output :: Handle
+newtype LogConfig = LogConfig
+    { output :: Handle
     }
 
 
@@ -62,8 +61,7 @@ data Severity
 defaultLogConfig :: LogConfig
 defaultLogConfig =
     LogConfig
-        { minimumSeverity = minBound
-        , output = stdout
+        { output = stdout
         }
 
 

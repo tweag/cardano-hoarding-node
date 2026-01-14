@@ -85,9 +85,8 @@ runLog action = do
     -- Fork worker thread that reads from channel and writes to handle
     Conc.fork_ $ forever $ do
         msg <- Chan.readChan outChan
-        liftIO $ when (msg.severity >= config.minimumSeverity) $ do
-            T.hPutStrLn config.output $ formatMessage msg
-            hFlush stdout
+        liftIO $ T.hPutStrLn config.output $ formatMessage msg
+        liftIO $ hFlush stdout
 
     -- Interpret Log effect to write messages to channel
     interpret_ (\(LogMsg msg) -> Chan.writeChan inChan msg) action

@@ -30,7 +30,7 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
 import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, NodeSocketsConfig, PeerSnapshotFile (..), ServerConfig (..), Topology (..))
-import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
+import Hoard.Types.Environment qualified as Log (defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -41,7 +41,6 @@ data ConfigFile = ConfigFile
     , secretsFile :: String
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
-    , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
     }
@@ -154,24 +153,6 @@ toDBConfig dbCfg credentials =
         }
 
 
-data LoggingConfig = LoggingConfig
-    { minimumSeverity :: Log.Severity
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake LoggingConfig
-
-
-loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.LogConfig
-loadLoggingConfig configFile = do
-    log <- (>>= readMaybe) <$> lookupEnv "LOG"
-    logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
-    debug <-
-        (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
-            <$> lookupEnv "DEBUG"
-    let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
-    pure $ Log.defaultLogConfig {Log.minimumSeverity}
-
-
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
@@ -232,7 +213,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
     protocolInfo <- loadProtocolInfo nodeConfig
     (topology, peerSnapshot) <- loadTopology configFile.protocolConfigPath
-    logging <- loadLoggingConfig configFile
+    let logging = Log.defaultLogConfig
     handles <- acquireHandles ioManager configFile secrets
 
     let config =
