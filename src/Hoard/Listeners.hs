@@ -18,14 +18,34 @@ import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Pub (Pub)
 import Hoard.Effects.Sub (Sub, listen)
-import Hoard.Listeners.BlockFetchEventListener (blockFetchEventListener)
-import Hoard.Listeners.ChainSyncEventListener (chainSyncEventListener)
+import Hoard.Listeners.BlockFetchEventListener
+    ( blockBatchCompletedListener
+    , blockFetchFailedListener
+    , blockFetchStartedListener
+    , blockReceivedListener
+    )
+import Hoard.Listeners.ChainSyncEventListener
+    ( chainSyncHeaderReceivedListener
+    , chainSyncIntersectionFoundListener
+    , chainSyncRollBackwardListener
+    , chainSyncRollForwardListener
+    , chainSyncStartedListener
+    )
 import Hoard.Listeners.CollectorEventListener (collectorEventListener)
 import Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefreshTriggeredListener)
-import Hoard.Listeners.NetworkEventListener (networkEventListener)
-import Hoard.Listeners.PeerSharingEventListener (peerSharingEventListener)
+import Hoard.Listeners.NetworkEventListener
+    ( connectionEstablishedListener
+    , connectionLostListener
+    , handshakeCompletedListener
+    , protocolErrorListener
+    )
+import Hoard.Listeners.PeerSharingEventListener
+    ( peerSharingFailedListener
+    , peerSharingStartedListener
+    , peersReceivedLogListener
+    )
 import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
 import Hoard.Types.Environment (Config)
 import Hoard.Types.HoardState (HoardState)
@@ -52,10 +72,22 @@ runListeners = do
     _ <- Conc.fork $ listen headerReceivedListener
     _ <- Conc.fork $ listen peersReceivedListener
     _ <- Conc.fork $ listen dispatchDiscoveredNodes
-    _ <- Conc.fork $ listen networkEventListener
-    _ <- Conc.fork $ listen peerSharingEventListener
-    _ <- Conc.fork $ listen chainSyncEventListener
-    _ <- Conc.fork $ listen blockFetchEventListener
+    _ <- Conc.fork $ listen connectionEstablishedListener
+    _ <- Conc.fork $ listen connectionLostListener
+    _ <- Conc.fork $ listen handshakeCompletedListener
+    _ <- Conc.fork $ listen protocolErrorListener
+    _ <- Conc.fork $ listen peerSharingStartedListener
+    _ <- Conc.fork $ listen peersReceivedLogListener
+    _ <- Conc.fork $ listen peerSharingFailedListener
+    _ <- Conc.fork $ listen chainSyncHeaderReceivedListener
+    _ <- Conc.fork $ listen chainSyncStartedListener
+    _ <- Conc.fork $ listen chainSyncRollBackwardListener
+    _ <- Conc.fork $ listen chainSyncRollForwardListener
+    _ <- Conc.fork $ listen chainSyncIntersectionFoundListener
+    _ <- Conc.fork $ listen blockFetchStartedListener
+    _ <- Conc.fork $ listen blockReceivedListener
+    _ <- Conc.fork $ listen blockFetchFailedListener
+    _ <- Conc.fork $ listen blockBatchCompletedListener
     _ <- Conc.fork $ listen collectorEventListener
     _ <- Conc.fork $ listen immutableTipRefreshTriggeredListener
     pure ()

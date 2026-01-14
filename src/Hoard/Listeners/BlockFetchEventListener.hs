@@ -1,4 +1,9 @@
-module Hoard.Listeners.BlockFetchEventListener (blockFetchEventListener) where
+module Hoard.Listeners.BlockFetchEventListener
+    ( blockFetchStartedListener
+    , blockReceivedListener
+    , blockFetchFailedListener
+    , blockBatchCompletedListener
+    ) where
 
 import Effectful (Eff, (:>))
 
@@ -8,26 +13,37 @@ import Hoard.Effects.BlockRepo (BlockRepo, insertBlocks)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Network.Events
-    ( BlockBatchCompletedData (..)
-    , BlockFetchEvent (..)
-    , BlockFetchFailedData (..)
-    , BlockFetchStartedData (..)
+    ( BlockBatchCompleted (..)
+    , BlockFetchFailed (..)
+    , BlockFetchStarted (..)
+    , BlockReceived (..)
     )
 
 
--- | Listener that handles chain sync events
+-- | Listener that handles BlockFetch started events
+blockFetchStartedListener :: (Log :> es) => BlockFetchStarted -> Eff es ()
+blockFetchStartedListener event = do
+    Log.info $ "🧱  BlockFetch protocol started at " <> show event.timestamp
+
+
+-- | Listener that handles block received events
 --
--- For HeaderReceived events, extracts header data and persists it to the database.
-blockFetchEventListener :: (Log :> es, BlockRepo :> es) => BlockFetchEvent -> Eff es ()
-blockFetchEventListener = \case
-    BlockFetchStarted dat -> do
-        Log.info $ "🧱  BlockFetch protocol started at " <> show dat.timestamp
-    BlockReceived dat -> do
-        Log.info "📦 Block received!"
-        let block = extractBlockData dat
-        insertBlocks [block]
-        Log.debug $ "Persisted block: " <> show block.hash
-    BlockFetchFailed dat -> do
-        Log.warn $ "❗ Failed to fetch block from: " <> dat.errorMessage
-    BlockBatchCompleted dat -> do
-        Log.info $ "✅ Finished fetching " <> show dat.blockCount <> " blocks in block batch"
+-- Extracts block data and persists it to the database.
+blockReceivedListener :: (Log :> es, BlockRepo :> es) => BlockReceived -> Eff es ()
+blockReceivedListener event = do
+    Log.info "📦 Block received!"
+    let block = extractBlockData event
+    insertBlocks [block]
+    Log.debug $ "Persisted block: " <> show block.hash
+
+
+-- | Listener that handles block fetch failed events
+blockFetchFailedListener :: (Log :> es) => BlockFetchFailed -> Eff es ()
+blockFetchFailedListener event = do
+    Log.warn $ "❗ Failed to fetch block from: " <> event.errorMessage
+
+
+-- | Listener that handles block batch completed events
+blockBatchCompletedListener :: (Log :> es) => BlockBatchCompleted -> Eff es ()
+blockBatchCompletedListener event = do
+    Log.info $ "✅ Finished fetching " <> show event.blockCount <> " blocks in block batch"

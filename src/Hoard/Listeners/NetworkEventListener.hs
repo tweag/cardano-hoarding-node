@@ -1,26 +1,53 @@
-module Hoard.Listeners.NetworkEventListener (networkEventListener) where
+module Hoard.Listeners.NetworkEventListener
+    ( connectionEstablishedListener
+    , connectionLostListener
+    , handshakeCompletedListener
+    , protocolErrorListener
+    ) where
 
 import Effectful (Eff, (:>))
 
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Network.Events
-    ( ConnectionEstablishedData (..)
-    , ConnectionLostData (..)
-    , HandshakeCompletedData (..)
-    , NetworkEvent (..)
-    , ProtocolErrorData (..)
+    ( ConnectionEstablished (..)
+    , ConnectionLost (..)
+    , HandshakeCompleted (..)
+    , ProtocolError (..)
     )
 
 
--- | Listener that logs network events
-networkEventListener :: (Log :> es) => NetworkEvent -> Eff es ()
-networkEventListener = \case
-    ConnectionEstablished dat -> do
-        Log.info $ "🔗 Connection established with peer at " <> show dat.timestamp
-    ConnectionLost dat -> do
-        Log.info $ "💔 Connection lost: " <> dat.reason <> " at " <> show dat.timestamp
-    HandshakeCompleted dat -> do
-        Log.info $ "🤝 Handshake completed with version " <> show dat.version
-    ProtocolError dat -> do
-        Log.warn $ "❌ Protocol error: " <> dat.errorMessage
+-- | Listener that logs connection established events
+connectionEstablishedListener
+    :: (Log :> es)
+    => ConnectionEstablished
+    -> Eff es ()
+connectionEstablishedListener event = do
+    Log.info $ "🔗 Connection established with peer at " <> show event.timestamp
+
+
+-- | Listener that logs connection lost events
+connectionLostListener
+    :: (Log :> es)
+    => ConnectionLost
+    -> Eff es ()
+connectionLostListener event = do
+    Log.info $ "💔 Connection lost: " <> event.reason <> " at " <> show event.timestamp
+
+
+-- | Listener that logs handshake completed events
+handshakeCompletedListener
+    :: (Log :> es)
+    => HandshakeCompleted
+    -> Eff es ()
+handshakeCompletedListener event = do
+    Log.info $ "🤝 Handshake completed with version " <> show event.version
+
+
+-- | Listener that logs protocol error events
+protocolErrorListener
+    :: (Log :> es)
+    => ProtocolError
+    -> Eff es ()
+protocolErrorListener event = do
+    Log.warn $ "❌ Protocol error: " <> event.errorMessage

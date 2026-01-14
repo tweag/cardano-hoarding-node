@@ -36,11 +36,12 @@ import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Events.Collector (CollectorEvent (..))
 import Hoard.Network.Events
     ( BlockFetchRequest (..)
-    , BlockReceivedData (..)
-    , HeaderReceivedData (..)
+    , BlockReceived (..)
+    , HeaderReceived (..)
     )
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState, connectedPeers)
+import Ouroboros.Consensus.Block.Abstract (headerPoint)
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.
@@ -160,8 +161,8 @@ runCollector
     -> Eff es Void
 runCollector peer =
     withBridge @BlockFetchRequest
-        . withBridge @HeaderReceivedData
-        . withBridge @BlockReceivedData
+        . withBridge @HeaderReceived
+        . withBridge @BlockReceived
         $ do
             publish $ CollectorStarted peer.address
             publish $ ConnectingToPeer peer.address
@@ -186,19 +187,19 @@ runCollector peer =
 -- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
 pickBlockFetchRequest
     :: ( BlockRepo :> es
-       , Input HeaderReceivedData :> es
+       , Input HeaderReceived :> es
        , Output BlockFetchRequest :> es
        )
     => Eff es Void
 pickBlockFetchRequest = forever do
-    dat <- input
-    blocks <- BlockRepo.hasBlocks [dat.header]
+    event <- input
+    blocks <- BlockRepo.hasBlocks [event.header]
     when (not $ null blocks) $
         output $
             BlockFetchRequest
-                { timestamp = dat.timestamp
-                , point = dat.point
-                , peer = dat.peer.address
+                { timestamp = event.timestamp
+                , point = headerPoint event.header
+                , peer = event.peer
                 }
 
 

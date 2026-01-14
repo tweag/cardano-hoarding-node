@@ -10,20 +10,20 @@ import Ouroboros.Consensus.Block
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.PoolID (mkPoolID)
-import Hoard.Network.Events (BlockReceivedData (..))
+import Hoard.Network.Events (BlockReceived (..))
 
 
--- | Extract block data from a BlockReceivedData event. Assumes the block is
--- not in the canonical chain and has not been validated.
-extractBlockData :: BlockReceivedData -> Block
-extractBlockData dat =
+-- | Extract block data from a BlockReceived event.
+-- Assumes the block is not in the canonical chain and has not been validated.
+extractBlockData :: BlockReceived -> Block
+extractBlockData event =
     Block
-        { hash = blockHashFromHeader $ getHeader dat.block
-        , slotNumber = fromIntegral $ unSlotNo $ blockSlot $ dat.block
-        , poolId = mkPoolID dat.block
-        , blockData = dat.block
+        { hash = blockHashFromHeader $ getHeader event.block
+        , slotNumber = fromIntegral $ unSlotNo $ blockSlot $ event.block
+        , poolId = mkPoolID event.block
+        , blockData = event.block
         , validationStatus = "" -- Block has yet to be validated
         , validationReason = "" -- Block has yet to be validated
         , isCanonical = False -- Default to False until proven otherwise.
-        , firstSeen = dat.timestamp
+        , firstSeen = event.timestamp
         }
