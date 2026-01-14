@@ -1,42 +1,32 @@
 # Logging
 
-Logging should mainly utilize the
+## Description
+
+The program should emit log messages that:
+
+1. are easy to filter.
+2. provide information about the origin of the logged message.
+3. contain a logged message.
+4. inform about the urgency of the logged message.
+
+Logging utilities should be simple to use, requiring just a message and an
+urgency, but should also allow the user to provide more information in the
+logged message as necessary.
+
+## Implementation
+
+Logging within the `Eff es` monad should mainly utilize the
 [`Hoard.Effects.Log.Log`](../src/Hoard/Effects/Log.hs) effect.
 
-`Log`'s configuration, which is necessary when using the `runLogWith`
-interpreter, is read from the configuration files and the environment in
-[`Hoard.Config.Loader`](../src/Hoard/Config/Loader.hs).
+See [`Hoard.Effects.Log`](../src/Hoard/Effects/Log.hs) for information on the
+current implementation of logging.
 
-Minimum log level can be configured either in the configuration file itself,
-under `logging.minimum_severity`, or through the environment variables `LOG`,
-`LOGGING` or `DEBUG`.
+## Filtering
 
-- `DEBUG=1` sets the minimum log level to `DEBUG`.
-- `LOG=<level>` or `LOGGING=<level>` sets the minimum log level to the
-  corresponding level.
-- Minimum logging level is prioritised as follows:
-  `DEBUG` > `LOGGING` > `LOG` > configuration file.
-
-The available logging levels are:
-
-- `DEBUG`
-- `INFO`
-- `WARN`
-- `ERROR`
-
-A given minimum logging level prevents log messages with a level above it in
-this list from being logged.
-
-## Example
-
-Invoking the program like so:
+Utilize external programs like `grep` for log filtering.
 
 ```bash
-LOG=WARN ./hoard-exe
-```
-
-makes it so that only `WARN` and `ERROR` messages are logged.
-
-```bash
-DEBUG=1 ./hoard-exe
+./hoard-exe | grep 'BlockFetch: '
+./hoard-exe | grep -v 'ChainSync'
+./hoard-exe | grep '^\[processor.validation\]'
 ```
