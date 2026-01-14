@@ -4,6 +4,7 @@ import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
+import Effectful.Timeout (Timeout)
 import Prelude hiding (Reader, State)
 
 import Hoard.Effects.BlockRepo (BlockRepo)
@@ -66,6 +67,7 @@ runListeners
        , Reader Config :> es
        , State HoardState :> es
        , Sub :> es
+       , Timeout :> es
        )
     => Eff es ()
 runListeners = do

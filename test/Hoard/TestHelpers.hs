@@ -23,6 +23,7 @@ import Effectful
     , (:>)
     )
 import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Concurrent.QSem (newQSem)
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
@@ -116,6 +117,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
     protocolInfo <- runEff $ loadProtocolInfo nodeConfig
+    blockFetchQSem <- runEff $ runConcurrent $ newQSem 1
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let config =
@@ -129,6 +131,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , peerFailureCooldown = 300
+                , blockFetchQSem
                 }
     let handles =
             Handles

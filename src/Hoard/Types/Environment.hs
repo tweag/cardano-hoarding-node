@@ -25,6 +25,7 @@ import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.Dynamic (Dynamic)
 import Data.Time (NominalDiffTime)
+import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
@@ -78,6 +79,7 @@ data Config = Config
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
     , peerFailureCooldown :: NominalDiffTime
+    , blockFetchQSem :: QSem
     }
 
 

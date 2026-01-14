@@ -17,17 +17,22 @@ module Hoard.Effects.NodeToNode
     ) where
 
 import Cardano.Api ()
+import Cardano.Api.Block (toConsensusPointHF)
 import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Tracer (Tracer (..), nullTracer, stdoutTracer)
+import Control.Tracer (Tracer (..), nullTracer)
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
+import Data.List (maximum, minimum)
+import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
+import Effectful.Concurrent.QSem (signalQSem, waitQSem)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, asks)
+import Effectful.State.Static.Shared (State, gets)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
@@ -79,11 +84,8 @@ import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSha
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
-import Prelude hiding (Reader, State, asks, gets)
+import Prelude hiding (Reader, State, asks, evalState, gets)
 
-import Cardano.Api.Block (toConsensusPointHF)
-import Data.List qualified as List
-import Effectful.State.Static.Shared (State, gets)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
@@ -129,7 +131,7 @@ data NodeToNode :: Effect where
 
 
 data Config m = Config
-    { awaitBlockFetchRequest :: m BlockFetchRequest
+    { awaitBlockFetchRequests :: m (NonEmpty BlockFetchRequest)
     , emitFetchedHeader :: HeaderReceived -> m ()
     , emitFetchedBlock :: BlockReceived -> m ()
     , peer :: Peer
@@ -170,7 +172,7 @@ runNodeToNode =
 hoistConfig :: (forall x. Eff localEs x -> Eff es x) -> Config (Eff localEs) -> Config (Eff es)
 hoistConfig unlift conf =
     Config
-        { awaitBlockFetchRequest = unlift conf.awaitBlockFetchRequest
+        { awaitBlockFetchRequests = unlift conf.awaitBlockFetchRequests
         , emitFetchedHeader = unlift . conf.emitFetchedHeader
         , emitFetchedBlock = unlift . conf.emitFetchedBlock
         , peer = conf.peer
@@ -334,6 +336,7 @@ mkApplication
        , Concurrent :> es
        , Log :> es
        , Pub :> es
+       , Reader Env :> es
        , State HoardState :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -376,7 +379,7 @@ mkApplication unlift conf codecs peer =
             , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
                 let codec = cBlockFetchCodec codecs
                     client = blockFetchClientImpl unlift conf peer
-                    tracer = (("[BlockFetch] " <>) . show) >$< stdoutTracer
+                    tracer = (("[BlockFetch tracer] " <>) . show) >$< logTracer unlift Log.DEBUG
                     wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                         Log.debug "BlockFetch protocol started"
                         pure $ blockFetchClientPeer client
@@ -445,7 +448,9 @@ mkApplication unlift conf codecs peer =
             }
     blockFetchLimits =
         MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ blockFetchPipeliningMax params
+            { -- 384KiB, taken from Cardano's high watermark limit for block
+              -- fetch ingress queue limit.
+              maximumIngressQueue = 402653184
             }
     keepAliveLimits =
         MiniProtocolLimits
@@ -507,6 +512,7 @@ blockFetchClientImpl
        , Concurrent :> es
        , Log :> es
        , Pub :> es
+       , Reader Env :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config (Eff es)
@@ -522,26 +528,35 @@ blockFetchClientImpl unlift conf peer =
   where
     awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
     awaitMessage = do
-        req <- conf.awaitBlockFetchRequest
+        qSem <- asks $ (.config.blockFetchQSem)
+        waitQSem qSem
+        reqs <- conf.awaitBlockFetchRequests
+        Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
+        let points = (.point) <$> reqs
+            start = minimum points
+            end = maximum points
         pure
             $ BlockFetch.SendMsgRequestRange
-                (BlockFetch.ChainRange req.point req.point)
-                (handleResponse req)
+                (BlockFetch.ChainRange start end)
+                (handleResponse reqs)
             $ blockFetchClientImpl unlift conf peer
 
-    handleResponse req =
+    handleResponse reqs =
         BlockFetch.BlockFetchResponse
             { handleStartBatch =
                 pure $ blockReceiver 0
             , handleNoBlocks = unlift $ do
+                qSem <- asks $ (.blockFetchQSem) . (.config)
+                signalQSem qSem
                 timestamp <- Clock.currentTime
-                publish $
-                    BlockFetchFailed
-                        { peer
-                        , timestamp
-                        , point = req.point
-                        , errorMessage = "No blocks for point"
-                        }
+                for_ reqs \req ->
+                    publish $
+                        BlockFetchFailed
+                            { peer
+                            , timestamp
+                            , point = req.point
+                            , errorMessage = "No blocks for point"
+                            }
             }
 
     blockReceiver blockCount =
@@ -558,6 +573,8 @@ blockFetchClientImpl unlift conf peer =
                 publish event
                 pure $ blockReceiver $ blockCount + 1
             , handleBatchDone = unlift $ do
+                qSem <- asks $ (.config.blockFetchQSem)
+                signalQSem qSem
                 timestamp <- Clock.currentTime
                 publish $
                     BlockBatchCompleted
