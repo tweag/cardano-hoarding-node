@@ -19,7 +19,7 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub)
-import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
+import Hoard.Network.Events (PeersReceived (..))
 import Hoard.Types.Environment (Config)
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -44,17 +44,15 @@ dispatchDiscoveredNodes
        , State HoardState :> es
        , Clock :> es
        )
-    => PeerSharingEvent
+    => PeersReceived
     -> Eff es ()
-dispatchDiscoveredNodes = \case
-    (PeersReceived (PeersReceivedData {peer = sourcePeer, peerAddresses})) -> do
-        Log.info "Dispatch: Received peers"
+dispatchDiscoveredNodes event = do
+    Log.info "Dispatch: Received peers"
 
-        -- First, upsert all discovered peer addresses to create Peer records
-        timestamp <- Clock.currentTime
-        upsertedPeers <- upsertPeers peerAddresses sourcePeer.address timestamp
+    -- First, upsert all discovered peer addresses to create Peer records
+    timestamp <- Clock.currentTime
+    upsertedPeers <- upsertPeers event.peerAddresses event.peer.address timestamp
 
-        Log.info $ "Dispatch: " <> show (S.size upsertedPeers) <> " new peers to connect to"
+    Log.info $ "Dispatch: " <> show (S.size upsertedPeers) <> " new peers to connect to"
 
-        for_ upsertedPeers bracketCollector
-    _ -> pure ()
+    for_ upsertedPeers bracketCollector

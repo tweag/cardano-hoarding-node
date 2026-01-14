@@ -4,14 +4,13 @@ import Effectful (Eff, (:>))
 
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
-import Hoard.Network.Events (PeerSharingEvent (..), PeersReceivedData (..))
+import Hoard.Network.Events (PeersReceived (..))
 
 
 -- | Handler that persists discovered peers to the database
 --
 -- Processes PeersReceived events and upserts the peer information into
 -- the database.
-peersReceivedListener :: (PeerRepo :> es) => PeerSharingEvent -> Eff es ()
-peersReceivedListener = \case
-    PeersReceived dat -> void $ upsertPeers dat.peerAddresses dat.peer.address dat.timestamp
-    _ -> pure () -- Ignore other PeerSharing events
+peersReceivedListener :: (PeerRepo :> es) => PeersReceived -> Eff es ()
+peersReceivedListener event =
+    void $ upsertPeers event.peerAddresses event.peer.address event.timestamp

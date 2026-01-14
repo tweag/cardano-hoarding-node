@@ -6,29 +6,31 @@
 -- associated mini-protocols (ChainSync, BlockFetch, KeepAlive).
 module Hoard.Network.Events
     ( -- * Network lifecycle events
-      NetworkEvent (..)
-    , ConnectionEstablishedData (..)
-    , ConnectionLostData (..)
-    , HandshakeCompletedData (..)
-    , ProtocolErrorData (..)
+      ConnectionEstablished (..)
+    , ConnectionLost (..)
+    , HandshakeCompleted (..)
+    , ProtocolError (..)
 
       -- * Protocol-specific events
-    , ChainSyncEvent (..)
-    , ChainSyncStartedData (..)
-    , HeaderReceivedData (..)
-    , RollBackwardData (..)
-    , RollForwardData (..)
-    , ChainSyncIntersectionFoundData (..)
+
+      -- ** Chain sync
+    , ChainSyncStarted (..)
+    , HeaderReceived (..)
+    , RollBackward (..)
+    , RollForward (..)
+    , ChainSyncIntersectionFound (..)
+
+      -- ** Block fetch
     , BlockFetchRequest (..)
-    , BlockFetchEvent (..)
-    , BlockFetchStartedData (..)
-    , BlockReceivedData (..)
-    , BlockFetchFailedData (..)
-    , BlockBatchCompletedData (..)
-    , PeerSharingEvent (..)
-    , PeerSharingStartedData (..)
-    , PeersReceivedData (..)
-    , PeerSharingFailedData (..)
+    , BlockFetchStarted (..)
+    , BlockReceived (..)
+    , BlockFetchFailed (..)
+    , BlockBatchCompleted (..)
+
+      -- ** Peer sharing
+    , PeerSharingStarted (..)
+    , PeersReceived (..)
+    , PeerSharingFailed (..)
     ) where
 
 import Data.Time (UTCTime)
@@ -46,42 +48,34 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 --
 -- These events are published by the Network effect handler during connection
 -- establishment, version negotiation, and disconnection.
-data NetworkEvent
-    = ConnectionEstablished ConnectionEstablishedData
-    | ConnectionLost ConnectionLostData
-    | HandshakeCompleted HandshakeCompletedData
-    | ProtocolError ProtocolErrorData
-    deriving (Show, Typeable)
-
-
-data ConnectionEstablishedData = ConnectionEstablishedData
+data ConnectionEstablished = ConnectionEstablished
     { peer :: Peer
-    , version :: NodeToNodeVersion
     , timestamp :: UTCTime
+    , version :: NodeToNodeVersion
     }
     deriving (Show, Typeable)
 
 
-data ConnectionLostData = ConnectionLostData
+data ConnectionLost = ConnectionLost
     { peer :: Peer
+    , timestamp :: UTCTime
     , reason :: Text
-    , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
-data HandshakeCompletedData = HandshakeCompletedData
+data HandshakeCompleted = HandshakeCompleted
     { peer :: Peer
+    , timestamp :: UTCTime
     , version :: NodeToNodeVersion
-    , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
-data ProtocolErrorData = ProtocolErrorData
+data ProtocolError = ProtocolError
     { peer :: Peer
-    , errorMessage :: Text
     , timestamp :: UTCTime
+    , errorMessage :: Text
     }
     deriving (Show, Typeable)
 
@@ -94,56 +88,46 @@ data ProtocolErrorData = ProtocolErrorData
 --
 -- ChainSync is responsible for synchronizing chain headers with peers,
 -- handling forks and rollbacks.
-data ChainSyncEvent
-    = ChainSyncStarted ChainSyncStartedData
-    | HeaderReceived HeaderReceivedData
-    | RollBackward RollBackwardData
-    | RollForward RollForwardData
-    | ChainSyncIntersectionFound ChainSyncIntersectionFoundData
-    deriving (Typeable)
-
-
-data ChainSyncStartedData = ChainSyncStartedData
+data ChainSyncStarted = ChainSyncStarted
     { peer :: Peer
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
-data HeaderReceivedData = HeaderReceivedData
+data HeaderReceived = HeaderReceived
     { peer :: Peer
+    , timestamp :: UTCTime
+    , header :: CardanoHeader
+    , tip :: CardanoTip
+    }
+    deriving (Typeable)
+
+
+data RollBackward = RollBackward
+    { peer :: Peer
+    , timestamp :: UTCTime
+    , point :: CardanoPoint
+    , tip :: CardanoTip
+    }
+    deriving (Typeable)
+
+
+data RollForward = RollForward
+    { peer :: Peer
+    , timestamp :: UTCTime
     , header :: CardanoHeader
     , point :: CardanoPoint
     , tip :: CardanoTip
-    , timestamp :: UTCTime
     }
     deriving (Typeable)
 
 
-data RollBackwardData = RollBackwardData
+data ChainSyncIntersectionFound = ChainSyncIntersectionFound
     { peer :: Peer
+    , timestamp :: UTCTime
     , point :: CardanoPoint
     , tip :: CardanoTip
-    , timestamp :: UTCTime
-    }
-    deriving (Typeable)
-
-
-data RollForwardData = RollForwardData
-    { peer :: Peer
-    , header :: CardanoHeader
-    , point :: CardanoPoint
-    , tip :: CardanoTip
-    , timestamp :: UTCTime
-    }
-    deriving (Typeable)
-
-
-data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
-    { peer :: Peer
-    , point :: CardanoPoint
-    , tip :: CardanoTip
-    , timestamp :: UTCTime
     }
     deriving (Typeable)
 
@@ -156,16 +140,8 @@ data ChainSyncIntersectionFoundData = ChainSyncIntersectionFoundData
 --
 -- BlockFetch is responsible for downloading block bodies after ChainSync
 -- has provided the headers.
-data BlockFetchEvent
-    = BlockFetchStarted BlockFetchStartedData
-    | BlockReceived BlockReceivedData
-    | BlockFetchFailed BlockFetchFailedData
-    | BlockBatchCompleted BlockBatchCompletedData
-    deriving (Typeable)
-
-
-data BlockFetchStartedData = BlockFetchStartedData
-    { peer :: PeerAddress
+data BlockFetchStarted = BlockFetchStarted
+    { peer :: Peer
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
@@ -173,34 +149,34 @@ data BlockFetchStartedData = BlockFetchStartedData
 
 -- | A request to fetch a single block.
 data BlockFetchRequest = BlockFetchRequest
-    { peer :: PeerAddress
+    { peer :: Peer
     , point :: CardanoPoint
     , timestamp :: UTCTime
     }
     deriving (Typeable)
 
 
-data BlockReceivedData = BlockReceivedData
-    { peer :: PeerAddress
-    , block :: CardanoBlock
+data BlockReceived = BlockReceived
+    { peer :: Peer
     , timestamp :: UTCTime
+    , block :: CardanoBlock
     }
     deriving (Typeable)
 
 
-data BlockFetchFailedData = BlockFetchFailedData
-    { peer :: PeerAddress
+data BlockFetchFailed = BlockFetchFailed
+    { peer :: Peer
+    , timestamp :: UTCTime
     , point :: CardanoPoint
     , errorMessage :: Text
-    , timestamp :: UTCTime
     }
     deriving (Typeable)
 
 
-data BlockBatchCompletedData = BlockBatchCompletedData
-    { peer :: PeerAddress
-    , blockCount :: Int
+data BlockBatchCompleted = BlockBatchCompleted
+    { peer :: Peer
     , timestamp :: UTCTime
+    , blockCount :: Int
     }
     deriving (Show, Typeable)
 
@@ -213,31 +189,24 @@ data BlockBatchCompletedData = BlockBatchCompletedData
 --
 -- PeerSharing allows nodes to discover new peers by requesting peer addresses
 -- from connected nodes.
-data PeerSharingEvent
-    = PeerSharingStarted PeerSharingStartedData
-    | PeersReceived PeersReceivedData
-    | PeerSharingFailed PeerSharingFailedData
-    deriving (Show, Typeable)
-
-
-data PeerSharingStartedData = PeerSharingStartedData
+data PeerSharingStarted = PeerSharingStarted
     { peer :: Peer
     , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
-data PeersReceivedData = PeersReceivedData
-    { peer :: Peer -- The peer we requested from
+data PeersReceived = PeersReceived
+    { peer :: Peer
+    , timestamp :: UTCTime
     , peerAddresses :: Set PeerAddress -- The peer addresses we received
-    , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
 
-data PeerSharingFailedData = PeerSharingFailedData
+data PeerSharingFailed = PeerSharingFailed
     { peer :: Peer
-    , errorMessage :: Text
     , timestamp :: UTCTime
+    , errorMessage :: Text
     }
     deriving (Show, Typeable)

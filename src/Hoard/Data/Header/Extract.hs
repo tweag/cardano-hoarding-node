@@ -9,15 +9,15 @@ import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot)
 
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
-import Hoard.Network.Events (HeaderReceivedData (..))
+import Hoard.Network.Events (HeaderReceived (..))
 
 
--- | Extract header data from a HeaderReceivedData event
-extractHeaderData :: HeaderReceivedData -> Header
-extractHeaderData dat =
+-- | Extract header data from a HeaderReceived event
+extractHeaderData :: HeaderReceived -> Header
+extractHeaderData event =
     Header
-        { hash = blockHashFromHeader dat.header
-        , slotNumber = unSlotNo $ blockSlot dat.header
-        , blockNumber = unBlockNo $ blockNo dat.header
-        , firstSeenAt = dat.timestamp
+        { hash = blockHashFromHeader event.header
+        , slotNumber = unSlotNo $ blockSlot event.header
+        , blockNumber = unBlockNo $ blockNo event.header
+        , firstSeenAt = event.timestamp
         }
