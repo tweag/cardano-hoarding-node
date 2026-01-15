@@ -14,7 +14,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.NodeToClient (NodeToClient)
+import Hoard.Effects.NodeToClient (ConnectionError, NodeToClient)
 import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Pub (Pub)
@@ -60,7 +60,7 @@ runListeners
        , Concurrent :> es
        , HeaderRepo :> es
        , Log :> es
-       , NodeToClient :> es
+       , NodeToClient ConnectionError :> es
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
