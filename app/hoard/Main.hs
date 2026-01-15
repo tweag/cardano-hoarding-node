@@ -33,7 +33,7 @@ import Hoard.Monitoring qualified as Monitoring
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
 import Hoard.Triggers (runTriggers)
-import Hoard.Types.HoardState (HoardState)
+import Hoard.Types.HoardState (BlocksBeingFetched, HoardState)
 
 
 main :: IO ()
@@ -57,6 +57,7 @@ main =
         . runPub
         . runErrorThrowing
         . evalState @HoardState def
+        . evalState @BlocksBeingFetched def
         . runNodeToNode
         . runDBRead
         . runDBWrite

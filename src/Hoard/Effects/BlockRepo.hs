@@ -1,7 +1,7 @@
 module Hoard.Effects.BlockRepo
     ( BlockRepo
     , insertBlocks
-    , hasBlocks
+    , getBlock
     , runBlockRepo
     ) where
 
@@ -10,7 +10,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
-import Rel8 (in_, lit, where_)
+import Rel8 (lit, where_, (==.))
 import Rel8 qualified
 
 import Hasql.Statement (Statement)
@@ -25,7 +25,7 @@ import Hoard.Types.Cardano (CardanoHeader)
 
 data BlockRepo :: Effect where
     InsertBlocks :: [Block] -> BlockRepo m ()
-    HasBlocks :: [CardanoHeader] -> BlockRepo m [Block]
+    GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block)
 
 
 makeEffect ''BlockRepo
@@ -36,9 +36,9 @@ runBlockRepo = interpret_ $ \case
     InsertBlocks blocks ->
         runTransaction "insert-blocks" $
             insertBlocksTrans blocks
-    HasBlocks headers ->
-        runQuery "has-blocks" $
-            hasBlocksQuery headers
+    GetBlock header ->
+        runQuery "get-block" $
+            getBlockQuery header
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
@@ -54,13 +54,19 @@ insertBlocksTrans blocks =
                 }
 
 
-hasBlocksQuery :: [CardanoHeader] -> Statement () [Block]
-hasBlocksQuery headers =
-    fmap (rights . fmap Blocks.blockFromRow)
+getBlockQuery :: CardanoHeader -> Statement () (Maybe Block)
+getBlockQuery header =
+    fmap (extractSingleBlock . rights . fmap Blocks.blockFromRow)
         . Rel8.run
         . Rel8.select
         $ do
             block <- Rel8.each Blocks.schema
             where_ $
-                block.hash `in_` (lit . blockHashFromHeader <$> headers)
+                block.hash ==. (lit $ blockHashFromHeader header)
             pure block
+  where
+    -- The unique constraint over the `hash` column ensures we get either 1 or
+    -- 0 rows from the above query.
+    extractSingleBlock = \case
+        [x] -> Just x
+        _ -> Nothing

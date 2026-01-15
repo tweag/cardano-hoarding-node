@@ -39,6 +39,7 @@ import Network.Socket (SockAddr)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Network.TypedProtocol.Peer.Client qualified as Peer
+import Ouroboros.Consensus.Block (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
@@ -532,7 +533,7 @@ blockFetchClientImpl unlift conf peer =
         waitQSem qSem
         reqs <- conf.awaitBlockFetchRequests
         Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
-        let points = (.point) <$> reqs
+        let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
         pure
@@ -554,7 +555,7 @@ blockFetchClientImpl unlift conf peer =
                         BlockFetchFailed
                             { peer
                             , timestamp
-                            , point = req.point
+                            , header = req.header
                             , errorMessage = "No blocks for point"
                             }
             }

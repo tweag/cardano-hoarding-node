@@ -11,13 +11,13 @@ import Effectful (Eff, IOE, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify, stateM)
+import Effectful.State.Static.Shared (State, modify, state, stateM)
 import Effectful.Timeout (Timeout)
-import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Prelude hiding (Reader, State, asks, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
+import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
@@ -42,7 +42,7 @@ import Hoard.Network.Events
     , HeaderReceived (..)
     )
 import Hoard.Types.Environment (Config (..))
-import Hoard.Types.HoardState (HoardState, connectedPeers)
+import Hoard.Types.HoardState (BlocksBeingFetched (..), HoardState (..), connectedPeers)
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.
@@ -62,6 +62,7 @@ runCollectors
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
+       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Timeout :> es
        )
@@ -110,6 +111,7 @@ bracketCollector
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
+       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Timeout :> es
        )
@@ -157,9 +159,9 @@ runCollector
        , Conc :> es
        , Concurrent :> es
        , Chan :> es
-       , Log :> es
        , NodeToNode :> es
        , Pub :> es
+       , State BlocksBeingFetched :> es
        , Timeout :> es
        )
     => Peer
@@ -194,24 +196,43 @@ runCollector peer =
 pickBlockFetchRequest
     :: ( BlockRepo :> es
        , Input HeaderReceived :> es
-       , Log :> es
+       , State BlocksBeingFetched :> es
        , Output BlockFetchRequest :> es
        )
     => Eff es Void
 pickBlockFetchRequest = forever do
     event <- input
-    let headers = [event.header]
-    existingBlocks <- BlockRepo.hasBlocks headers
-    if length existingBlocks < length headers
-        then do
-            output $
-                BlockFetchRequest
-                    { timestamp = event.timestamp
-                    , point = headerPoint event.header
-                    , peer = event.peer
-                    }
-        else
-            Log.info "BlockFetch: already have block of found header. Skipping..."
+    let hash = blockHashFromHeader event.header
+    -- This check can be implemented in 2 thread-safe ways, as far as we know:
+    -- 1. Keep the database check inside the `stateM` operation and ensure
+    --    thread-safety between checking the DB and the `blocksBeingFetched`
+    --    state.
+    -- 2. Check the in-memory `blocksBeingFetched` state first, update
+    --    `blocksBeingFetched` if the hash is not in there, then check the
+    --    database, removing the hash from `blocksBeingFetched` if it is
+    --    already in the database.
+    --
+    -- We decided to use option 2 to prevent having the database check inside
+    -- `state`/`stateM`, which would drastically increase the time spent in the
+    -- critical section `state`/`stateM` provides us.
+    fetchTheBlock <- state \s ->
+        if hash `S.notMember` s.blocksBeingFetched
+            then
+                (True, coerce S.insert hash s)
+            else
+                (False, s)
+    when fetchTheBlock do
+        existingBlock <- BlockRepo.getBlock event.header
+        if (isJust existingBlock)
+            then
+                output
+                    BlockFetchRequest
+                        { timestamp = event.timestamp
+                        , header = event.header
+                        , peer = event.peer
+                        }
+            else
+                modify $ coerce S.delete hash
 
 
 -- | Bridge effects through bidirectional channels.
