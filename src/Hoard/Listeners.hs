@@ -49,7 +49,7 @@ import Hoard.Listeners.PeerSharingEventListener
     )
 import Hoard.Listeners.PeersReceivedListener (peersReceivedListener)
 import Hoard.Types.Environment (Config)
-import Hoard.Types.HoardState (HoardState)
+import Hoard.Types.HoardState (BlocksBeingFetched, HoardState)
 
 
 runListeners
@@ -65,6 +65,7 @@ runListeners
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
+       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        , Timeout :> es

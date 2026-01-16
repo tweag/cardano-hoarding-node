@@ -22,7 +22,7 @@ import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Effects.Pub (Pub)
 import Hoard.Network.Events (PeersReceived (..))
 import Hoard.Types.Environment (Config)
-import Hoard.Types.HoardState (HoardState (..))
+import Hoard.Types.HoardState (BlocksBeingFetched, HoardState (..))
 
 
 -- | Dispatch discovered peer nodes for connection.
@@ -43,6 +43,7 @@ dispatchDiscoveredNodes
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
+       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Timeout :> es
        )

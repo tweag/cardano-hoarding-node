@@ -150,8 +150,8 @@ data BlockFetchStarted = BlockFetchStarted
 -- | A request to fetch a single block.
 data BlockFetchRequest = BlockFetchRequest
     { peer :: Peer
-    , point :: CardanoPoint
     , timestamp :: UTCTime
+    , header :: CardanoHeader
     }
     deriving (Typeable)
 
@@ -167,7 +167,7 @@ data BlockReceived = BlockReceived
 data BlockFetchFailed = BlockFetchFailed
     { peer :: Peer
     , timestamp :: UTCTime
-    , point :: CardanoPoint
+    , header :: CardanoHeader
     , errorMessage :: Text
     }
     deriving (Typeable)
