@@ -50,7 +50,6 @@ import Ouroboros.Network.NodeToNode
     , NodeToNodeVersionData (..)
     , combineVersions
     , connectTo
-    , keepAliveMiniProtocolNum
     , networkMagic
     , nullNetworkConnectTracers
     , peerSharingMiniProtocolNum
@@ -58,8 +57,6 @@ import Ouroboros.Network.NodeToNode
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
-import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
-import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
@@ -78,12 +75,13 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
 import Hoard.Network.Events
     ( PeerSharingStarted (..)
     , PeersReceived (..)
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, KeepAliveConfig (..), PeerSharingConfig (..), TxSubmissionConfig (..))
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, PeerSharingConfig (..), TxSubmissionConfig (..))
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -278,25 +276,7 @@ mkApplication unlift env conf codecs peer =
     OuroborosApplication
         [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync conf codecs peer
         , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch conf codecs peer
-        , -- KeepAlive mini-protocol
-          MiniProtocol
-            { miniProtocolNum = keepAliveMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits env.config.cardanoProtocols.keepAlive.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly $
-                    mkMiniProtocolCbFromPeer $
-                        \_ ->
-                            let codec = cKeepAliveCodec codecs
-                                keepAliveCfg = env.config.cardanoProtocols.keepAlive
-                                wrappedPeer = Peer.Effect $
-                                    unlift $
-                                        withExceptionLogging "KeepAlive" $ do
-                                            Log.debug "KeepAlive protocol started"
-                                            pure (keepAliveClientPeer $ keepAliveClientImpl unlift keepAliveCfg)
-                                tracer = contramap (("[KeepAlive] " <>) . show) $ Log.asTracer unlift Log.DEBUG
-                            in  (tracer, codec, wrappedPeer)
-            }
+        , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
         , -- PeerSharing mini-protocol
           MiniProtocol
             { miniProtocolNum = peerSharingMiniProtocolNum
@@ -371,24 +351,3 @@ peerSharingClientImpl unlift peerSharingCfg peer = requestPeers withPeers
         threadDelay peerSharingCfg.requestIntervalMicroseconds
         Log.debug "PeerSharing: looping"
         pure $ requestPeers withPeers
-
-
--- | KeepAlive client implementation.
---
--- This client sends periodic keepalive messages to maintain the connection
--- and detect network failures. It sends a message immediately, then waits
--- for the configured interval before sending the next one.
-keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveConfig -> KeepAliveClient IO ()
-keepAliveClientImpl unlift keepAliveCfg = KeepAliveClient sendFirst
-  where
-    -- Send the first message immediately
-    sendFirst = unlift $ do
-        Log.debug "KeepAlive: Sending first keepalive message"
-        pure $ SendMsgKeepAlive (Cookie 42) sendNext
-
-    -- Wait for the configured interval before sending subsequent messages
-    sendNext = unlift $ do
-        Log.debug $ "KeepAlive: Response received, waiting " <> show (keepAliveCfg.intervalMicroseconds `div` 1_000_000) <> "s before next message"
-        threadDelay keepAliveCfg.intervalMicroseconds
-        Log.debug "KeepAlive: Sending keepalive message"
-        pure $ SendMsgKeepAlive (Cookie 42) sendNext

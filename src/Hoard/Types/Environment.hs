@@ -9,7 +9,6 @@ module Hoard.Types.Environment
       -- * Cardano protocol configuration
     , CardanoProtocolsConfig (..)
     , PeerSharingConfig (..)
-    , KeepAliveConfig (..)
     , TxSubmissionConfig (..)
 
       -- * Cardano protocol handles
@@ -44,6 +43,7 @@ import Ouroboros.Network.IOManager (IOManager)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
+import Hoard.KeepAlive.Config qualified as KeepAlive
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
@@ -102,7 +102,7 @@ data Config = Config
 -- | Cardano protocol configuration
 data CardanoProtocolsConfig = CardanoProtocolsConfig
     { peerSharing :: PeerSharingConfig
-    , keepAlive :: KeepAliveConfig
+    , keepAlive :: KeepAlive.Config
     , blockFetch :: BlockFetch.Config
     , chainSync :: ChainSync.Config
     , txSubmission :: TxSubmissionConfig
@@ -122,17 +122,6 @@ data PeerSharingConfig = PeerSharingConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake PeerSharingConfig
-
-
--- | Keep-alive protocol configuration
-data KeepAliveConfig = KeepAliveConfig
-    { intervalMicroseconds :: Int
-    -- ^ Interval between keepalive messages
-    , maximumIngressQueue :: Int
-    -- ^ Max bytes queued in ingress queue
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake KeepAliveConfig
 
 
 -- | Transaction submission configuration
