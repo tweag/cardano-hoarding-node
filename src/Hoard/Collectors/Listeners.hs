@@ -38,7 +38,7 @@ import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Network.Events (PeersReceived (..))
+import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Types.Environment (CardanoProtocolsConfig (..), Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 

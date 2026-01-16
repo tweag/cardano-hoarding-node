@@ -74,10 +74,13 @@ library
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
-      Hoard.Listeners.PeerSharingEventListener
-      Hoard.Listeners.PeersReceivedListener
       Hoard.Monitoring
       Hoard.Network.Events
+      Hoard.PeerSharing
+      Hoard.PeerSharing.Config
+      Hoard.PeerSharing.Events
+      Hoard.PeerSharing.Listeners
+      Hoard.PeerSharing.NodeToNode
       Hoard.Server
       Hoard.Setup
       Hoard.Triggers

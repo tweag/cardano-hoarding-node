@@ -18,7 +18,6 @@ import Cardano.Api ()
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as S
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
@@ -28,10 +27,9 @@ import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
-import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
-import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
+import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
@@ -42,7 +40,6 @@ import Ouroboros.Network.Mux
     , OuroborosApplication (..)
     , OuroborosApplicationWithMinimalCtx
     , RunMiniProtocol (..)
-    , mkMiniProtocolCbFromPeer
     )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
@@ -52,36 +49,28 @@ import Ouroboros.Network.NodeToNode
     , connectTo
     , networkMagic
     , nullNetworkConnectTracers
-    , peerSharingMiniProtocolNum
     , simpleSingletonVersions
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
-import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
-import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
-import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
+import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (concStrat)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
-import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Effects.Publishing (Pub)
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
-import Hoard.Network.Events
-    ( PeerSharingStarted (..)
-    , PeersReceived (..)
-    )
+import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, PeerSharingConfig (..), TxSubmissionConfig (..))
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, TxSubmissionConfig (..))
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -277,28 +266,7 @@ mkApplication unlift env conf codecs peer =
         [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync conf codecs peer
         , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch conf codecs peer
         , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
-        , -- PeerSharing mini-protocol
-          MiniProtocol
-            { miniProtocolNum = peerSharingMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits env.config.cardanoProtocols.peerSharing.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly $
-                    mkMiniProtocolCbFromPeer $
-                        \_ ->
-                            let peerSharingCfg = env.config.cardanoProtocols.peerSharing
-                                client = peerSharingClientImpl unlift peerSharingCfg peer
-                                -- IMPORTANT: Use the version-specific codec from the codecs record!
-                                codec = cPeerSharingCodec codecs
-                                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
-                                    timestamp <- Clock.currentTime
-                                    publish $ PeerSharingStarted {peer, timestamp}
-                                    Log.debug "PeerSharing: Published PeerSharingStarted event"
-                                    Log.debug "PeerSharing: About to run peer protocol..."
-                                    pure (peerSharingClientPeer client)
-                                tracer = contramap (("[PeerSharing] " <>) . show) $ Log.asTracer unlift Log.DEBUG
-                            in  (tracer, codec, wrappedPeer)
-            }
+        , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol
             { miniProtocolNum = txSubmissionMiniProtocolNum
@@ -314,40 +282,3 @@ mkApplication unlift env conf codecs peer =
                     pure ((), Nothing)
             }
         ]
-
-
---------------------------------------------------------------------------------
--- PeerSharing Protocol Implementation
---------------------------------------------------------------------------------
-
--- | Create a PeerSharing client that requests peer addresses.
---
--- This client:
--- 1. Requests peer addresses from the remote peer (amount configurable)
--- 2. Publishes a PeersReceived event with the results
--- 3. Waits for the configured interval
--- 4. Loops
-peerSharingClientImpl
-    :: (Concurrent :> es, Clock :> es, Log :> es, Pub :> es)
-    => (forall x. Eff es x -> IO x)
-    -> PeerSharingConfig
-    -> Peer
-    -> PeerSharingClient SockAddr IO ()
-peerSharingClientImpl unlift peerSharingCfg peer = requestPeers withPeers
-  where
-    requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount $ fromIntegral peerSharingCfg.requestAmount
-    withPeers peerAddrs = unlift do
-        Log.debug "PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        Log.debug $ "PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
-        timestamp <- Clock.currentTime
-        publish $
-            PeersReceived
-                { peer
-                , timestamp
-                , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
-                }
-        Log.debug "PeerSharing: Published PeersReceived event"
-        Log.debug $ "PeerSharing: Waiting " <> show (peerSharingCfg.requestIntervalMicroseconds `div` 1_000_000) <> " seconds"
-        threadDelay peerSharingCfg.requestIntervalMicroseconds
-        Log.debug "PeerSharing: looping"
-        pure $ requestPeers withPeers
