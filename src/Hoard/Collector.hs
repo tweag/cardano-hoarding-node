@@ -150,7 +150,7 @@ bracketCollector peer = do
                         Nothing ->
                             Log.debug $ "Peer skipped: " <> show peer.address
                 )
-                (traverse_ runCollector)
+                (traverse_ $ Conc.subScoped . runCollector)
     pure ()
 
 
