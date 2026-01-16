@@ -5,6 +5,7 @@ module Hoard.Types.Environment
     , Config (..)
     , Handles (..)
     , Topology (..)
+    , MiniProtocolConfig (..)
 
       -- * peer-snapshot.json
     , PeerSnapshotFile (..)
@@ -28,6 +29,7 @@ import Data.Time (NominalDiffTime)
 import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
+import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 
 import Hoard.Effects.Chan (InChan)
 import Hoard.Types.Cardano (CardanoBlock)
@@ -80,6 +82,16 @@ data Config = Config
     , peerSnapshot :: PeerSnapshotFile
     , peerFailureCooldown :: NominalDiffTime
     , blockFetchQSem :: QSem
+    , miniProtocolConfig :: MiniProtocolConfig
+    }
+
+
+data MiniProtocolConfig = MiniProtocolConfig
+    { blockFetch :: MiniProtocolLimits
+    , chainSync :: MiniProtocolLimits
+    , txSubmission :: MiniProtocolLimits
+    , keepAlive :: MiniProtocolLimits
+    , peerSharing :: MiniProtocolLimits
     }
 
 

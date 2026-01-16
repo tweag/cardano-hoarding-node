@@ -36,6 +36,7 @@ import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Ouroboros.Network.IOManager (withIOManager)
+import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 import Servant (hoistServer, serve)
 import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM)
 import Servant.Client.Core (ClientError)
@@ -56,6 +57,7 @@ import Hoard.Types.Environment
     , Handles (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
+    , MiniProtocolConfig (..)
     , NodeSocketsConfig (Local)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
@@ -120,6 +122,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     blockFetchQSem <- runEff $ runConcurrent $ newQSem 1
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
+    let lim = MiniProtocolLimits 10
+    let miniProtocolConfig = MiniProtocolConfig lim lim lim lim lim
     let config =
             Config
                 { server = serverConfig
@@ -132,6 +136,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , peerFailureCooldown = 300
                 , blockFetchQSem
+                , miniProtocolConfig
                 }
     let handles =
             Handles

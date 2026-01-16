@@ -11,18 +11,20 @@ import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGen
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
 import Data.Dynamic (Dynamic)
 import Data.String.Conversions (cs)
+import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
+import Effectful.Concurrent.QSem (Concurrent, QSem, newQSem)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
+import Ouroboros.Network.Mux (MiniProtocolLimits (..))
+import Ouroboros.Network.NodeToNode (MiniProtocolParameters (..), defaultMiniProtocolParameters)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
-import Data.Time.Clock (NominalDiffTime)
-import Effectful.Concurrent.QSem (Concurrent, QSem, newQSem)
 import Hoard.Effects.Chan (Chan, InChan)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Options (Options)
@@ -30,7 +32,7 @@ import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, NodeSocketsConfig, PeerSnapshotFile (..), ServerConfig (..), Topology (..))
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, MiniProtocolConfig (..), NodeSocketsConfig, PeerSnapshotFile (..), ServerConfig (..), Topology (..))
 import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -46,6 +48,7 @@ data ConfigFile = ConfigFile
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
     , blockFetchQsemLimit :: Maybe Int
+    , miniProtocols :: Maybe MiniProtocolConfigFile
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -94,6 +97,24 @@ data DBUserCredentials = DBUserCredentials
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake DBUserCredentials
+
+
+data MiniProtocolConfigFile = MiniProtocolConfigFile
+    { blockFetch :: Maybe MiniProtocolLimitsConfigFile
+    , chainSync :: Maybe MiniProtocolLimitsConfigFile
+    , txSubmission :: Maybe MiniProtocolLimitsConfigFile
+    , keepAlive :: Maybe MiniProtocolLimitsConfigFile
+    , peerSharing :: Maybe MiniProtocolLimitsConfigFile
+    }
+    deriving (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake MiniProtocolConfigFile
+
+
+newtype MiniProtocolLimitsConfigFile = MiniProtocolLimitsConfigFile
+    { maximumIngressQueue :: Int
+    }
+    deriving (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake MiniProtocolLimitsConfigFile
 
 
 loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
@@ -181,6 +202,43 @@ loadBlockFetchQSem configFile = do
     newQSem qsemLimit
 
 
+loadMiniProtocolConfigs :: Maybe MiniProtocolConfigFile -> Eff es MiniProtocolConfig
+loadMiniProtocolConfigs configFile = do
+    pure $
+        MiniProtocolConfig
+            { blockFetch = mk defaultBlockFetch (.blockFetch)
+            , chainSync = mk defaultChainSync (.chainSync)
+            , txSubmission = mk defaultTxSubmission (.txSubmission)
+            , keepAlive = mk defaultKeepAlive (.keepAlive)
+            , peerSharing = mk defaultPeerSharing (.peerSharing)
+            }
+  where
+    defaultBlockFetch =
+        MiniProtocolLimits
+            { -- 384KiB, taken from Cardano's high watermark limit for block
+              -- fetch ingress queue limit.
+              maximumIngressQueue = 402653184
+            }
+    defaultChainSync =
+        MiniProtocolLimits
+            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params * 4
+            }
+    defaultTxSubmission =
+        MiniProtocolLimits
+            { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
+            }
+    defaultKeepAlive =
+        MiniProtocolLimits
+            { maximumIngressQueue = 1000 -- Reasonable default for keep alive
+            }
+    defaultPeerSharing =
+        MiniProtocolLimits
+            { maximumIngressQueue = 1000 -- Reasonable default for peer sharing
+            }
+    params = defaultMiniProtocolParameters
+    mk def getter = fromMaybe def $ fmap (MiniProtocolLimits . (.maximumIngressQueue)) . getter =<< configFile
+
+
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
@@ -245,6 +303,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
     blockFetchQSem <- loadBlockFetchQSem configFile
+    miniProtocolConfig <- loadMiniProtocolConfigs configFile.miniProtocols
 
     let config =
             Config
@@ -258,6 +317,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerFailureCooldown = configFile.peerFailureCooldownSeconds
                 , blockFetchQSem
+                , miniProtocolConfig
                 }
         env = Env {config, handles}
 
