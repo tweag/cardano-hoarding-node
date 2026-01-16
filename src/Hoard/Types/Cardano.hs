@@ -5,16 +5,19 @@ module Hoard.Types.Cardano
     , CardanoPoint
     , CardanoTip
     , CardanoCodecs
+    , CardanoMiniProtocol
     ) where
 
 import Cardano.Api ()
 import Codec.CBOR.Read (DeserialiseFailure)
 import Data.ByteString.Lazy qualified as LBS
+import Network.Mux (Mode (..))
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Cardano.Block qualified as Consensus
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Block qualified as Network
-import Prelude hiding (Reader, State, asks, evalState, gets)
+import Ouroboros.Network.Context (MinimalInitiatorContext, ResponderContext)
+import Ouroboros.Network.Mux (MiniProtocol)
 
 
 -- We use StandardCrypto which is the standard cryptographic primitives used in
@@ -51,3 +54,14 @@ type CardanoCodecs =
         LBS.ByteString
         LBS.ByteString
         LBS.ByteString
+
+
+type CardanoMiniProtocol =
+    MiniProtocol
+        'InitiatorMode
+        (MinimalInitiatorContext SockAddr)
+        (ResponderContext SockAddr)
+        LBS.ByteString
+        IO
+        ()
+        Void
