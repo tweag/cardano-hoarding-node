@@ -34,6 +34,7 @@ module Hoard.Effects.Log
     , debug
     , err
     , withNamespace
+    , asTracer
 
       -- * Interpreters
     , runLog
@@ -41,6 +42,7 @@ module Hoard.Effects.Log
     , runLogWriter
     ) where
 
+import Control.Tracer (Tracer (..))
 import Data.ByteString.Char8 qualified as B8
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
@@ -108,6 +110,11 @@ warn = withFrozenCallStack $ log WARN
 
 err :: (HasCallStack, Log :> es) => Text -> Eff es ()
 err = withFrozenCallStack $ log ERROR
+
+
+asTracer :: (Log :> es) => (forall x. Eff es x -> m x) -> Severity -> Tracer m String
+asTracer unlift severity =
+    Tracer $ \msg -> unlift $ log severity $ toText msg
 
 
 -- | Consumes `Log` effects, and discards the logged messages

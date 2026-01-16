@@ -15,7 +15,6 @@ module Hoard.Effects.NodeToNode
     ) where
 
 import Cardano.Api ()
-import Control.Tracer (Tracer (..))
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.List (maximum, minimum)
@@ -239,7 +238,7 @@ connectToPeerImpl conf = do
     adhocTracers <- withEffToIO strat $ \unlift ->
         pure $
             nullNetworkConnectTracers
-                { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< logTracer unlift Log.DEBUG
+                { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
                 }
 
     -- Connect to the peer
@@ -298,7 +297,7 @@ mkApplication unlift envConf conf codecs peer =
             , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
                 let codec = cBlockFetchCodec codecs
                     client = blockFetchClientImpl unlift conf peer
-                    tracer = (("[BlockFetch tracer] " <>) . show) >$< logTracer unlift Log.DEBUG
+                    tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
                     wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                         Log.debug "BlockFetch protocol started"
                         pure $ blockFetchClientPeer client
@@ -319,7 +318,7 @@ mkApplication unlift envConf conf codecs peer =
                                         withExceptionLogging "KeepAlive" $ do
                                             Log.debug "KeepAlive protocol started"
                                             pure (keepAliveClientPeer $ keepAliveClientImpl unlift)
-                                tracer = contramap (("[KeepAlive] " <>) . show) $ logTracer unlift Log.DEBUG
+                                tracer = contramap (("[KeepAlive] " <>) . show) $ Log.asTracer unlift Log.DEBUG
                             in  (tracer, codec, wrappedPeer)
             }
         , -- PeerSharing mini-protocol
@@ -340,7 +339,7 @@ mkApplication unlift envConf conf codecs peer =
                                     Log.debug "PeerSharing: Published PeerSharingStarted event"
                                     Log.debug "PeerSharing: About to run peer protocol..."
                                     pure (peerSharingClientPeer client)
-                                tracer = contramap (("[PeerSharing] " <>) . show) $ logTracer unlift Log.DEBUG
+                                tracer = contramap (("[PeerSharing] " <>) . show) $ Log.asTracer unlift Log.DEBUG
                             in  (tracer, codec, wrappedPeer)
             }
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
@@ -498,8 +497,3 @@ keepAliveClientImpl unlift = KeepAliveClient sendFirst
         threadDelay 10_000_000 -- 10 seconds in microseconds
         Log.debug "KeepAlive: Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
-
-
-logTracer :: (Log :> es) => (forall x. Eff es x -> m x) -> Log.Severity -> Tracer m String
-logTracer unlift severity =
-    Tracer $ \msg -> unlift $ Log.log severity $ toText msg
