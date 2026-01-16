@@ -13,13 +13,6 @@ module Hoard.Network.Events
 
       -- * Protocol-specific events
 
-      -- ** Chain sync
-    , ChainSyncStarted (..)
-    , HeaderReceived (..)
-    , RollBackward (..)
-    , RollForward (..)
-    , ChainSyncIntersectionFound (..)
-
       -- ** Block fetch
     , BlockFetchRequest (..)
     , BlockFetchStarted (..)
@@ -37,7 +30,7 @@ import Data.Time (UTCTime)
 import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
 import Hoard.Data.Peer (Peer, PeerAddress)
-import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
+import Hoard.Types.Cardano (CardanoBlock, CardanoPoint)
 
 
 --------------------------------------------------------------------------------
@@ -78,58 +71,6 @@ data ProtocolError = ProtocolError
     , errorMessage :: Text
     }
     deriving (Show, Typeable)
-
-
---------------------------------------------------------------------------------
--- ChainSync Protocol Events
---------------------------------------------------------------------------------
-
--- | Events from the ChainSync mini-protocol.
---
--- ChainSync is responsible for synchronizing chain headers with peers,
--- handling forks and rollbacks.
-data ChainSyncStarted = ChainSyncStarted
-    { peer :: Peer
-    , timestamp :: UTCTime
-    }
-    deriving (Show, Typeable)
-
-
-data HeaderReceived = HeaderReceived
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , header :: CardanoHeader
-    , tip :: CardanoTip
-    }
-    deriving (Typeable)
-
-
-data RollBackward = RollBackward
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , point :: CardanoPoint
-    , tip :: CardanoTip
-    }
-    deriving (Typeable)
-
-
-data RollForward = RollForward
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , header :: CardanoHeader
-    , point :: CardanoPoint
-    , tip :: CardanoTip
-    }
-    deriving (Typeable)
-
-
-data ChainSyncIntersectionFound = ChainSyncIntersectionFound
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , point :: CardanoPoint
-    , tip :: CardanoTip
-    }
-    deriving (Typeable)
 
 
 --------------------------------------------------------------------------------

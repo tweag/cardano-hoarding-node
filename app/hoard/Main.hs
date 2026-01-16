@@ -9,6 +9,7 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
+import Hoard.ChainSync qualified as ChainSync
 import Hoard.Collector (runCollectors)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
@@ -70,5 +71,6 @@ main =
             runListeners
             runCollectors
             runTriggers
+            ChainSync.run
             Monitoring.run
             Conc.awaitAll
