@@ -16,6 +16,10 @@ build-type:    Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.BlockFetch
+      Hoard.BlockFetch.Events
+      Hoard.BlockFetch.Listeners
+      Hoard.BlockFetch.NodeToNode
       Hoard.Bootstrap
       Hoard.ChainSync
       Hoard.ChainSync.Events
@@ -27,7 +31,6 @@ library
       Hoard.Collectors.State
       Hoard.Control.Exception
       Hoard.Data.Block
-      Hoard.Data.Block.Extract
       Hoard.Data.BlockHash
       Hoard.Data.Eras
       Hoard.Data.Header
@@ -65,7 +68,6 @@ library
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
       Hoard.Listeners
-      Hoard.Listeners.BlockFetchEventListener
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener

@@ -9,6 +9,7 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
+import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.ChainSync qualified as ChainSync
 import Hoard.Collectors qualified as Collectors
 import Hoard.Collectors.State (BlocksBeingFetched)
@@ -72,6 +73,7 @@ main =
             runListeners
             runTriggers
             ChainSync.run
+            BlockFetch.run
             Monitoring.run
             Collectors.run
             Conc.awaitAll

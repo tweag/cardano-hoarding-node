@@ -10,13 +10,6 @@ module Hoard.Network.Events
 
       -- * Protocol-specific events
 
-      -- ** Block fetch
-    , BlockFetchRequest (..)
-    , BlockFetchStarted (..)
-    , BlockReceived (..)
-    , BlockFetchFailed (..)
-    , BlockBatchCompleted (..)
-
       -- ** Peer sharing
     , PeerSharingStarted (..)
     , PeersReceived (..)
@@ -26,7 +19,6 @@ module Hoard.Network.Events
 import Data.Time (UTCTime)
 
 import Hoard.Data.Peer (Peer, PeerAddress)
-import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
 --------------------------------------------------------------------------------
@@ -37,55 +29,6 @@ data ProtocolError = ProtocolError
     { peer :: Peer
     , timestamp :: UTCTime
     , errorMessage :: Text
-    }
-    deriving (Show, Typeable)
-
-
---------------------------------------------------------------------------------
--- BlockFetch Protocol Events
---------------------------------------------------------------------------------
-
--- | Events from the BlockFetch mini-protocol.
---
--- BlockFetch is responsible for downloading block bodies after ChainSync
--- has provided the headers.
-data BlockFetchStarted = BlockFetchStarted
-    { peer :: Peer
-    , timestamp :: UTCTime
-    }
-    deriving (Show, Typeable)
-
-
--- | A request to fetch a single block.
-data BlockFetchRequest = BlockFetchRequest
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , header :: CardanoHeader
-    }
-    deriving (Typeable)
-
-
-data BlockReceived = BlockReceived
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , block :: CardanoBlock
-    }
-    deriving (Typeable)
-
-
-data BlockFetchFailed = BlockFetchFailed
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , header :: CardanoHeader
-    , errorMessage :: Text
-    }
-    deriving (Typeable)
-
-
-data BlockBatchCompleted = BlockBatchCompleted
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , blockCount :: Int
     }
     deriving (Show, Typeable)
 

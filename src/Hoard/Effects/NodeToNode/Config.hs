@@ -1,8 +1,8 @@
 module Hoard.Effects.NodeToNode.Config (Config (..)) where
 
+import Hoard.BlockFetch.Events (BlockFetchRequest (..), BlockReceived (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Network.Events (BlockFetchRequest (..), BlockReceived (..))
 
 
 data Config m = Config
