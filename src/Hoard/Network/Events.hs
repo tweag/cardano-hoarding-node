@@ -6,10 +6,7 @@
 -- associated mini-protocols (ChainSync, BlockFetch, KeepAlive).
 module Hoard.Network.Events
     ( -- * Network lifecycle events
-      ConnectionEstablished (..)
-    , ConnectionLost (..)
-    , HandshakeCompleted (..)
-    , ProtocolError (..)
+      ProtocolError (..)
 
       -- * Protocol-specific events
 
@@ -34,7 +31,6 @@ module Hoard.Network.Events
     ) where
 
 import Data.Time (UTCTime)
-import Ouroboros.Network.NodeToNode (NodeToNodeVersion)
 
 import Hoard.Data.Peer (Peer, PeerAddress)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
@@ -43,34 +39,6 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTi
 --------------------------------------------------------------------------------
 -- Network Lifecycle Events
 --------------------------------------------------------------------------------
-
--- | Events related to connection lifecycle and protocol negotiation.
---
--- These events are published by the Network effect handler during connection
--- establishment, version negotiation, and disconnection.
-data ConnectionEstablished = ConnectionEstablished
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , version :: NodeToNodeVersion
-    }
-    deriving (Show, Typeable)
-
-
-data ConnectionLost = ConnectionLost
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , reason :: Text
-    }
-    deriving (Show, Typeable)
-
-
-data HandshakeCompleted = HandshakeCompleted
-    { peer :: Peer
-    , timestamp :: UTCTime
-    , version :: NodeToNodeVersion
-    }
-    deriving (Show, Typeable)
-
 
 data ProtocolError = ProtocolError
     { peer :: Peer
