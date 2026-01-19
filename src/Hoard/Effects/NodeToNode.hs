@@ -31,7 +31,7 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Concurrent.QSem (signalQSem, waitQSem)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (Reader, ask, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
@@ -49,7 +49,6 @@ import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
     , MiniProtocolCb (..)
-    , MiniProtocolLimits (..)
     , OuroborosApplication (..)
     , OuroborosApplicationWithMinimalCtx
     , RunMiniProtocol (..)
@@ -58,14 +57,12 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
-    , MiniProtocolParameters (..)
     , NetworkConnectTracers (..)
     , NodeToNodeVersionData (..)
     , blockFetchMiniProtocolNum
     , chainSyncMiniProtocolNum
     , combineVersions
     , connectTo
-    , defaultMiniProtocolParameters
     , keepAliveMiniProtocolNum
     , networkMagic
     , nullNetworkConnectTracers
@@ -85,7 +82,7 @@ import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSha
 import Ouroboros.Network.Protocol.PeerSharing.Client qualified as PeerSharing
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
-import Prelude hiding (Reader, State, asks, evalState, gets)
+import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
@@ -207,8 +204,10 @@ connectToPeerImpl
     => Config (Eff es)
     -> Eff es Void
 connectToPeerImpl conf = do
-    protocolInfo <- asks $ Env.protocolInfo . Env.config
-    ioManager <- asks $ Env.ioManager . Env.handles
+    env <- ask
+    let envConf = env.config
+        protocolInfo = envConf.protocolInfo
+        ioManager = env.handles.ioManager
     let addr = IP.toSockAddr (getNodeIP conf.peer.address.host, fromIntegral conf.peer.address.port)
     -- Create connection using ouroboros-network
     Log.debug $ "Attempting connection to " <> show addr
@@ -246,7 +245,7 @@ connectToPeerImpl conf = do
                             encodeRemoteAddress
                             (\v -> decodeRemoteAddress v)
                             nodeVersion
-            in  mkApplication unlift conf codecs conf.peer
+            in  mkApplication unlift envConf conf codecs conf.peer
 
     -- Create versions for negotiation - offer all supported versions
     Log.debug "Creating protocol versions..."
@@ -341,6 +340,7 @@ mkApplication
        , State HoardState :> es
        )
     => (forall x. Eff es x -> IO x)
+    -> Env.Config
     -> Config (Eff es)
     -> Codecs
         CardanoBlock
@@ -356,12 +356,12 @@ mkApplication
         LBS.ByteString
     -> Peer
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication unlift conf codecs peer =
+mkApplication unlift envConf conf codecs peer =
     OuroborosApplication
         [ -- ChainSync mini-protocol (pipelined)
           MiniProtocol
             { miniProtocolNum = chainSyncMiniProtocolNum
-            , miniProtocolLimits = chainSyncLimits
+            , miniProtocolLimits = envConf.miniProtocolConfig.chainSync
             , miniProtocolStart = StartEagerly
             , miniProtocolRun =
                 InitiatorProtocolOnly $
@@ -375,7 +375,7 @@ mkApplication unlift conf codecs peer =
         , -- BlockFetch mini-protocol
           MiniProtocol
             { miniProtocolNum = blockFetchMiniProtocolNum
-            , miniProtocolLimits = blockFetchLimits
+            , miniProtocolLimits = envConf.miniProtocolConfig.blockFetch
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
                 let codec = cBlockFetchCodec codecs
@@ -389,7 +389,7 @@ mkApplication unlift conf codecs peer =
         , -- KeepAlive mini-protocol
           MiniProtocol
             { miniProtocolNum = keepAliveMiniProtocolNum
-            , miniProtocolLimits = keepAliveLimits
+            , miniProtocolLimits = envConf.miniProtocolConfig.keepAlive
             , miniProtocolStart = StartEagerly
             , miniProtocolRun =
                 InitiatorProtocolOnly $
@@ -407,7 +407,7 @@ mkApplication unlift conf codecs peer =
         , -- PeerSharing mini-protocol
           MiniProtocol
             { miniProtocolNum = peerSharingMiniProtocolNum
-            , miniProtocolLimits = peerSharingLimits
+            , miniProtocolLimits = envConf.miniProtocolConfig.peerSharing
             , miniProtocolStart = StartEagerly
             , miniProtocolRun =
                 InitiatorProtocolOnly $
@@ -428,7 +428,7 @@ mkApplication unlift conf codecs peer =
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol
             { miniProtocolNum = txSubmissionMiniProtocolNum
-            , miniProtocolLimits = txSubmissionLimits
+            , miniProtocolLimits = envConf.miniProtocolConfig.txSubmission
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 unlift $ withExceptionLogging "TxSubmission" $ do
@@ -440,31 +440,6 @@ mkApplication unlift conf codecs peer =
                     pure ((), Nothing)
             }
         ]
-  where
-    params = defaultMiniProtocolParameters
-
-    chainSyncLimits =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params * 4
-            }
-    blockFetchLimits =
-        MiniProtocolLimits
-            { -- 384KiB, taken from Cardano's high watermark limit for block
-              -- fetch ingress queue limit.
-              maximumIngressQueue = 402653184
-            }
-    keepAliveLimits =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for keep alive
-            }
-    peerSharingLimits =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for peer sharing
-            }
-    txSubmissionLimits =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
-            }
 
 
 --------------------------------------------------------------------------------
