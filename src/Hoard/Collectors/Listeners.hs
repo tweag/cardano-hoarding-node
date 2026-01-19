@@ -1,25 +1,25 @@
-module Hoard.Collector
-    ( runCollector
-    , runCollectors
+module Hoard.Collectors.Listeners
+    ( dispatchDiscoveredNodes
+    , collectorEvent
     , bracketCollector
     ) where
 
 import Data.Set qualified as S
-import Data.Set qualified as Set
 import Data.Time (diffUTCTime)
-import Effectful (Eff, IOE, (:>))
+import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, state, stateM)
 import Effectful.Timeout (Timeout)
-import Prelude hiding (Reader, State, asks, gets, modify, state)
+import Prelude hiding (Reader, State, asks, modify, state)
 
-import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync.Events (HeaderReceived (..))
+import Hoard.Collectors.Events (CollectorEvent (..))
+import Hoard.Collectors.State (BlocksBeingFetched (..))
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.BlockHash (blockHashFromHeader)
-import Hoard.Data.Peer (Peer (..))
+import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Chan (Chan)
@@ -34,26 +34,43 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
-import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers, updatePeerFailure)
+import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Events.Collector (CollectorEvent (..))
-import Hoard.Network.Events (BlockFetchRequest (..), BlockReceived (..))
+import Hoard.Network.Events (BlockFetchRequest (..), BlockReceived (..), PeersReceived (..))
 import Hoard.Types.Environment (Config (..))
-import Hoard.Types.HoardState (BlocksBeingFetched (..), HoardState (..), connectedPeers)
+import Hoard.Types.HoardState (HoardState (..))
 
 
--- | Start collectors for all known peers, or bootstrap if none exist.
+-- | Listener that logs collector events
+collectorEvent :: (Log :> es) => CollectorEvent -> Eff es ()
+collectorEvent = \case
+    CollectorStarted addr ->
+        Log.info $ "Collector: started for " <> show addr.host
+    ConnectingToPeer addr ->
+        Log.info $ "Collector: connecting to peer " <> show addr.host
+    ConnectedToPeer addr ->
+        Log.info $ "Collector: connected to peer " <> show addr.host
+    ConnectionFailed addr reason ->
+        Log.info $ "Collector: failed to connect to peer " <> show addr.host <> ": " <> reason
+    ChainSyncReceived addr ->
+        Log.info $ "Collector: chain sync received from " <> show addr.host
+    BlockFetchReceived addr ->
+        Log.info $ "Collector: block fetch received from " <> show addr.host
+
+
+-- | Dispatch discovered peer nodes for connection.
 --
--- This queries the database for known peers and:
--- - If peers exist, starts collectors for all of them
--- - If no peers exist, bootstraps from the hardcoded preview-node peer
-runCollectors
+-- When peers are discovered via peer sharing:
+-- - Upserts all discovered peer addresses to the database
+-- - Filters out peers already connected
+-- - Filters out peers in cooldown period (recent failures)
+-- - Starts collectors for all eligible peers
+dispatchDiscoveredNodes
     :: ( BlockRepo :> es
        , Chan :> es
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , IOE :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -63,24 +80,18 @@ runCollectors
        , State HoardState :> es
        , Timeout :> es
        )
-    => Eff es ()
-runCollectors = do
-    -- Check if there are any known peers in the database
-    knownPeers <- getAllPeers
+    => PeersReceived
+    -> Eff es ()
+dispatchDiscoveredNodes event = do
+    Log.info "Dispatch: Received peers"
 
-    if Set.null knownPeers
-        then do
-            -- No known peers, bootstrap from peer snapshot
-            Log.debug "No known peers found, bootstrapping from peer snapshot"
-            bootstrappedPeers <- bootstrapPeers
-            let peerCount = Set.size bootstrappedPeers
-            Log.debug $ "Bootstrapped " <> show peerCount <> " peers from peer snapshot"
-            for_ (Set.toList bootstrappedPeers) bracketCollector
-        else do
-            -- Start collectors for all known peers
-            let peerCount = Set.size knownPeers
-            Log.debug $ "Found " <> show peerCount <> " known peers, starting collectors"
-            for_ (Set.toList knownPeers) bracketCollector
+    -- First, upsert all discovered peer addresses to create Peer records
+    timestamp <- Clock.currentTime
+    upsertedPeers <- upsertPeers event.peerAddresses event.peer.address timestamp
+
+    Log.info $ "Dispatch: " <> show (S.size upsertedPeers) <> " new peers to connect to"
+
+    for_ upsertedPeers bracketCollector
 
 
 -- | Fork a collector with exception handling and state management. The forked
@@ -99,10 +110,10 @@ runCollectors = do
 -- terminates, whether due to an exception or normal completion.
 bracketCollector
     :: ( BlockRepo :> es
-       , Concurrent :> es
-       , Conc :> es
        , Chan :> es
        , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -147,15 +158,15 @@ bracketCollector peer = do
                         Nothing ->
                             Log.debug $ "Peer skipped: " <> show peer.address
                 )
-                (traverse_ runCollector)
+                (traverse_ collectFromPeer)
     pure ()
 
 
-runCollector
+collectFromPeer
     :: ( BlockRepo :> es
+       , Chan :> es
        , Conc :> es
        , Concurrent :> es
-       , Chan :> es
        , NodeToNode :> es
        , Pub :> es
        , State BlocksBeingFetched :> es
@@ -163,7 +174,7 @@ runCollector
        )
     => Peer
     -> Eff es Void
-runCollector peer =
+collectFromPeer peer =
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceived
         . withBridge @BlockReceived
