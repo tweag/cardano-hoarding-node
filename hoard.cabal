@@ -70,7 +70,6 @@ library
       Hoard.Listeners.PeersReceivedListener
       Hoard.Monitoring
       Hoard.Network.Events
-      Hoard.Network.Types
       Hoard.Server
       Hoard.Setup
       Hoard.Triggers

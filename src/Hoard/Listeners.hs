@@ -36,12 +36,7 @@ import Hoard.Listeners.CollectorEventListener (collectorEventListener)
 import Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefreshTriggeredListener)
-import Hoard.Listeners.NetworkEventListener
-    ( connectionEstablishedListener
-    , connectionLostListener
-    , handshakeCompletedListener
-    , protocolErrorListener
-    )
+import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
 import Hoard.Listeners.PeerSharingEventListener
     ( peerSharingFailedListener
     , peerSharingStartedListener
@@ -75,9 +70,6 @@ runListeners = do
     _ <- Conc.fork $ listen headerReceivedListener
     _ <- Conc.fork $ listen peersReceivedListener
     _ <- Conc.fork $ listen dispatchDiscoveredNodes
-    _ <- Conc.fork $ listen connectionEstablishedListener
-    _ <- Conc.fork $ listen connectionLostListener
-    _ <- Conc.fork $ listen handshakeCompletedListener
     _ <- Conc.fork $ listen protocolErrorListener
     _ <- Conc.fork $ listen peerSharingStartedListener
     _ <- Conc.fork $ listen peersReceivedLogListener

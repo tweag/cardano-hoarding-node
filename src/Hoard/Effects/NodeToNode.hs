@@ -9,8 +9,6 @@ module Hoard.Effects.NodeToNode
       NodeToNode
     , Config (..)
     , connectToPeer
-    , disconnectPeer
-    , isConnected
 
       -- * Interpreter
     , runNodeToNode
@@ -101,13 +99,11 @@ import Hoard.Network.Events
     , BlockReceived (..)
     , ChainSyncIntersectionFound (..)
     , ChainSyncStarted (..)
-    , ConnectionLost (..)
     , HeaderReceived (..)
     , PeerSharingStarted (..)
     , PeersReceived (..)
     , RollBackward (..)
     )
-import Hoard.Network.Types (Connection (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env
@@ -124,8 +120,6 @@ import Hoard.Types.NodeIP (NodeIP (..))
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
     ConnectToPeer :: Config m -> NodeToNode m Void
-    DisconnectPeer :: Connection -> NodeToNode m ()
-    IsConnected :: Connection -> NodeToNode m Bool
 
 
 data Config m = Config
@@ -163,8 +157,6 @@ runNodeToNode =
     interpret $ \env -> \case
         ConnectToPeer conf -> localUnlift env concStrat \unlift ->
             connectToPeerImpl $ hoistConfig unlift conf
-        DisconnectPeer conn -> disconnectPeerImpl conn
-        IsConnected conn -> isConnectedImpl conn
 
 
 hoistConfig :: (forall x. Eff localEs x -> Eff es x) -> Config (Eff localEs) -> Config (Eff es)
@@ -290,37 +282,6 @@ connectToPeerImpl conf = do
         Right (Right _) -> do
             -- This shouldn't happen with InitiatorOnly mode
             throwError "Unexpected responder mode result"
-
-
--- | Implementation of disconnectPeer.
---
--- Note: With the current connectTo-based implementation, we don't have direct control
--- over disconnection. The connection is managed by ouroboros-network's internal state.
-disconnectPeerImpl
-    :: (Pub :> es, Clock :> es)
-    => Connection
-    -> Eff es ()
-disconnectPeerImpl conn = do
-    -- Publish connection lost event
-    timestamp <- Clock.currentTime
-    let peer = Hoard.Network.Types.peer conn
-        reason = "Disconnect requested"
-    publish $ ConnectionLost {peer, timestamp, reason}
-
-
--- Note: Actual socket closing is handled by ouroboros-network
-
--- | Implementation of isConnected.
---
--- Note: With the current implementation, we can't easily check connection status
--- since it's managed internally by ouroboros-network.
-isConnectedImpl
-    :: Connection
-    -> Eff es Bool
-isConnectedImpl _conn = do
-    -- For now, we'll assume connections are persistent
-    -- In a full implementation, we'd track connection state
-    pure True
 
 
 --------------------------------------------------------------------------------
