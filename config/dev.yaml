@@ -47,7 +47,9 @@ cardano_protocols:
   block_fetch:
     batch_size: 10
     batch_timeout_microseconds: 1000000 # 1 second
-    maximum_ingress_queue: 393216 # 384 KiB
+    maximum_ingress_queue: 589824 # 576 KiB
+    low_watermark: 196608 # 192 KiB
+    high_watermark: 393216 # 384 KiB
   chain_sync:
     maximum_ingress_queue: 1200
   tx_submission:
