@@ -7,13 +7,14 @@ module Hoard.Data.Peer
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.IP qualified as IP
 import Data.Time (UTCTime)
 import Network.Socket (SockAddr)
+import Text.Show qualified as Show
+import Prelude hiding (id)
 
-import Data.IP qualified as IP
 import Hoard.Data.ID (ID)
 import Hoard.Types.NodeIP (NodeIP (..))
-import Prelude hiding (id)
 
 
 -- | Represents a peer in the P2P network
@@ -35,8 +36,13 @@ data PeerAddress = PeerAddress
     { host :: NodeIP
     , port :: Int
     }
-    deriving stock (Eq, Ord, Generic, Show)
+    deriving stock (Eq, Ord, Generic)
     deriving (FromJSON, ToJSON)
+
+
+instance Show PeerAddress where
+    show (PeerAddress {host, port}) =
+        show host <> ":" <> show port
 
 
 -- | Convert a SockAddr to a PeerAddress

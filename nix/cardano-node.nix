@@ -142,7 +142,8 @@ let
           --topology ${topologyPath} \
           --database-path ${dbPath} \
           --socket-path ${socketPath} \
-          --tracer-socket-path-accept /tmp/cardano-tracer.sock
+          --tracer-socket-path-accept /tmp/cardano-tracer.sock \
+          "$@"
       ''}";
     };
 

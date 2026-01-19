@@ -22,7 +22,7 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask)
-import Effectful.State.Static.Shared (State)
+import Effectful.State.Static.Shared (State, evalState)
 import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
@@ -57,6 +57,7 @@ import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
+import Hoard.BlockFetch.State qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -146,6 +147,8 @@ runNodeToNode =
                         , query = False
                         }
 
+            bfStatus <- BlockFetch.mkStatus
+
             -- Helper function to create application for a specific version
             let strat = ConcUnlift Persistent Unlimited
                 mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
@@ -157,7 +160,7 @@ runNodeToNode =
                                     encodeRemoteAddress
                                     (\v -> decodeRemoteAddress v)
                                     nodeVersion
-                    in  mkApplication unlift env codecs peer
+                    in  mkApplication (unlift . evalState bfStatus) env codecs peer
 
             -- Create versions for negotiation - offer all supported versions
             Log.debug "Creating protocol versions..."
@@ -183,6 +186,7 @@ runNodeToNode =
 
             -- Connect to the peer
             Log.debug "Calling connectTo..."
+
             result <- do
                 withEffToIO strat $ \unlift ->
                     connectTo
@@ -220,6 +224,7 @@ mkApplication
        , Log :> es
        , Pub :> es
        , State HoardState :> es
+       , State BlockFetch.Status :> es
        , Sub :> es
        , Timeout :> es
        )
