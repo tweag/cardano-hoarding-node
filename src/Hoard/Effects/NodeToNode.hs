@@ -15,13 +15,10 @@ module Hoard.Effects.NodeToNode
     ) where
 
 import Cardano.Api ()
-import Cardano.Api.Block (toConsensusPointHF)
-import Codec.CBOR.Read (DeserialiseFailure)
-import Control.Tracer (Tracer (..), nullTracer)
+import Control.Tracer (Tracer (..))
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.List (maximum, minimum)
-import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
@@ -30,12 +27,10 @@ import Effectful.Concurrent.QSem (signalQSem, waitQSem)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask, asks)
-import Effectful.State.Static.Shared (State, gets)
+import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
-import Network.TypedProtocol (PeerRole (..))
-import Network.TypedProtocol.Peer.Client
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
@@ -51,14 +46,12 @@ import Ouroboros.Network.Mux
     , OuroborosApplicationWithMinimalCtx
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
-    , mkMiniProtocolCbFromPeerPipelined
     )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , NetworkConnectTracers (..)
     , NodeToNodeVersionData (..)
     , blockFetchMiniProtocolNum
-    , chainSyncMiniProtocolNum
     , combineVersions
     , connectTo
     , keepAliveMiniProtocolNum
@@ -72,8 +65,6 @@ import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, e
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
-import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
-import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
@@ -82,6 +73,7 @@ import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
@@ -90,6 +82,7 @@ import Hoard.Effects.Conc (concStrat)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
+import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
     ( BlockBatchCompleted (..)
@@ -97,14 +90,10 @@ import Hoard.Network.Events
     , BlockFetchRequest (..)
     , BlockFetchStarted (..)
     , BlockReceived (..)
-    , ChainSyncIntersectionFound (..)
-    , ChainSyncStarted (..)
-    , HeaderReceived (..)
     , PeerSharingStarted (..)
     , PeersReceived (..)
-    , RollBackward (..)
     )
-import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint, CardanoTip)
+import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoPoint)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
@@ -120,14 +109,6 @@ import Hoard.Types.NodeIP (NodeIP (..))
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
     ConnectToPeer :: Config m -> NodeToNode m Void
-
-
-data Config m = Config
-    { awaitBlockFetchRequests :: m (NonEmpty BlockFetchRequest)
-    , emitFetchedHeader :: HeaderReceived -> m ()
-    , emitFetchedBlock :: BlockReceived -> m ()
-    , peer :: Peer
-    }
 
 
 -- Generate smart constructors using Template Haskell
@@ -303,36 +284,12 @@ mkApplication
     => (forall x. Eff es x -> IO x)
     -> Env.Config
     -> Config (Eff es)
-    -> Codecs
-        CardanoBlock
-        SockAddr
-        DeserialiseFailure
-        IO
-        LBS.ByteString
-        LBS.ByteString
-        LBS.ByteString
-        LBS.ByteString
-        LBS.ByteString
-        LBS.ByteString
-        LBS.ByteString
+    -> CardanoCodecs
     -> Peer
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
 mkApplication unlift envConf conf codecs peer =
     OuroborosApplication
-        [ -- ChainSync mini-protocol (pipelined)
-          MiniProtocol
-            { miniProtocolNum = chainSyncMiniProtocolNum
-            , miniProtocolLimits = envConf.miniProtocolConfig.chainSync
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly $
-                    mkMiniProtocolCbFromPeerPipelined $
-                        \_ ->
-                            let codec = cChainSyncCodec codecs
-                                -- Note: Exception logging added inside chainSyncClientImpl via Effect
-                                client = chainSyncClientImpl unlift conf peer
-                            in  (nullTracer, codec, client)
-            }
+        [ ChainSync.miniProtocol unlift envConf conf codecs peer
         , -- BlockFetch mini-protocol
           MiniProtocol
             { miniProtocolNum = blockFetchMiniProtocolNum
@@ -520,110 +477,6 @@ blockFetchClientImpl unlift conf peer =
                         , blockCount
                         }
             }
-
-
--- | Create a ChainSync client that synchronizes chain headers (pipelined version).
---
--- This client:
--- 1. Finds an intersection starting from genesis
--- 2. Requests headers continuously
--- 3. Publishes HeaderReceived events for each header
--- 4. Handles rollbacks by publishing RollBackward events
---
--- Note: This runs forever, continuously requesting the next header.
-chainSyncClientImpl
-    :: forall es
-     . ( Clock :> es
-       , Log :> es
-       , Pub :> es
-       , State HoardState :> es
-       )
-    => (forall x. Eff es x -> IO x)
-    -> Config (Eff es)
-    -> Peer
-    -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
-chainSyncClientImpl unlift conf peer =
-    ClientPipelined $
-        Effect $
-            unlift $
-                withExceptionLogging "ChainSync" $
-                    do
-                        -- Publish started event
-                        timestamp <- Clock.currentTime
-                        publish $ ChainSyncStarted {peer, timestamp}
-                        Log.debug "ChainSync: Published ChainSyncStarted event"
-                        Log.debug "ChainSync: Starting pipelined client, finding intersection from genesis"
-                        initialPoints <- List.singleton . toConsensusPointHF <$> gets (.immutableTip)
-                        pure (findIntersect initialPoints)
-  where
-    findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
-    findIntersect initialPoints =
-        Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
-            ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection not found (continuing anyway)"
-                pure requestNext
-            ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection found"
-                timestamp <- Clock.currentTime
-                publish $
-                    ChainSyncIntersectionFound
-                        { peer
-                        , timestamp
-                        , point
-                        , tip
-                        }
-                pure requestNext
-
-    requestNext :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
-    requestNext =
-        Yield ChainSync.MsgRequestNext $ Await $ \case
-            ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Received header (RollForward)"
-                timestamp <- Clock.currentTime
-                let event =
-                        HeaderReceived
-                            { peer
-                            , timestamp
-                            , header
-                            , tip
-                            }
-                conf.emitFetchedHeader event
-                publish event
-                pure requestNext
-            ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Rollback"
-                timestamp <- Clock.currentTime
-                publish $
-                    RollBackward
-                        { peer
-                        , timestamp
-                        , point
-                        , tip
-                        }
-                pure requestNext
-            ChainSync.MsgAwaitReply -> Await $ \case
-                ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Received header after await (RollForward)"
-                    timestamp <- Clock.currentTime
-                    publish $
-                        HeaderReceived
-                            { peer
-                            , timestamp
-                            , header
-                            , tip
-                            }
-                    pure requestNext
-                ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Rollback after await"
-                    timestamp <- Clock.currentTime
-                    publish $
-                        RollBackward
-                            { peer
-                            , timestamp
-                            , point
-                            , tip
-                            }
-                    pure requestNext
 
 
 -- | KeepAlive client implementation.

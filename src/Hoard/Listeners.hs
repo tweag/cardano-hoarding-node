@@ -12,7 +12,6 @@ import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.NodeToNode (NodeToNode)
@@ -24,13 +23,6 @@ import Hoard.Listeners.BlockFetchEventListener
     , blockFetchFailedListener
     , blockFetchStartedListener
     , blockReceivedListener
-    )
-import Hoard.Listeners.ChainSyncEventListener
-    ( chainSyncHeaderReceivedListener
-    , chainSyncIntersectionFoundListener
-    , chainSyncRollBackwardListener
-    , chainSyncRollForwardListener
-    , chainSyncStartedListener
     )
 import Hoard.Listeners.CollectorEventListener (collectorEventListener)
 import Hoard.Listeners.DiscoveredNodesListener (dispatchDiscoveredNodes)
@@ -53,7 +45,6 @@ runListeners
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , HeaderRepo :> es
        , Log :> es
        , NodeToClient :> es
        , NodeToNode :> es
@@ -74,11 +65,6 @@ runListeners = do
     _ <- Conc.fork $ listen peerSharingStartedListener
     _ <- Conc.fork $ listen peersReceivedLogListener
     _ <- Conc.fork $ listen peerSharingFailedListener
-    _ <- Conc.fork $ listen chainSyncHeaderReceivedListener
-    _ <- Conc.fork $ listen chainSyncStartedListener
-    _ <- Conc.fork $ listen chainSyncRollBackwardListener
-    _ <- Conc.fork $ listen chainSyncRollForwardListener
-    _ <- Conc.fork $ listen chainSyncIntersectionFoundListener
     _ <- Conc.fork $ listen blockFetchStartedListener
     _ <- Conc.fork $ listen blockReceivedListener
     _ <- Conc.fork $ listen blockFetchFailedListener
