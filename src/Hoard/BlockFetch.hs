@@ -10,8 +10,8 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
+import Hoard.Effects.Publishing (Sub)
+import Hoard.Effects.Publishing qualified as Sub
 
 
 run

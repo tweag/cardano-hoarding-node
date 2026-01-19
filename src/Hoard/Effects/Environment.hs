@@ -9,7 +9,6 @@ module Hoard.Effects.Environment
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
-import Data.Dynamic (Dynamic)
 import Data.String.Conversions (cs)
 import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml qualified as Yaml
@@ -25,8 +24,6 @@ import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
-import Hoard.Effects.Chan (Chan, InChan)
-import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
@@ -240,7 +237,7 @@ loadMiniProtocolConfigs configFile = do
 
 
 -- | Acquire runtime handles
-acquireHandles :: (IOE :> es, Chan :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
+acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
@@ -256,13 +253,11 @@ acquireHandles ioManager configFile secrets = do
     let readerConfig = toDBConfig database secrets.database.users.reader
     let writerConfig = toDBConfig database secrets.database.users.writer
     dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
-    (inChan, _) <- Chan.newChan
 
     pure
         Handles
             { ioManager
             , dbPools
-            , inChan
             }
 
 
@@ -285,8 +280,7 @@ loadYaml path = do
 -- Loads both the public config YAML and the secrets YAML file,
 -- then acquires all necessary runtime handles
 loadEnv
-    :: ( Chan :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , IOE :> es
        , Reader Options :> es
        )
@@ -332,9 +326,7 @@ runConfigReader eff = do
         $ eff
 
 
-runHandlesReader :: (Reader Env :> es) => Eff (Reader (InChan Dynamic) : Reader DBPools : es) a -> Eff es a
+runHandlesReader :: (Reader Env :> es) => Eff (Reader DBPools : es) a -> Eff es a
 runHandlesReader eff = do
     handles <- asks handles
-    runReader handles.dbPools
-        . runReader handles.inChan
-        $ eff
+    runReader handles.dbPools eff

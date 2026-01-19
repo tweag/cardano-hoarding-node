@@ -18,7 +18,7 @@ import Effectful.State.Static.Local (modify, runState)
 import Effectful.TH (makeEffect)
 import Hoard.Effects.Chan (Chan, InChan)
 import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 
 
 -- | Output something to whomever cares in a manner that is of no concern for

@@ -60,8 +60,7 @@ library
       Hoard.Effects.Options
       Hoard.Effects.Output
       Hoard.Effects.PeerRepo
-      Hoard.Effects.Pub
-      Hoard.Effects.Sub
+      Hoard.Effects.Publishing
       Hoard.Effects.WithSocket
       Hoard.Events
       Hoard.Events.HeaderReceived
@@ -272,6 +271,7 @@ test-suite hoard-test
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.LogSpec
+      Unit.Hoard.Effects.PublishingSpec
       Unit.Hoard.Listeners.HeaderReceivedListenerSpec
       Unit.Hoard.MonitoringSpec
       Paths_hoard

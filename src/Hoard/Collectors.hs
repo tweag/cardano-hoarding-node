@@ -25,9 +25,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers)
-import Hoard.Effects.Pub (Pub)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
+import Hoard.Effects.Publishing (Pub, Sub, listen)
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -73,8 +71,8 @@ runListeners
        )
     => Eff es ()
 runListeners = do
-    Conc.fork_ $ Sub.listen Listeners.dispatchDiscoveredNodes
-    Conc.fork_ $ Sub.listen Listeners.collectorEvent
+    Conc.fork_ $ listen Listeners.dispatchDiscoveredNodes
+    Conc.fork_ $ listen Listeners.collectorEvent
 
 
 -- | Start collectors for all known peers, or bootstrap if none exist.

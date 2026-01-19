@@ -28,8 +28,7 @@ import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
-import Hoard.Effects.Pub (runPub)
-import Hoard.Effects.Sub (runSub)
+import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Listeners (runListeners)
 import Hoard.Monitoring qualified as Monitoring
@@ -56,8 +55,7 @@ main =
         . runTemporary
         . withNodeSockets
         . runNodeToClient
-        . runSub
-        . runPub
+        . runPubSub
         . runErrorThrowing
         . evalState @HoardState def
         . evalState @BlocksBeingFetched def

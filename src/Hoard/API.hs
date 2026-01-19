@@ -11,7 +11,7 @@ import Servant.Server.Generic (AsServerT)
 import Prelude hiding (appendFile, readFile)
 
 import Hoard.Effects ((::>))
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 
 
