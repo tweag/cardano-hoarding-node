@@ -19,6 +19,10 @@ data Config = Config
     -- ^ Timeout for batching block fetch requests
     , maximumIngressQueue :: Int
     -- ^ Max bytes queued in ingress queue
+    , lowWatermark :: Int
+    -- ^ Watermark for number of bytes in flight before BlockFetch will resume issuing block requests.
+    , highWatermark :: Int
+    -- ^ Watermark for number of bytes in flight after which BlockFetch will halt issuing block requests.
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -29,7 +33,9 @@ instance Default Config where
         Config
             { batchSize = 10
             , batchTimeoutMicroseconds = 10_000_000 -- 10 seconds
-            , maximumIngressQueue = 393216 -- 384 KiB
+            , maximumIngressQueue = 589824 -- 576 KiB
+            , lowWatermark = 196608 -- 192KiB
+            , highWatermark = 393216 -- 384KiB
             }
 
 

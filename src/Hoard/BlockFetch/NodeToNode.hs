@@ -1,8 +1,10 @@
 module Hoard.BlockFetch.NodeToNode (miniProtocol, client) where
 
+import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
+import Effectful.State.Static.Shared (State)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol.Peer.Client qualified as Peer
@@ -30,6 +32,7 @@ import Hoard.BlockFetch.Events
     , BlockFetchStarted (..)
     , BlockReceived (..)
     )
+import Hoard.BlockFetch.State (Status, registerRequest, unregisterRequest, waitUntilReadyToFetch)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
@@ -52,6 +55,7 @@ miniProtocol
        , Log :> es
        , Pub :> es
        , Sub :> es
+       , State Status :> es
        , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -67,11 +71,11 @@ miniProtocol unlift conf codecs peer =
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
                 blockFetchClient = client unlift conf peer
-                tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
+                -- tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                     Log.debug "BlockFetch protocol started"
                     pure $ blockFetchClientPeer blockFetchClient
-            in  (tracer, codec, wrappedPeer)
+            in  (nullTracer, codec, wrappedPeer)
         }
 
 
@@ -85,6 +89,7 @@ client
        , Log :> es
        , Pub :> es
        , Sub :> es
+       , State Status :> es
        , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -92,12 +97,9 @@ client
     -> Peer
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
 client unlift cfg peer =
-    BlockFetch.BlockFetchClient $ unlift $ withNamespace "BlockFetchClient" $ do
+    BlockFetch.BlockFetchClient $ unlift $ withNamespace "BlockFetchClient" do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted {peer, timestamp}
-        Log.debug "BlockFetch: Published BlockFetchStarted event"
-        Log.debug "BlockFetch: Starting client, awaiting block download requests"
-
         (inChan, outChan) <- Chan.newChan
 
         Conc.fork_ $ listen \(req :: BlockFetchRequest) ->
@@ -106,9 +108,10 @@ client unlift cfg peer =
         awaitMessage outChan
   where
     awaitMessage outChan = do
+        waitUntilReadyToFetch
         reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
-
-        Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
+        registerRequest cfg ((.header) <$> toList reqs)
+        Log.info $ "BlockFetch: " <> show peer.address <> ": Received " <> show (length reqs) <> " block fetch requests"
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
@@ -121,12 +124,13 @@ client unlift cfg peer =
     handleResponse reqs =
         BlockFetch.BlockFetchResponse
             { handleStartBatch =
-                pure $ blockReceiver 0
-            , handleNoBlocks = unlift $ do
+                pure $ blockReceiver reqs 0
+            , handleNoBlocks = unlift do
+                unregisterRequest cfg $ (.header) <$> toList reqs
                 Log.info "BlockFetch: No blocks returned by peer"
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
-                    publish $
+                    publish
                         BlockFetchFailed
                             { peer
                             , timestamp
@@ -135,9 +139,9 @@ client unlift cfg peer =
                             }
             }
 
-    blockReceiver blockCount =
+    blockReceiver reqs blockCount =
         BlockFetch.BlockFetchReceiver
-            { handleBlock = \block -> unlift $ do
+            { handleBlock = \block -> unlift do
                 timestamp <- Clock.currentTime
                 let event =
                         BlockReceived
@@ -146,11 +150,12 @@ client unlift cfg peer =
                             , block
                             }
                 publish event
-                pure $ blockReceiver $ blockCount + 1
-            , handleBatchDone = unlift $ do
-                Log.info $ "BlockFetch: Batch done (fetched " <> show blockCount <> " blocks)"
+                pure $ blockReceiver reqs $ blockCount + 1
+            , handleBatchDone = unlift do
+                Log.info $ "BlockFetch: Batch done (received " <> show blockCount <> " blocks)"
+                unregisterRequest cfg $ (.header) <$> toList reqs
                 timestamp <- Clock.currentTime
-                publish $
+                publish
                     BlockBatchCompleted
                         { peer
                         , timestamp
