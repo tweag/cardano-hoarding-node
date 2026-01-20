@@ -16,9 +16,8 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
+import Hoard.Effects.Publishing (Pub, Sub, publish)
+import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Triggers (every)
 import Hoard.Types.HoardState (HoardState (..))
 

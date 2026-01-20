@@ -15,7 +15,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Pub (Pub)
+import Hoard.Effects.Publishing (Pub)
 import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
 
 

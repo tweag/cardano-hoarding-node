@@ -36,7 +36,7 @@ import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
 import Hoard.Effects.NodeToNode qualified as NodeToNode
 import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Network.Events (PeersReceived (..))
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))

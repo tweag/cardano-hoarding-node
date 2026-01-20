@@ -5,7 +5,7 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
 
 

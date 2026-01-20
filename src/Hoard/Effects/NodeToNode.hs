@@ -76,7 +76,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Network.Events
     ( PeerSharingStarted (..)
     , PeersReceived (..)

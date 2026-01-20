@@ -36,7 +36,7 @@ import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config (Config (..))
-import Hoard.Effects.Pub (Pub, publish)
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env

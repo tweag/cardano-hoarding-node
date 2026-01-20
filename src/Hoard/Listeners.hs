@@ -9,7 +9,7 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.PeerRepo (PeerRepo)
-import Hoard.Effects.Sub (Sub, listen)
+import Hoard.Effects.Publishing (Sub, listen)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefreshTriggeredListener)
 import Hoard.Listeners.NetworkEventListener (protocolErrorListener)

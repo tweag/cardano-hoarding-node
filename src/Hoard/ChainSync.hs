@@ -11,8 +11,8 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Sub (Sub)
-import Hoard.Effects.Sub qualified as Sub
+import Hoard.Effects.Publishing (Sub)
+import Hoard.Effects.Publishing qualified as Sub
 
 
 run :: (Log :> es, Conc :> es, HeaderRepo :> es, Sub :> es) => Eff es ()

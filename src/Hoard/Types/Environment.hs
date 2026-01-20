@@ -24,14 +24,12 @@ where
 
 import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
-import Data.Dynamic (Dynamic)
 import Data.Time (NominalDiffTime)
 import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 
-import Hoard.Effects.Chan (InChan)
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
@@ -146,7 +144,6 @@ data BootstrapPeerDomain = BootstrapPeerDomain
 data Handles = Handles
     { ioManager :: IOManager
     , dbPools :: DBPools
-    , inChan :: InChan Dynamic
     }
 
 
