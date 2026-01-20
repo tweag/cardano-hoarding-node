@@ -2,12 +2,10 @@ module Hoard.ChainSync.NodeToNode (miniProtocol, client) where
 
 import Cardano.Api.Block (toConsensusPointHF)
 import Control.Tracer (nullTracer)
-import Data.ByteString.Lazy qualified as LBS
 import Data.List qualified as List
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, gets)
-import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
-import Network.Socket (SockAddr)
+import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -16,7 +14,7 @@ import Ouroboros.Network.Mux
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeerPipelined
     )
-import Ouroboros.Network.NodeToNode (MinimalInitiatorContext, ResponderContext, chainSyncMiniProtocolNum)
+import Ouroboros.Network.NodeToNode (chainSyncMiniProtocolNum)
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Prelude hiding (State, gets)
@@ -35,7 +33,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Pub (Pub, publish)
-import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoPoint, CardanoTip)
+import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -52,7 +50,7 @@ miniProtocol
     -> Config (Eff es)
     -> CardanoCodecs
     -> Peer
-    -> MiniProtocol 'InitiatorMode (MinimalInitiatorContext SockAddr) (ResponderContext SockAddr) LBS.ByteString IO () Void
+    -> CardanoMiniProtocol
 miniProtocol unlift envConf conf codecs peer =
     MiniProtocol
         { miniProtocolNum = chainSyncMiniProtocolNum
