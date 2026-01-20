@@ -17,21 +17,18 @@ module Hoard.Effects.NodeToNode
 import Cardano.Api ()
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
-import Data.List (maximum, minimum)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Concurrent.QSem (signalQSem, waitQSem)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
 import Effectful.Error.Static (Error, throwError)
-import Effectful.Reader.Static (Reader, ask, asks)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
 import Network.TypedProtocol.Peer.Client qualified as Peer
-import Ouroboros.Consensus.Block (headerPoint)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..), defaultCodecs)
@@ -50,7 +47,6 @@ import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , NetworkConnectTracers (..)
     , NodeToNodeVersionData (..)
-    , blockFetchMiniProtocolNum
     , combineVersions
     , connectTo
     , keepAliveMiniProtocolNum
@@ -61,9 +57,6 @@ import Ouroboros.Network.NodeToNode
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
-import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
-import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
-import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient, peerSharingClientPeer)
@@ -72,6 +65,7 @@ import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..), sockAddrToPeerAddress)
@@ -84,15 +78,10 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Pub (Pub, publish)
 import Hoard.Network.Events
-    ( BlockBatchCompleted (..)
-    , BlockFetchFailed (..)
-    , BlockFetchRequest (..)
-    , BlockFetchStarted (..)
-    , BlockReceived (..)
-    , PeerSharingStarted (..)
+    ( PeerSharingStarted (..)
     , PeersReceived (..)
     )
-import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoPoint)
+import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
@@ -289,20 +278,7 @@ mkApplication
 mkApplication unlift envConf conf codecs peer =
     OuroborosApplication
         [ ChainSync.miniProtocol unlift envConf conf codecs peer
-        , -- BlockFetch mini-protocol
-          MiniProtocol
-            { miniProtocolNum = blockFetchMiniProtocolNum
-            , miniProtocolLimits = envConf.miniProtocolConfig.blockFetch
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-                let codec = cBlockFetchCodec codecs
-                    client = blockFetchClientImpl unlift conf peer
-                    tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
-                    wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
-                        Log.debug "BlockFetch protocol started"
-                        pure $ blockFetchClientPeer client
-                in  (tracer, codec, wrappedPeer)
-            }
+        , BlockFetch.miniProtocol unlift envConf conf codecs peer
         , -- KeepAlive mini-protocol
           MiniProtocol
             { miniProtocolNum = keepAliveMiniProtocolNum
@@ -394,88 +370,6 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
         Log.debug "PeerSharing: looping"
         pure $ requestPeers withPeers
     oneHour = 3_600_000_000
-
-
--- | Create a BlockFetch client that fetches blocks on request over a channel.
---
--- This client:
-blockFetchClientImpl
-    :: forall es
-     . ( Clock :> es
-       , Concurrent :> es
-       , Log :> es
-       , Pub :> es
-       , Reader Env :> es
-       )
-    => (forall x. Eff es x -> IO x)
-    -> Config (Eff es)
-    -> Peer
-    -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
-blockFetchClientImpl unlift conf peer =
-    BlockFetch.BlockFetchClient $ unlift $ do
-        timestamp <- Clock.currentTime
-        publish $ BlockFetchStarted {peer, timestamp}
-        Log.debug "BlockFetch: Published BlockFetchStarted event"
-        Log.debug "BlockFetch: Starting client, awaiting block download requests"
-        awaitMessage
-  where
-    awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
-    awaitMessage = do
-        qSem <- asks $ (.config.blockFetchQSem)
-        waitQSem qSem
-        reqs <- conf.awaitBlockFetchRequests
-        Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
-        let points = headerPoint . (.header) <$> reqs
-            start = minimum points
-            end = maximum points
-        pure
-            $ BlockFetch.SendMsgRequestRange
-                (BlockFetch.ChainRange start end)
-                (handleResponse reqs)
-            $ blockFetchClientImpl unlift conf peer
-
-    handleResponse reqs =
-        BlockFetch.BlockFetchResponse
-            { handleStartBatch =
-                pure $ blockReceiver 0
-            , handleNoBlocks = unlift $ do
-                qSem <- asks $ (.blockFetchQSem) . (.config)
-                signalQSem qSem
-                timestamp <- Clock.currentTime
-                for_ reqs \req ->
-                    publish $
-                        BlockFetchFailed
-                            { peer
-                            , timestamp
-                            , header = req.header
-                            , errorMessage = "No blocks for point"
-                            }
-            }
-
-    blockReceiver blockCount =
-        BlockFetch.BlockFetchReceiver
-            { handleBlock = \block -> unlift $ do
-                timestamp <- Clock.currentTime
-                let event =
-                        BlockReceived
-                            { peer
-                            , timestamp
-                            , block
-                            }
-                conf.emitFetchedBlock event
-                publish event
-                pure $ blockReceiver $ blockCount + 1
-            , handleBatchDone = unlift $ do
-                qSem <- asks $ (.config.blockFetchQSem)
-                signalQSem qSem
-                timestamp <- Clock.currentTime
-                publish $
-                    BlockBatchCompleted
-                        { peer
-                        , timestamp
-                        , blockCount
-                        }
-            }
 
 
 -- | KeepAlive client implementation.
