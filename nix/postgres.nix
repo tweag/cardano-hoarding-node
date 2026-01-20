@@ -22,6 +22,11 @@
       DB_PORT=''${DB_PORT:-$(${pkgs.yq-go}/bin/yq '.database.port' "$CONFIG_FILE")}
       DB_NAME=''${DB_NAME:-$(${pkgs.yq-go}/bin/yq '.database.database_name' "$CONFIG_FILE")}
 
+      # Resolve relative paths to absolute
+      if [[ "$DB_HOST" != /* ]]; then
+        DB_HOST="$PWD/$DB_HOST"
+      fi
+
       echo "Loading configuration from: $CONFIG_FILE"
       echo "  Database: $DB_NAME"
       echo "  Port: $DB_PORT"

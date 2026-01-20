@@ -18,7 +18,7 @@ import Effectful.Labeled (Labeled, runLabeled)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
-import Hoard.Types.Environment
+import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..), Local (..), NodeSocketsConfig (..), SshTunnel (..))
 import System.Process.Typed (proc, withProcessTerm)
 import Prelude hiding (Reader, asks)
 
@@ -34,11 +34,12 @@ withNodeSockets
     :: (Temporary :> es, IOE :> es, Reader Config :> es)
     => Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
     -> Eff es a
-withNodeSockets action =
+withNodeSockets action = do
+    nodeIntegrationCfg <- asks (.cardanoNodeIntegration)
     asks (.nodeSockets) >>= \case
         SshTunnel (MakeSshTunnel {nodeToClientSocket, tracerSocket, user, remoteHost, sshKey}) ->
-            runLabeled @"tracer" (sshTunnelSocket user remoteHost tracerSocket sshKey)
-                . runLabeled @"nodeToClient" (sshTunnelSocket user remoteHost nodeToClientSocket sshKey)
+            runLabeled @"tracer" (sshTunnelSocket nodeIntegrationCfg user remoteHost tracerSocket sshKey)
+                . runLabeled @"nodeToClient" (sshTunnelSocket nodeIntegrationCfg user remoteHost nodeToClientSocket sshKey)
                 $ action
         Local (MakeLocal {nodeToClientSocket, tracerSocket}) ->
             runLabeled @"tracer" (localSocket $ File tracerSocket)
@@ -48,7 +49,9 @@ withNodeSockets action =
 
 sshTunnelSocket
     :: (Temporary :> es, IOE :> es)
-    => Text
+    => CardanoNodeIntegrationConfig
+    -- ^ Cardano node integration configuration
+    -> Text
     -- ^ user
     -> Text
     -- ^ host
@@ -58,7 +61,7 @@ sshTunnelSocket
     -- ^ ssh key path
     -> Eff (WithSocket : es) a
     -> Eff es a
-sshTunnelSocket user remoteHost remoteSocket sshKey action =
+sshTunnelSocket nodeIntegrationCfg user remoteHost remoteSocket sshKey action =
     withSystemTempFile ".socket" $ \localPath _ ->
         withProcessTerm -- do not wait for `ssh` to exit. it will not.
             ( proc "ssh" $
@@ -67,7 +70,7 @@ sshTunnelSocket user remoteHost remoteSocket sshKey action =
                        , "-o"
                        , "ExitOnForwardFailure=yes"
                        , "-o"
-                       , "ServerAliveInterval=60"
+                       , "ServerAliveInterval=" <> show nodeIntegrationCfg.sshServerAliveIntervalSeconds
                        , "-L"
                        , localPath <> ":" <> remoteSocket
                        , toString $ user <> "@" <> remoteHost

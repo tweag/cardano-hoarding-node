@@ -47,13 +47,19 @@ import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
-    ( Config (..)
+    ( BlockFetchConfig (..)
+    , CardanoNodeIntegrationConfig (..)
+    , CardanoProtocolsConfig (..)
+    , Config (..)
     , Env (..)
     , Handles (..)
+    , KeepAliveConfig (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
     , MiniProtocolConfig (..)
+    , MonitoringConfig (..)
     , NodeSocketsConfig (Local)
+    , PeerSharingConfig (..)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
@@ -107,6 +113,26 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let lim = MiniProtocolLimits 10
     let miniProtocolConfig = MiniProtocolConfig lim lim lim lim lim
+    let cardanoProtocols =
+            CardanoProtocolsConfig
+                { peerSharing =
+                    PeerSharingConfig
+                        { requestIntervalMicroseconds = 3_600_000_000
+                        , requestAmount = 100
+                        }
+                , keepAlive = KeepAliveConfig {intervalMicroseconds = 10_000_000}
+                , blockFetch =
+                    BlockFetchConfig
+                        { batchSize = 10
+                        , batchTimeoutMicroseconds = 1_000_000
+                        }
+                }
+    let monitoringCfg = MonitoringConfig {pollingIntervalSeconds = 10}
+    let cardanoNodeIntegrationCfg =
+            CardanoNodeIntegrationConfig
+                { sshServerAliveIntervalSeconds = 60
+                , immutableTipRefreshSeconds = 20
+                }
     let config =
             Config
                 { server = serverConfig
@@ -120,6 +146,9 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , peerFailureCooldown = 300
                 , blockFetchQSem
                 , miniProtocolConfig
+                , cardanoProtocols
+                , monitoring = monitoringCfg
+                , cardanoNodeIntegration = cardanoNodeIntegrationCfg
                 }
     let handles =
             Handles

@@ -82,7 +82,7 @@ import Hoard.Network.Events
     , PeersReceived (..)
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (Env)
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, KeepAliveConfig (..), PeerSharingConfig (..))
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -289,11 +289,12 @@ mkApplication unlift envConf conf codecs peer =
                     mkMiniProtocolCbFromPeer $
                         \_ ->
                             let codec = cKeepAliveCodec codecs
+                                keepAliveCfg = envConf.cardanoProtocols.keepAlive
                                 wrappedPeer = Peer.Effect $
                                     unlift $
                                         withExceptionLogging "KeepAlive" $ do
                                             Log.debug "KeepAlive protocol started"
-                                            pure (keepAliveClientPeer $ keepAliveClientImpl unlift)
+                                            pure (keepAliveClientPeer $ keepAliveClientImpl unlift keepAliveCfg)
                                 tracer = contramap (("[KeepAlive] " <>) . show) $ Log.asTracer unlift Log.DEBUG
                             in  (tracer, codec, wrappedPeer)
             }
@@ -306,7 +307,8 @@ mkApplication unlift envConf conf codecs peer =
                 InitiatorProtocolOnly $
                     mkMiniProtocolCbFromPeer $
                         \_ ->
-                            let client = peerSharingClientImpl unlift peer
+                            let peerSharingCfg = envConf.cardanoProtocols.peerSharing
+                                client = peerSharingClientImpl unlift peerSharingCfg peer
                                 -- IMPORTANT: Use the version-specific codec from the codecs record!
                                 codec = cPeerSharingCodec codecs
                                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
@@ -342,18 +344,19 @@ mkApplication unlift envConf conf codecs peer =
 -- | Create a PeerSharing client that requests peer addresses.
 --
 -- This client:
--- 1. Requests up to 100 peer addresses from the remote peer
+-- 1. Requests peer addresses from the remote peer (amount configurable)
 -- 2. Publishes a PeersReceived event with the results
--- 3. Waits 1 hour
+-- 3. Waits for the configured interval
 -- 4. Loops
 peerSharingClientImpl
     :: (Concurrent :> es, Clock :> es, Log :> es, Pub :> es)
     => (forall x. Eff es x -> IO x)
+    -> PeerSharingConfig
     -> Peer
     -> PeerSharingClient SockAddr IO ()
-peerSharingClientImpl unlift peer = requestPeers withPeers
+peerSharingClientImpl unlift peerSharingCfg peer = requestPeers withPeers
   where
-    requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount 100
+    requestPeers = PeerSharing.SendMsgShareRequest $ PeerSharingAmount $ fromIntegral peerSharingCfg.requestAmount
     withPeers peerAddrs = unlift do
         Log.debug "PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
         Log.debug $ "PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
@@ -365,29 +368,28 @@ peerSharingClientImpl unlift peer = requestPeers withPeers
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
         Log.debug "PeerSharing: Published PeersReceived event"
-        Log.debug "PeerSharing: Waiting 10 seconds"
-        threadDelay oneHour
+        Log.debug $ "PeerSharing: Waiting " <> show (peerSharingCfg.requestIntervalMicroseconds `div` 1_000_000) <> " seconds"
+        threadDelay peerSharingCfg.requestIntervalMicroseconds
         Log.debug "PeerSharing: looping"
         pure $ requestPeers withPeers
-    oneHour = 3_600_000_000
 
 
 -- | KeepAlive client implementation.
 --
 -- This client sends periodic keepalive messages to maintain the connection
--- and detect network failures. It sends a message immediately, then waits 10
--- seconds before sending the next one.
-keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveClient IO ()
-keepAliveClientImpl unlift = KeepAliveClient sendFirst
+-- and detect network failures. It sends a message immediately, then waits
+-- for the configured interval before sending the next one.
+keepAliveClientImpl :: (Concurrent :> es, Log :> es) => (forall x. Eff es x -> IO x) -> KeepAliveConfig -> KeepAliveClient IO ()
+keepAliveClientImpl unlift keepAliveCfg = KeepAliveClient sendFirst
   where
     -- Send the first message immediately
     sendFirst = unlift $ do
         Log.debug "KeepAlive: Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
-    -- Wait 10 seconds before sending subsequent messages
+    -- Wait for the configured interval before sending subsequent messages
     sendNext = unlift $ do
-        Log.debug "KeepAlive: Response received, waiting 10s before next message"
-        threadDelay 10_000_000 -- 10 seconds in microseconds
+        Log.debug $ "KeepAlive: Response received, waiting " <> show (keepAliveCfg.intervalMicroseconds `div` 1_000_000) <> "s before next message"
+        threadDelay keepAliveCfg.intervalMicroseconds
         Log.debug "KeepAlive: Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

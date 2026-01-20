@@ -20,8 +20,7 @@ import Cardano.Api
         , localTxSubmissionClient
         )
     , LocalNodeConnectInfo (LocalNodeConnectInfo)
-    , NetworkId (Testnet)
-    , NetworkMagic (NetworkMagic)
+    , NetworkId (Mainnet, Testnet)
     , QueryInMode (QueryChainPoint)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
@@ -44,6 +43,9 @@ import Effectful
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
+import Ouroboros.Consensus.Config (configBlock)
+import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
+import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Prelude hiding (Reader, ask)
@@ -79,6 +81,8 @@ runNodeToClient nodeToClient = do
     (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
     epochSize <- loadEpochSize config
     nodeToClientSocket <- labeled @"nodeToClient" getSocket
+    let networkMagic = getNetworkMagic (configBlock (pInfoConfig config.protocolInfo))
+        networkId = toNetworkId networkMagic
     _ <-
         withExceptionLogging "NodeToClient"
             . fork_
@@ -86,7 +90,7 @@ runNodeToClient nodeToClient = do
             $ localNodeClient
                 ( LocalNodeConnectInfo
                     { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
-                    , localNodeNetworkId = Testnet $ NetworkMagic $ 1
+                    , localNodeNetworkId = networkId
                     , localNodeSocketPath = nodeToClientSocket
                     }
                 )
@@ -149,3 +153,11 @@ loadEpochSize Config {nodeConfig} = do
         Left err -> error $ "Failed to read shelley genesis config: " <> show err
         Right cfg -> pure cfg
     pure sgEpochLength
+
+
+-- | Convert a NetworkMagic to a NetworkId.
+-- Mainnet has magic 764824073, everything else is treated as Testnet.
+toNetworkId :: C.NetworkMagic -> NetworkId
+toNetworkId magic@(C.NetworkMagic m)
+    | m == 764824073 = Mainnet
+    | otherwise = Testnet magic
