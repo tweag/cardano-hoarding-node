@@ -39,20 +39,24 @@ peer_failure_cooldown_seconds: 300
 # Cardano protocols configuration
 cardano_protocols:
   peer_sharing:
-    request_interval_microseconds: 3600000000  # 1 hour
+    request_interval_microseconds: 3600000000 # 1 hour
     request_amount: 100
     maximum_ingress_queue: 1000
   keep_alive:
-    interval_microseconds: 10000000  # 10 seconds
+    interval_microseconds: 10000000 # 10 seconds
     maximum_ingress_queue: 1000
   block_fetch:
     batch_size: 10
-    batch_timeout_microseconds: 1000000  # 1 second
-    maximum_ingress_queue: 393216  # 384 KiB
+    batch_timeout_microseconds: 1000000 # 1 second
+    maximum_ingress_queue: 393216 # 384 KiB
   chain_sync:
     maximum_ingress_queue: 1200
   tx_submission:
     maximum_ingress_queue: 10
+
+cardano_protocol_handles:
+  block_fetch:
+    max_concurrent_fetches: 1
 
 # Monitoring configuration
 monitoring:

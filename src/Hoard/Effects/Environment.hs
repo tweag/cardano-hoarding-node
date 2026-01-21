@@ -13,7 +13,7 @@ import Data.String.Conversions (cs)
 import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
-import Effectful.Concurrent.QSem (Concurrent, QSem, newQSem)
+import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
@@ -23,6 +23,7 @@ import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
+import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
@@ -30,6 +31,7 @@ import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDat
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig
+    , CardanoProtocolHandles (..)
     , CardanoProtocolsConfig
     , Config (..)
     , Env (..)
@@ -55,10 +57,10 @@ data ConfigFile = ConfigFile
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
-    , blockFetchQsemLimit :: Maybe Int
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
+    , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -107,6 +109,13 @@ data DBUserCredentials = DBUserCredentials
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake DBUserCredentials
+
+
+newtype CardanoProtocolHandlesConfig = CardanoProtocolHandlesConfig
+    { blockFetch :: BlockFetch.HandlesConfig
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake CardanoProtocolHandlesConfig
 
 
 loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
@@ -187,15 +196,17 @@ loadLoggingConfig configFile = do
     pure $ Log.defaultLogConfig {Log.minimumSeverity}
 
 
-loadBlockFetchQSem :: (Concurrent :> es, IOE :> es) => ConfigFile -> Eff es QSem
-loadBlockFetchQSem configFile = do
-    qsemLimitEnv <- (>>= readMaybe) <$> lookupEnv "BLOCK_FETCH_QSEM_LIMIT"
-    let qsemLimit = fromMaybe 10 $ qsemLimitEnv <|> configFile.blockFetchQsemLimit
-    newQSem qsemLimit
+loadCardanoProtocolHandles :: (Concurrent :> es) => ConfigFile -> Eff es CardanoProtocolHandles
+loadCardanoProtocolHandles configFile = do
+    blockFetch <- BlockFetch.loadHandles configFile.cardanoProtocolHandles.blockFetch
+    pure
+        CardanoProtocolHandles
+            { blockFetch
+            }
 
 
 -- | Acquire runtime handles
-acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
+acquireHandles :: (IOE :> es, Concurrent :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
@@ -213,11 +224,13 @@ acquireHandles ioManager configFile secrets = do
     let readerConfig = toDBConfig database secrets.database.users.reader
     let writerConfig = toDBConfig database secrets.database.users.writer
     dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
+    cardanoProtocols <- loadCardanoProtocolHandles configFile
 
     pure
         Handles
             { ioManager
             , dbPools
+            , cardanoProtocols
             }
 
 
@@ -256,7 +269,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     (topology, peerSnapshot) <- loadTopology configFile.protocolConfigPath
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
-    blockFetchQSem <- loadBlockFetchQSem configFile
 
     let config =
             Config
@@ -269,7 +281,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , topology
                 , peerSnapshot
                 , peerFailureCooldown = configFile.peerFailureCooldownSeconds
-                , blockFetchQSem
                 , cardanoProtocols = configFile.cardanoProtocols
                 , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration

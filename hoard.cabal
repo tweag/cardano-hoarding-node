@@ -17,6 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.BlockFetch
+      Hoard.BlockFetch.Config
       Hoard.BlockFetch.Events
       Hoard.BlockFetch.Listeners
       Hoard.BlockFetch.NodeToNode

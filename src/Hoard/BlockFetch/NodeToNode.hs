@@ -4,7 +4,6 @@ import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.QSem (signalQSem, waitQSem)
-import Effectful.Reader.Static (Reader, asks)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -23,6 +22,7 @@ import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Prelude hiding (Reader, State, asks, evalState)
 
+import Hoard.BlockFetch.Config (Config (..), Handles (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
     , BlockFetchFailed (..)
@@ -36,11 +36,9 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config (Config (..))
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
-import Hoard.Types.Environment (Env)
-import Hoard.Types.Environment qualified as Env
 
 
 miniProtocol
@@ -48,22 +46,22 @@ miniProtocol
        , Concurrent :> es
        , Log :> es
        , Pub :> es
-       , Reader Env :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> Env.Config
-    -> Config (Eff es)
+    -> Config
+    -> Handles
+    -> NodeToNode.Config (Eff es)
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift envConf conf codecs peer =
+miniProtocol unlift conf handles n2nConf codecs peer =
     MiniProtocol
         { miniProtocolNum = blockFetchMiniProtocolNum
-        , miniProtocolLimits = MiniProtocolLimits envConf.cardanoProtocols.blockFetch.maximumIngressQueue
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
-                blockFetchClient = client unlift conf peer
+                blockFetchClient = client unlift handles n2nConf peer
                 tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                     Log.debug "BlockFetch protocol started"
@@ -81,13 +79,13 @@ client
        , Concurrent :> es
        , Log :> es
        , Pub :> es
-       , Reader Env :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> Config (Eff es)
+    -> Handles
+    -> NodeToNode.Config (Eff es)
     -> Peer
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
-client unlift conf peer =
+client unlift handles n2nConf peer =
     BlockFetch.BlockFetchClient $ unlift $ do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted {peer, timestamp}
@@ -97,9 +95,8 @@ client unlift conf peer =
   where
     awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
     awaitMessage = do
-        qSem <- asks $ (.config.blockFetchQSem)
-        waitQSem qSem
-        reqs <- conf.awaitBlockFetchRequests
+        waitQSem handles.qSem
+        reqs <- n2nConf.awaitBlockFetchRequests
         Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
@@ -108,15 +105,14 @@ client unlift conf peer =
             $ BlockFetch.SendMsgRequestRange
                 (BlockFetch.ChainRange start end)
                 (handleResponse reqs)
-            $ client unlift conf peer
+            $ client unlift handles n2nConf peer
 
     handleResponse reqs =
         BlockFetch.BlockFetchResponse
             { handleStartBatch =
                 pure $ blockReceiver 0
             , handleNoBlocks = unlift $ do
-                qSem <- asks $ (.blockFetchQSem) . (.config)
-                signalQSem qSem
+                signalQSem handles.qSem
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
                     publish $
@@ -138,12 +134,11 @@ client unlift conf peer =
                             , timestamp
                             , block
                             }
-                conf.emitFetchedBlock event
+                n2nConf.emitFetchedBlock event
                 publish event
                 pure $ blockReceiver $ blockCount + 1
             , handleBatchDone = unlift $ do
-                qSem <- asks $ (.config.blockFetchQSem)
-                signalQSem qSem
+                signalQSem handles.qSem
                 timestamp <- Clock.currentTime
                 publish $
                     BlockBatchCompleted
