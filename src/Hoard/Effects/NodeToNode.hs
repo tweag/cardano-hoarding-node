@@ -276,7 +276,7 @@ mkApplication
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
 mkApplication unlift env conf codecs peer =
     OuroborosApplication
-        [ ChainSync.miniProtocol unlift env.config conf codecs peer
+        [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync conf codecs peer
         , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch conf codecs peer
         , -- KeepAlive mini-protocol
           MiniProtocol

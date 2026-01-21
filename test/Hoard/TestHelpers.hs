@@ -42,6 +42,7 @@ import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, r
 import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hoard.API (API, Routes, server)
 import Hoard.BlockFetch.Config qualified as BlockFetch
+import Hoard.ChainSync.Config ()
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
@@ -50,7 +51,6 @@ import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig (..)
     , CardanoProtocolHandles (..)
     , CardanoProtocolsConfig (..)
-    , ChainSyncConfig (..)
     , Config (..)
     , Env (..)
     , Handles (..)
@@ -125,7 +125,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                         , maximumIngressQueue = 1000
                         }
                 , blockFetch = def
-                , chainSync = ChainSyncConfig {maximumIngressQueue = 1200}
+                , chainSync = def
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
                 }
     let monitoringCfg = MonitoringConfig {pollingIntervalSeconds = 10}
