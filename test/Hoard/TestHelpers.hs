@@ -128,7 +128,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                     BlockFetchConfig
                         { batchSize = 10
                         , batchTimeoutMicroseconds = 1_000_000
-                        , maximumIngressQueue = 402653184
+                        , maximumIngressQueue = 393216
                         }
                 , chainSync = ChainSyncConfig {maximumIngressQueue = 1200}
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
