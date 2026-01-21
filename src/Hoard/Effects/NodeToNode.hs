@@ -38,6 +38,7 @@ import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
     , MiniProtocolCb (..)
+    , MiniProtocolLimits (..)
     , OuroborosApplication (..)
     , OuroborosApplicationWithMinimalCtx
     , RunMiniProtocol (..)
@@ -82,7 +83,7 @@ import Hoard.Network.Events
     , PeersReceived (..)
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, KeepAliveConfig (..), PeerSharingConfig (..))
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, KeepAliveConfig (..), PeerSharingConfig (..), TxSubmissionConfig (..))
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -282,7 +283,7 @@ mkApplication unlift envConf conf codecs peer =
         , -- KeepAlive mini-protocol
           MiniProtocol
             { miniProtocolNum = keepAliveMiniProtocolNum
-            , miniProtocolLimits = envConf.miniProtocolConfig.keepAlive
+            , miniProtocolLimits = MiniProtocolLimits envConf.cardanoProtocols.keepAlive.maximumIngressQueue
             , miniProtocolStart = StartEagerly
             , miniProtocolRun =
                 InitiatorProtocolOnly $
@@ -301,7 +302,7 @@ mkApplication unlift envConf conf codecs peer =
         , -- PeerSharing mini-protocol
           MiniProtocol
             { miniProtocolNum = peerSharingMiniProtocolNum
-            , miniProtocolLimits = envConf.miniProtocolConfig.peerSharing
+            , miniProtocolLimits = MiniProtocolLimits envConf.cardanoProtocols.peerSharing.maximumIngressQueue
             , miniProtocolStart = StartEagerly
             , miniProtocolRun =
                 InitiatorProtocolOnly $
@@ -323,7 +324,7 @@ mkApplication unlift envConf conf codecs peer =
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol
             { miniProtocolNum = txSubmissionMiniProtocolNum
-            , miniProtocolLimits = envConf.miniProtocolConfig.txSubmission
+            , miniProtocolLimits = MiniProtocolLimits envConf.cardanoProtocols.txSubmission.maximumIngressQueue
             , miniProtocolStart = StartEagerly
             , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
                 unlift $ withExceptionLogging "TxSubmission" $ do

@@ -32,7 +32,6 @@ import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Ouroboros.Network.IOManager (withIOManager)
-import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 import Servant (hoistServer, serve)
 import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM)
 import Servant.Client.Core (ClientError)
@@ -50,19 +49,20 @@ import Hoard.Types.Environment
     ( BlockFetchConfig (..)
     , CardanoNodeIntegrationConfig (..)
     , CardanoProtocolsConfig (..)
+    , ChainSyncConfig (..)
     , Config (..)
     , Env (..)
     , Handles (..)
     , KeepAliveConfig (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
-    , MiniProtocolConfig (..)
     , MonitoringConfig (..)
     , NodeSocketsConfig (Local)
     , PeerSharingConfig (..)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
+    , TxSubmissionConfig (..)
     , defaultLogConfig
     )
 import Hoard.Types.HoardState (HoardState)
@@ -111,21 +111,27 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     blockFetchQSem <- runEff $ runConcurrent $ newQSem 1
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
-    let lim = MiniProtocolLimits 10
-    let miniProtocolConfig = MiniProtocolConfig lim lim lim lim lim
     let cardanoProtocols =
             CardanoProtocolsConfig
                 { peerSharing =
                     PeerSharingConfig
                         { requestIntervalMicroseconds = 3_600_000_000
                         , requestAmount = 100
+                        , maximumIngressQueue = 1000
                         }
-                , keepAlive = KeepAliveConfig {intervalMicroseconds = 10_000_000}
+                , keepAlive =
+                    KeepAliveConfig
+                        { intervalMicroseconds = 10_000_000
+                        , maximumIngressQueue = 1000
+                        }
                 , blockFetch =
                     BlockFetchConfig
                         { batchSize = 10
                         , batchTimeoutMicroseconds = 1_000_000
+                        , maximumIngressQueue = 402653184
                         }
+                , chainSync = ChainSyncConfig {maximumIngressQueue = 1200}
+                , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
                 }
     let monitoringCfg = MonitoringConfig {pollingIntervalSeconds = 10}
     let cardanoNodeIntegrationCfg =
@@ -145,7 +151,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , peerFailureCooldown = 300
                 , blockFetchQSem
-                , miniProtocolConfig
                 , cardanoProtocols
                 , monitoring = monitoringCfg
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg

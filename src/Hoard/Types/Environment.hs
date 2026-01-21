@@ -5,13 +5,14 @@ module Hoard.Types.Environment
     , Config (..)
     , Handles (..)
     , Topology (..)
-    , MiniProtocolConfig (..)
 
       -- * Cardano protocol configuration
     , CardanoProtocolsConfig (..)
     , PeerSharingConfig (..)
     , KeepAliveConfig (..)
     , BlockFetchConfig (..)
+    , ChainSyncConfig (..)
+    , TxSubmissionConfig (..)
 
       -- * Monitoring configuration
     , MonitoringConfig (..)
@@ -40,7 +41,6 @@ import Data.Time (NominalDiffTime)
 import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
-import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -92,7 +92,6 @@ data Config = Config
     , peerSnapshot :: PeerSnapshotFile
     , peerFailureCooldown :: NominalDiffTime
     , blockFetchQSem :: QSem
-    , miniProtocolConfig :: MiniProtocolConfig
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
@@ -104,6 +103,8 @@ data CardanoProtocolsConfig = CardanoProtocolsConfig
     { peerSharing :: PeerSharingConfig
     , keepAlive :: KeepAliveConfig
     , blockFetch :: BlockFetchConfig
+    , chainSync :: ChainSyncConfig
+    , txSubmission :: TxSubmissionConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake CardanoProtocolsConfig
@@ -112,9 +113,11 @@ data CardanoProtocolsConfig = CardanoProtocolsConfig
 -- | Peer sharing protocol configuration
 data PeerSharingConfig = PeerSharingConfig
     { requestIntervalMicroseconds :: Int
-    -- ^ Interval between peer sharing requests (default: 3600000000 = 1 hour)
+    -- ^ Interval between peer sharing requests
     , requestAmount :: Int
-    -- ^ Number of peer addresses to request per query (default: 100)
+    -- ^ Number of peer addresses to request per query
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake PeerSharingConfig
@@ -123,7 +126,9 @@ data PeerSharingConfig = PeerSharingConfig
 -- | Keep-alive protocol configuration
 data KeepAliveConfig = KeepAliveConfig
     { intervalMicroseconds :: Int
-    -- ^ Interval between keepalive messages (default: 10000000 = 10 seconds)
+    -- ^ Interval between keepalive messages
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake KeepAliveConfig
@@ -132,12 +137,32 @@ data KeepAliveConfig = KeepAliveConfig
 -- | Block fetch configuration
 data BlockFetchConfig = BlockFetchConfig
     { batchSize :: Int
-    -- ^ Number of block fetch requests to batch (default: 10)
+    -- ^ Number of block fetch requests to batch
     , batchTimeoutMicroseconds :: Int
-    -- ^ Timeout for batching block fetch requests (default: 1000000 = 1 second)
+    -- ^ Timeout for batching block fetch requests
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake BlockFetchConfig
+
+
+-- | Chain sync configuration
+data ChainSyncConfig = ChainSyncConfig
+    { maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake ChainSyncConfig
+
+
+-- | Transaction submission configuration
+data TxSubmissionConfig = TxSubmissionConfig
+    { maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake TxSubmissionConfig
 
 
 -- | Monitoring configuration
@@ -158,15 +183,6 @@ data CardanoNodeIntegrationConfig = CardanoNodeIntegrationConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake CardanoNodeIntegrationConfig
-
-
-data MiniProtocolConfig = MiniProtocolConfig
-    { blockFetch :: MiniProtocolLimits
-    , chainSync :: MiniProtocolLimits
-    , txSubmission :: MiniProtocolLimits
-    , keepAlive :: MiniProtocolLimits
-    , peerSharing :: MiniProtocolLimits
-    }
 
 
 data Topology = Topology

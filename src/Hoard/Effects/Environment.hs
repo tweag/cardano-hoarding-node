@@ -18,8 +18,6 @@ import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
-import Ouroboros.Network.Mux (MiniProtocolLimits (..))
-import Ouroboros.Network.NodeToNode (MiniProtocolParameters (..), defaultMiniProtocolParameters)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
@@ -37,7 +35,6 @@ import Hoard.Types.Environment
     , Env (..)
     , Handles (..)
     , LogConfig
-    , MiniProtocolConfig (..)
     , MonitoringConfig
     , NodeSocketsConfig
     , PeerSnapshotFile (..)
@@ -59,7 +56,6 @@ data ConfigFile = ConfigFile
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
     , blockFetchQsemLimit :: Maybe Int
-    , miniProtocols :: Maybe MiniProtocolConfigFile
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
@@ -111,24 +107,6 @@ data DBUserCredentials = DBUserCredentials
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake DBUserCredentials
-
-
-data MiniProtocolConfigFile = MiniProtocolConfigFile
-    { blockFetch :: Maybe MiniProtocolLimitsConfigFile
-    , chainSync :: Maybe MiniProtocolLimitsConfigFile
-    , txSubmission :: Maybe MiniProtocolLimitsConfigFile
-    , keepAlive :: Maybe MiniProtocolLimitsConfigFile
-    , peerSharing :: Maybe MiniProtocolLimitsConfigFile
-    }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake MiniProtocolConfigFile
-
-
-newtype MiniProtocolLimitsConfigFile = MiniProtocolLimitsConfigFile
-    { maximumIngressQueue :: Int
-    }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake MiniProtocolLimitsConfigFile
 
 
 loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
@@ -216,43 +194,6 @@ loadBlockFetchQSem configFile = do
     newQSem qsemLimit
 
 
-loadMiniProtocolConfigs :: Maybe MiniProtocolConfigFile -> Eff es MiniProtocolConfig
-loadMiniProtocolConfigs configFile = do
-    pure $
-        MiniProtocolConfig
-            { blockFetch = mk defaultBlockFetch (.blockFetch)
-            , chainSync = mk defaultChainSync (.chainSync)
-            , txSubmission = mk defaultTxSubmission (.txSubmission)
-            , keepAlive = mk defaultKeepAlive (.keepAlive)
-            , peerSharing = mk defaultPeerSharing (.peerSharing)
-            }
-  where
-    defaultBlockFetch =
-        MiniProtocolLimits
-            { -- 384KiB, taken from Cardano's high watermark limit for block
-              -- fetch ingress queue limit.
-              maximumIngressQueue = 402653184
-            }
-    defaultChainSync =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params * 4
-            }
-    defaultTxSubmission =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
-            }
-    defaultKeepAlive =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for keep alive
-            }
-    defaultPeerSharing =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for peer sharing
-            }
-    params = defaultMiniProtocolParameters
-    mk def getter = fromMaybe def $ fmap (MiniProtocolLimits . (.maximumIngressQueue)) . getter =<< configFile
-
-
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
@@ -316,7 +257,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
     blockFetchQSem <- loadBlockFetchQSem configFile
-    miniProtocolConfig <- loadMiniProtocolConfigs configFile.miniProtocols
 
     let config =
             Config
@@ -330,7 +270,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerFailureCooldown = configFile.peerFailureCooldownSeconds
                 , blockFetchQSem
-                , miniProtocolConfig
                 , cardanoProtocols = configFile.cardanoProtocols
                 , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration

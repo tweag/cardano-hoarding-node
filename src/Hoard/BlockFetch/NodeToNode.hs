@@ -11,6 +11,7 @@ import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolLimits (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
     )
@@ -58,7 +59,7 @@ miniProtocol
 miniProtocol unlift envConf conf codecs peer =
     MiniProtocol
         { miniProtocolNum = blockFetchMiniProtocolNum
-        , miniProtocolLimits = envConf.miniProtocolConfig.blockFetch
+        , miniProtocolLimits = MiniProtocolLimits envConf.cardanoProtocols.blockFetch.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
