@@ -38,7 +38,7 @@ import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Network.Events (PeersReceived (..))
-import Hoard.Types.Environment (Config (..))
+import Hoard.Types.Environment (BlockFetchConfig (..), CardanoProtocolsConfig (..), Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -170,16 +170,18 @@ collectFromPeer
        , Concurrent :> es
        , NodeToNode :> es
        , Pub :> es
+       , Reader Config :> es
        , State BlocksBeingFetched :> es
        , Timeout :> es
        )
     => Peer
     -> Eff es Void
-collectFromPeer peer =
+collectFromPeer peer = do
+    cfg <- asks $ (.cardanoProtocols.blockFetch)
     withBridge @BlockFetchRequest
         . withBridge @HeaderReceived
         . withBridge @BlockReceived
-        . runTimedBatchedInput @BlockFetchRequest 10 1_000_000
+        . runTimedBatchedInput @BlockFetchRequest cfg.batchSize cfg.batchTimeoutMicroseconds
         $ do
             publish $ CollectorStarted peer.address
             publish $ ConnectingToPeer peer.address

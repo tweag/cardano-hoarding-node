@@ -18,8 +18,7 @@ import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
-import Ouroboros.Network.Mux (MiniProtocolLimits (..))
-import Ouroboros.Network.NodeToNode (MiniProtocolParameters (..), defaultMiniProtocolParameters)
+import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
@@ -29,7 +28,19 @@ import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..), LogConfig, MiniProtocolConfig (..), NodeSocketsConfig, PeerSnapshotFile (..), ServerConfig (..), Topology (..))
+import Hoard.Types.Environment
+    ( CardanoNodeIntegrationConfig
+    , CardanoProtocolsConfig
+    , Config (..)
+    , Env (..)
+    , Handles (..)
+    , LogConfig
+    , MonitoringConfig
+    , NodeSocketsConfig
+    , PeerSnapshotFile (..)
+    , ServerConfig (..)
+    , Topology (..)
+    )
 import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -37,7 +48,7 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 -- | Top-level config file structure (YAML)
 data ConfigFile = ConfigFile
     { server :: ServerConfig
-    , database :: DatabaseConfig
+    , database :: DatabaseConfigFile
     , secretsFile :: String
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
@@ -45,21 +56,23 @@ data ConfigFile = ConfigFile
     , maxFileDescriptors :: Maybe Word32
     , peerFailureCooldownSeconds :: NominalDiffTime
     , blockFetchQsemLimit :: Maybe Int
-    , miniProtocols :: Maybe MiniProtocolConfigFile
+    , cardanoProtocols :: CardanoProtocolsConfig
+    , monitoring :: MonitoringConfig
+    , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
 
 
 -- | Database configuration (non-sensitive connection details)
-data DatabaseConfig = DatabaseConfig
+data DatabaseConfigFile = DatabaseConfigFile
     { host :: Text
     , port :: Word16
     , databaseName :: Text
     , pool :: PoolConfig
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake DatabaseConfig
+    deriving (FromJSON) via QuietSnake DatabaseConfigFile
 
 
 -- | Secret configuration (sensitive values)
@@ -94,24 +107,6 @@ data DBUserCredentials = DBUserCredentials
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake DBUserCredentials
-
-
-data MiniProtocolConfigFile = MiniProtocolConfigFile
-    { blockFetch :: Maybe MiniProtocolLimitsConfigFile
-    , chainSync :: Maybe MiniProtocolLimitsConfigFile
-    , txSubmission :: Maybe MiniProtocolLimitsConfigFile
-    , keepAlive :: Maybe MiniProtocolLimitsConfigFile
-    , peerSharing :: Maybe MiniProtocolLimitsConfigFile
-    }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake MiniProtocolConfigFile
-
-
-newtype MiniProtocolLimitsConfigFile = MiniProtocolLimitsConfigFile
-    { maximumIngressQueue :: Int
-    }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake MiniProtocolLimitsConfigFile
 
 
 loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
@@ -162,7 +157,7 @@ loadTopology protocolConfigPath = do
 
 
 -- | Convert config types to DBConfig for database connection
-toDBConfig :: DatabaseConfig -> DBUserCredentials -> DBConfig
+toDBConfig :: DatabaseConfigFile -> DBUserCredentials -> DBConfig
 toDBConfig dbCfg credentials =
     DBConfig
         { host = dbCfg.host
@@ -199,53 +194,18 @@ loadBlockFetchQSem configFile = do
     newQSem qsemLimit
 
 
-loadMiniProtocolConfigs :: Maybe MiniProtocolConfigFile -> Eff es MiniProtocolConfig
-loadMiniProtocolConfigs configFile = do
-    pure $
-        MiniProtocolConfig
-            { blockFetch = mk defaultBlockFetch (.blockFetch)
-            , chainSync = mk defaultChainSync (.chainSync)
-            , txSubmission = mk defaultTxSubmission (.txSubmission)
-            , keepAlive = mk defaultKeepAlive (.keepAlive)
-            , peerSharing = mk defaultPeerSharing (.peerSharing)
-            }
-  where
-    defaultBlockFetch =
-        MiniProtocolLimits
-            { -- 384KiB, taken from Cardano's high watermark limit for block
-              -- fetch ingress queue limit.
-              maximumIngressQueue = 402653184
-            }
-    defaultChainSync =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ chainSyncPipeliningHighMark params * 4
-            }
-    defaultTxSubmission =
-        MiniProtocolLimits
-            { maximumIngressQueue = fromIntegral $ txSubmissionMaxUnacked params
-            }
-    defaultKeepAlive =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for keep alive
-            }
-    defaultPeerSharing =
-        MiniProtocolLimits
-            { maximumIngressQueue = 1000 -- Reasonable default for peer sharing
-            }
-    params = defaultMiniProtocolParameters
-    mk def getter = fromMaybe def $ fmap (MiniProtocolLimits . (.maximumIngressQueue)) . getter =<< configFile
-
-
 -- | Acquire runtime handles
 acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
     databaseName <- lookupNonEmpty "DB_NAME"
+    -- Resolve relative paths to absolute for Unix socket connections
+    resolvedHost <- liftIO $ makeAbsolute $ toString $ fromMaybe configFile.database.host databaseHost
     let
         database =
-            DatabaseConfig
-                { host = fromMaybe configFile.database.host databaseHost
+            DatabaseConfigFile
+                { host = toText resolvedHost
                 , port = fromMaybe configFile.database.port databasePort
                 , databaseName = fromMaybe configFile.database.databaseName databaseName
                 , pool = configFile.database.pool
@@ -297,7 +257,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     logging <- loadLoggingConfig configFile
     handles <- acquireHandles ioManager configFile secrets
     blockFetchQSem <- loadBlockFetchQSem configFile
-    miniProtocolConfig <- loadMiniProtocolConfigs configFile.miniProtocols
 
     let config =
             Config
@@ -311,7 +270,9 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerFailureCooldown = configFile.peerFailureCooldownSeconds
                 , blockFetchQSem
-                , miniProtocolConfig
+                , cardanoProtocols = configFile.cardanoProtocols
+                , monitoring = configFile.monitoring
+                , cardanoNodeIntegration = configFile.cardanoNodeIntegration
                 }
         env = Env {config, handles}
 

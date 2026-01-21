@@ -5,7 +5,20 @@ module Hoard.Types.Environment
     , Config (..)
     , Handles (..)
     , Topology (..)
-    , MiniProtocolConfig (..)
+
+      -- * Cardano protocol configuration
+    , CardanoProtocolsConfig (..)
+    , PeerSharingConfig (..)
+    , KeepAliveConfig (..)
+    , BlockFetchConfig (..)
+    , ChainSyncConfig (..)
+    , TxSubmissionConfig (..)
+
+      -- * Monitoring configuration
+    , MonitoringConfig (..)
+
+      -- * Cardano node integration configuration
+    , CardanoNodeIntegrationConfig (..)
 
       -- * peer-snapshot.json
     , PeerSnapshotFile (..)
@@ -28,7 +41,6 @@ import Data.Time (NominalDiffTime)
 import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
-import Ouroboros.Network.Mux (MiniProtocolLimits (..))
 
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -80,17 +92,97 @@ data Config = Config
     , peerSnapshot :: PeerSnapshotFile
     , peerFailureCooldown :: NominalDiffTime
     , blockFetchQSem :: QSem
-    , miniProtocolConfig :: MiniProtocolConfig
+    , cardanoProtocols :: CardanoProtocolsConfig
+    , monitoring :: MonitoringConfig
+    , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     }
 
 
-data MiniProtocolConfig = MiniProtocolConfig
-    { blockFetch :: MiniProtocolLimits
-    , chainSync :: MiniProtocolLimits
-    , txSubmission :: MiniProtocolLimits
-    , keepAlive :: MiniProtocolLimits
-    , peerSharing :: MiniProtocolLimits
+-- | Cardano protocol configuration
+data CardanoProtocolsConfig = CardanoProtocolsConfig
+    { peerSharing :: PeerSharingConfig
+    , keepAlive :: KeepAliveConfig
+    , blockFetch :: BlockFetchConfig
+    , chainSync :: ChainSyncConfig
+    , txSubmission :: TxSubmissionConfig
     }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake CardanoProtocolsConfig
+
+
+-- | Peer sharing protocol configuration
+data PeerSharingConfig = PeerSharingConfig
+    { requestIntervalMicroseconds :: Int
+    -- ^ Interval between peer sharing requests
+    , requestAmount :: Int
+    -- ^ Number of peer addresses to request per query
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake PeerSharingConfig
+
+
+-- | Keep-alive protocol configuration
+data KeepAliveConfig = KeepAliveConfig
+    { intervalMicroseconds :: Int
+    -- ^ Interval between keepalive messages
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake KeepAliveConfig
+
+
+-- | Block fetch configuration
+data BlockFetchConfig = BlockFetchConfig
+    { batchSize :: Int
+    -- ^ Number of block fetch requests to batch
+    , batchTimeoutMicroseconds :: Int
+    -- ^ Timeout for batching block fetch requests
+    , maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake BlockFetchConfig
+
+
+-- | Chain sync configuration
+data ChainSyncConfig = ChainSyncConfig
+    { maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake ChainSyncConfig
+
+
+-- | Transaction submission configuration
+data TxSubmissionConfig = TxSubmissionConfig
+    { maximumIngressQueue :: Int
+    -- ^ Max bytes queued in ingress queue
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake TxSubmissionConfig
+
+
+-- | Monitoring configuration
+data MonitoringConfig = MonitoringConfig
+    { pollingIntervalSeconds :: Int
+    -- ^ Interval between peer status polling
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake MonitoringConfig
+
+
+-- | Configuration for integrating with a Cardano node
+data CardanoNodeIntegrationConfig = CardanoNodeIntegrationConfig
+    { sshServerAliveIntervalSeconds :: Int
+    -- ^ SSH tunnel keepalive interval
+    , immutableTipRefreshSeconds :: Int
+    -- ^ Interval between immutable tip refresh
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake CardanoNodeIntegrationConfig
 
 
 data Topology = Topology
