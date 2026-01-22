@@ -12,7 +12,7 @@ import Prelude hiding (evalState)
 import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.ChainSync qualified as ChainSync
 import Hoard.Collectors qualified as Collectors
-import Hoard.Collectors.State (BlocksBeingFetched)
+import Hoard.Collectors.State (BlocksBeingFetched, ConnectedPeers)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -61,6 +61,7 @@ main =
         . runErrorThrowing
         . evalState @HoardState def
         . evalState @BlocksBeingFetched def
+        . evalState @ConnectedPeers def
         . runNodeToNode
         . runMetrics
         . runDBRead

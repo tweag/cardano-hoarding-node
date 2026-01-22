@@ -14,6 +14,7 @@ import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Prelude hiding (Reader, State, asks, gets)
 
+import Hoard.Collectors.State (ConnectedPeers (..))
 import Hoard.DB.Schema (countRows)
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.Effects.Conc (Conc)
@@ -31,15 +32,16 @@ import Hoard.Types.HoardState (HoardState (..))
 
 
 run
-    :: ( Concurrent :> es
+    :: ( Conc :> es
+       , Concurrent :> es
+       , DBRead :> es
+       , Log :> es
+       , Metrics :> es
        , Pub :> es
        , Reader Config :> es
+       , State ConnectedPeers :> es
        , State HoardState :> es
-       , Conc :> es
        , Sub :> es
-       , Log :> es
-       , DBRead :> es
-       , Metrics :> es
        )
     => Eff es ()
 run = do
@@ -49,22 +51,31 @@ run = do
 
 runListeners
     :: ( Conc :> es
-       , Sub :> es
-       , Log :> es
-       , State HoardState :> es
        , DBRead :> es
+       , Log :> es
        , Metrics :> es
+       , State ConnectedPeers :> es
+       , State HoardState :> es
+       , Sub :> es
        )
     => Eff es ()
 runListeners = do
     Conc.fork_ $ Sub.listen listener
 
 
-listener :: (Log :> es, State HoardState :> es, DBRead :> es, Metrics :> es) => Poll -> Eff es ()
+listener
+    :: ( DBRead :> es
+       , Log :> es
+       , Metrics :> es
+       , State ConnectedPeers :> es
+       , State HoardState :> es
+       )
+    => Poll
+    -> Eff es ()
 listener Poll = do
     withNamespace "Monitoring" $ do
-        numPeers <- gets (S.size . (.connectedPeers))
-        tip <- gets (.immutableTip)
+        numPeers <- gets @ConnectedPeers (S.size . (.connectedPeers))
+        tip <- gets @HoardState (.immutableTip)
         blockCount <- countRows BlocksSchema.schema
 
         -- Update metrics

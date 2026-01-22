@@ -1,7 +1,6 @@
 module Unit.Hoard.MonitoringSpec (spec_Monitoring) where
 
 import Cardano.Api (ChainPoint (..))
-import Data.Default (def)
 import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
 import Effectful (runEff)
@@ -12,6 +11,7 @@ import Effectful.Writer.Static.Shared (execWriter)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Prelude hiding (evalState, runReader)
 
+import Hoard.Collectors.State (ConnectedPeers (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (runClockConst)
@@ -40,11 +40,13 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . runClockConst testTime
                     . runDBRead
                     . evalState
-                        ( def
-                            { connectedPeers = fromList $ mkPeerIDs 3
-                            , immutableTip = ChainPointAtGenesis
+                        HoardState
+                            { immutableTip = ChainPointAtGenesis
                             }
-                        )
+                    . evalState
+                        ConnectedPeers
+                            { connectedPeers = fromList $ mkPeerIDs 3
+                            }
                     $ Monitoring.listener Monitoring.Poll
             logs `shouldBe` [(INFO, "Currently connected to 3 peers | Immutable tip slot: genesis | Blocks in DB: 0")]
 

@@ -13,6 +13,7 @@ import Prelude hiding (Reader, State, asks, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collectors.Listeners qualified as Listeners
+import Hoard.Collectors.State (ConnectedPeers)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
@@ -23,7 +24,6 @@ import Hoard.Effects.NodeToNode (NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, getAllPeers)
 import Hoard.Effects.Publishing (Pub, Sub, listen)
 import Hoard.Types.Environment (Config (..))
-import Hoard.Types.HoardState (HoardState (..))
 
 
 run
@@ -36,7 +36,7 @@ run
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State HoardState :> es
+       , State ConnectedPeers :> es
        , Sub :> es
        )
     => Eff es ()
@@ -54,7 +54,7 @@ runListeners
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State HoardState :> es
+       , State ConnectedPeers :> es
        , Sub :> es
        )
     => Eff es ()
@@ -78,7 +78,7 @@ runCollectors
        , Reader Config :> es
        , PeerRepo :> es
        , Pub :> es
-       , State HoardState :> es
+       , State ConnectedPeers :> es
        , Sub :> es
        )
     => Eff es ()

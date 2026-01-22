@@ -11,21 +11,21 @@ import Effectful (Eff, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, stateM)
-import Hoard.Data.BlockHash (blockHashFromHeader)
-import Hoard.Data.Peer (Peer (..))
 import Ouroboros.Consensus.Block
     ( SlotNo (..)
     , blockSlot
     )
-import Prelude hiding (Reader, State, asks, modify, state)
+import Prelude hiding (Reader, State, asks, get, modify, state)
 
 import Hoard.BlockFetch.Events (BlockFetchRequest (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collectors.Config (Config (..))
 import Hoard.Collectors.Events (CollectorEvent (..))
+import Hoard.Collectors.State (ConnectedPeers (..))
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
+import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (PeerAddress (..))
+import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Clock (Clock)
@@ -39,7 +39,6 @@ import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Types.Environment qualified as Env
-import Hoard.Types.HoardState (HoardState (..))
 
 
 -- | Listener that logs collector events
@@ -75,7 +74,7 @@ dispatchDiscoveredNodes
        , PeerRepo :> es
        , Pub :> es
        , Reader Env.Config :> es
-       , State HoardState :> es
+       , State ConnectedPeers :> es
        , Sub :> es
        )
     => PeersReceived
@@ -115,7 +114,7 @@ bracketCollector
        , PeerRepo :> es
        , Pub :> es
        , Reader Env.Config :> es
-       , State HoardState :> es
+       , State ConnectedPeers :> es
        , Sub :> es
        )
     => Peer
@@ -128,13 +127,16 @@ bracketCollector peer = do
             $ generalBracket
                 ( stateM \r -> do
                     eligible <- isPeerEligible conf peer
-                    if not (peer.id `S.member` r.connectedPeers) && eligible
-                        then do
-                            Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
-                            pure (Just peer, r {connectedPeers = S.insert peer.id r.connectedPeers})
-                        else do
+                    if
+                        | peer.id `S.member` r.connectedPeers -> do
                             Log.debug $ "Peer is already connected to: " <> show peer.address
                             pure (Nothing, r)
+                        | not eligible -> do
+                            Log.debug $ "Peer is not currently eligible for connection: " <> show peer.address
+                            pure (Nothing, r)
+                        | otherwise -> do
+                            Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
+                            pure (Just peer, coerce S.insert peer.id r)
                 )
                 ( \mp exitCase -> do
                     case mp of
@@ -148,7 +150,7 @@ bracketCollector peer = do
                                 _ -> pure ()
 
                             Log.debug $ "Removing peer from connectedPeers: " <> show peer.address
-                            modify \r -> r {connectedPeers = S.delete p.id r.connectedPeers}
+                            modify $ coerce S.delete p.id
 
                             Log.info $ "ExitCase: " <> show exitCase
                         Nothing ->
