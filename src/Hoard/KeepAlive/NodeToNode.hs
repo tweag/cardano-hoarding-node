@@ -1,5 +1,10 @@
-module Hoard.KeepAlive.NodeToNode (miniProtocol, client) where
+module Hoard.KeepAlive.NodeToNode
+    ( miniProtocol
+    , client
+    , KeepAlivePing (..)
+    ) where
 
+import Data.Time (UTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
@@ -18,22 +23,29 @@ import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Prelude hiding (Reader, State, asks, evalState, gets)
 
 import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Data.Peer (Peer)
+import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.KeepAlive.Config (Config (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 
 miniProtocol
     :: forall es
-     . ( Concurrent :> es
+     . ( Clock :> es
+       , Concurrent :> es
        , Log :> es
+       , Pub :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
     -> CardanoCodecs
+    -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift' conf codecs =
+miniProtocol unlift' conf codecs peer =
     MiniProtocol
         { miniProtocolNum = keepAliveMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -47,7 +59,7 @@ miniProtocol unlift' conf codecs =
                                 unlift $
                                     withExceptionLogging "KeepAlive" $ do
                                         Log.debug "KeepAlive protocol started"
-                                        pure (keepAliveClientPeer $ client unlift conf)
+                                        pure (keepAliveClientPeer $ client unlift conf peer)
                             tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
                         in  (tracer, codec, wrappedPeer)
         }
@@ -62,14 +74,21 @@ miniProtocol unlift' conf codecs =
 -- and detect network failures. It sends a message immediately, then waits
 -- for the configured interval before sending the next one.
 client
-    :: (Log :> es, Concurrent :> es)
+    :: ( Clock :> es
+       , Concurrent :> es
+       , Log :> es
+       , Pub :> es
+       )
     => (forall x. Eff es x -> IO x)
     -> Config
+    -> Peer
     -> KeepAliveClient IO ()
-client unlift conf = KeepAliveClient sendFirst
+client unlift conf peer = KeepAliveClient sendFirst
   where
     sendFirst = unlift do
         Log.debug "Sending first keepalive message"
+        timestamp <- Clock.currentTime
+        publish KeepAlivePing {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
@@ -77,3 +96,10 @@ client unlift conf = KeepAliveClient sendFirst
         threadDelay conf.intervalMicroseconds
         Log.debug "Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
+
+
+data KeepAlivePing = KeepAlivePing
+    { timestamp :: UTCTime
+    , peer :: Peer
+    }
+    deriving (Typeable, Show)

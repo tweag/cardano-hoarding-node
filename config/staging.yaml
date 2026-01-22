@@ -33,9 +33,11 @@ logging:
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384
 
-collectors:
+peer_manager:
   # Cooldown period after a peer failure before retrying (in seconds)
   peer_failure_cooldown_seconds: 300
+  max_collector_lifetime_seconds: 3000 # 50 minutes
+  max_concurrent_collectors: 100
 
 # Cardano protocols configuration
 cardano_protocols:

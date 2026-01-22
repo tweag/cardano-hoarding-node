@@ -28,10 +28,7 @@ library
       Hoard.ChainSync.Events
       Hoard.ChainSync.Listeners
       Hoard.ChainSync.NodeToNode
-      Hoard.Collectors
-      Hoard.Collectors.Config
-      Hoard.Collectors.Events
-      Hoard.Collectors.Listeners
+      Hoard.Collector
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.BlockHash
@@ -85,6 +82,9 @@ library
       Hoard.OrphanDetection
       Hoard.OrphanDetection.Data
       Hoard.OrphanDetection.Listeners
+      Hoard.PeerManager
+      Hoard.PeerManager.Config
+      Hoard.PeerManager.Peers
       Hoard.PeerSharing
       Hoard.PeerSharing.Config
       Hoard.PeerSharing.Events
@@ -118,6 +118,7 @@ library
       FlexibleContexts
       GADTs
       LambdaCase
+      MultiWayIf
       OverloadedLabels
       OverloadedRecordDot
       OverloadedStrings
@@ -206,6 +207,7 @@ executable hoard-exe
       FlexibleContexts
       GADTs
       LambdaCase
+      MultiWayIf
       OverloadedLabels
       OverloadedRecordDot
       OverloadedStrings
@@ -288,7 +290,7 @@ test-suite hoard-test
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
-      Unit.Hoard.Collectors.ListenersSpec
+      Unit.Hoard.CollectorSpec
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.LogSpec
@@ -310,6 +312,7 @@ test-suite hoard-test
       FlexibleContexts
       GADTs
       LambdaCase
+      MultiWayIf
       OverloadedLabels
       OverloadedRecordDot
       OverloadedStrings

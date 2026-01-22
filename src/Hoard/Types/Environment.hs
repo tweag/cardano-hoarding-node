@@ -38,9 +38,9 @@ import Ouroboros.Network.IOManager (IOManager)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
-import Hoard.Collectors.Config qualified as Collectors
 import Hoard.Effects.Log qualified as Log
 import Hoard.KeepAlive.Config qualified as KeepAlive
+import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.PeerSharing.Config qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
@@ -66,7 +66,7 @@ data Config = Config
     , maxFileDescriptors :: Maybe Word32
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
-    , collectors :: Collectors.Config
+    , peerManager :: PeerManager.Config
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
