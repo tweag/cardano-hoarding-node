@@ -173,8 +173,9 @@ collectFromPeer peer = do
     publish $ ConnectingToPeer peer.address
 
     Conc.fork_ $ listen (pickBlockFetchRequest peer.id)
-    _ <- connectToPeer peer
+    connectToPeer peer
 
+    -- This will be reworked with the peer manager
     publish $ ConnectedToPeer peer.address
 
 

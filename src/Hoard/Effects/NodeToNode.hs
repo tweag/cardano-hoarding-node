@@ -20,7 +20,7 @@ import Data.Map.Strict qualified as Map
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.Error.Static (Error, throwError)
+import Effectful.Exception (Handler (..), IOException, catches, throwIO)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
@@ -51,6 +51,7 @@ import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, e
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -68,6 +69,7 @@ import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
+import Network.Mux.Trace qualified as Mux
 
 
 --------------------------------------------------------------------------------
@@ -78,7 +80,7 @@ import Hoard.Types.NodeIP (NodeIP (..))
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
-    ConnectToPeer :: Peer -> NodeToNode m Void
+    ConnectToPeer :: Peer -> NodeToNode m ()
 
 
 -- Generate smart constructors using Template Haskell
@@ -93,11 +95,11 @@ makeEffect ''NodeToNode
 --
 -- This handler establishes actual network connections and spawns protocol threads.
 runNodeToNode
-    :: ( Chan :> es
+    :: forall es a
+     . ( Chan :> es
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Error Text :> es
        , IOE :> es
        , Log :> es
        , Pub :> es
@@ -169,33 +171,60 @@ runNodeToNode =
                         ]
 
             Log.debug "Codecs created successfully"
-            adhocTracers <- withEffToIO strat $ \unlift ->
-                pure $
-                    nullNetworkConnectTracers
-                        { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
-                        }
 
-            -- Connect to the peer
-            Log.debug "Calling connectTo..."
-            result <- do
-                withEffToIO strat $ \unlift ->
-                    connectTo
-                        snocket
-                        adhocTracers
-                        (versions unlift)
-                        Nothing -- No local address binding
-                        addr
+            flip
+                catches
+                [ Handler $ handleIOException peer
+                , Handler $ handleMuxError peer
+                ]
+                do
+                    -- Connect to the peer
+                    Log.debug "Calling connectTo..."
+                    result <- withEffToIO strat $ \unlift -> do
+                        let adhocTracers =
+                                nullNetworkConnectTracers
+                                    { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
+                                    }
+                        connectTo
+                            snocket
+                            adhocTracers
+                            (versions unlift)
+                            Nothing -- No local address binding
+                            addr
 
-            Log.debug "connectTo returned!"
+                    Log.debug "connectTo returned!"
 
-            case result of
-                Left err -> do
-                    throwError $ "Failed to connect to peer " <> show peer <> ": " <> show err
-                Right (Left ()) -> do
-                    throwError "Connection closed unexpectedly"
-                Right (Right _) -> do
-                    -- This shouldn't happen with InitiatorOnly mode
-                    throwError "Unexpected responder mode result"
+                    case result of
+                        Left err -> do
+                            Log.warn $ "Failed to connect to peer " <> show peer <> ": " <> show err
+                        Right (Left ()) -> do
+                            Log.warn "Connection closed unexpectedly"
+                        Right (Right v) -> do
+                            -- This can't happen with InitiatorOnly mode
+                            pure $ absurd v
+  where
+    handleIOException :: Peer -> IOException -> Eff es ()
+    handleIOException peer e =
+        case e.ioe_type of
+            NoSuchThing ->
+                Log.warn $ "Could not create a socket to connect to peer: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+            ResourceVanished ->
+                Log.warn $ "Connection dropped: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+            TimeExpired ->
+                Log.warn $ "Connection timed out: peer (" <> show peer.address <> ")"
+            _ -> do
+                Log.warn $ "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
+                throwIO e
+
+    handleMuxError :: Peer -> Mux.Error -> Eff es ()
+    handleMuxError peer = \case
+        Mux.IOException e _msg ->
+            handleIOException peer e
+        Mux.BearerClosed reason ->
+            Log.warn $ "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
+        e -> do
+            Log.warn $ "Disconnected due to unknown ouroboros error: " <> show e
+            throwIO e
 
 
 --------------------------------------------------------------------------------
