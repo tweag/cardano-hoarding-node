@@ -25,7 +25,9 @@ import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
+import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
+import Network.Mux.Trace qualified as Mux
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
@@ -44,7 +46,9 @@ import Ouroboros.Network.Mux
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
     , NetworkConnectTracers (..)
+    , NodeToNodeVersion
     , NodeToNodeVersionData (..)
+    , ProtocolLimitFailure
     , combineVersions
     , connectTo
     , networkMagic
@@ -53,10 +57,10 @@ import Ouroboros.Network.NodeToNode
     , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
+import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..))
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
-import GHC.IO.Exception (IOErrorType (..), IOException (..))
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
@@ -75,7 +79,6 @@ import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, TxSubmissionCo
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
-import Network.Mux.Trace qualified as Mux
 
 
 --------------------------------------------------------------------------------
@@ -86,7 +89,7 @@ import Network.Mux.Trace qualified as Mux
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
-    ConnectToPeer :: Peer -> NodeToNode m ()
+    ConnectToPeer :: Peer -> NodeToNode m (Either Text Void)
 
 
 -- Generate smart constructors using Template Haskell
@@ -182,6 +185,8 @@ runNodeToNode =
                 catches
                 [ Handler $ handleIOException peer
                 , Handler $ handleMuxError peer
+                , Handler $ handleHandshakeProtocolError peer
+                , Handler $ handleProtocolLimitFailure peer
                 ]
                 do
                     -- Connect to the peer
@@ -202,33 +207,41 @@ runNodeToNode =
 
                     case result of
                         Left err -> do
-                            Log.warn $ "Failed to connect to peer " <> show peer <> ": " <> show err
+                            pure $ Left $ "Failed to connect to peer " <> show peer <> ": " <> show err
                         Right (Left ()) -> do
-                            Log.warn "Connection closed unexpectedly"
+                            pure $ Left $ "Connection closed unexpectedly"
                         Right (Right v) -> do
                             -- This can't happen with InitiatorOnly mode
-                            pure $ absurd v
+                            pure $ Right v
   where
-    handleIOException :: Peer -> IOException -> Eff es ()
+    handleIOException :: Peer -> IOException -> Eff es (Either Text Void)
     handleIOException peer e =
         case e.ioe_type of
             NoSuchThing ->
-                Log.warn $ "Could not create a socket to connect to peer: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+                pure $ Left $ "Could not create a socket to connect to peer: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
             ResourceVanished ->
-                Log.warn $ "Connection dropped: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+                pure $ Left $ "Connection dropped: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
             TimeExpired ->
-                Log.warn $ "Connection timed out: peer (" <> show peer.address <> ")"
+                pure $ Left $ "Connection timed out: peer (" <> show peer.address <> ")"
             _ ->
-                Log.warn $ "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
+                pure $ Left $ "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
 
-    handleMuxError :: Peer -> Mux.Error -> Eff es ()
+    handleMuxError :: Peer -> Mux.Error -> Eff es (Either Text Void)
     handleMuxError peer = \case
         Mux.IOException e _msg ->
             handleIOException peer e
         Mux.BearerClosed reason ->
-            Log.warn $ "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
+            pure $ Left $ "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
         e ->
-            Log.warn $ "Disconnected due to unknown ouroboros error: " <> show e
+            pure $ Left $ "Disconnected due to unknown ouroboros error: " <> show e
+
+    handleHandshakeProtocolError :: Peer -> HandshakeProtocolError NodeToNodeVersion -> Eff es (Either Text Void)
+    handleHandshakeProtocolError peer e =
+        pure $ Left $ "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
+
+    handleProtocolLimitFailure :: Peer -> ProtocolLimitFailure -> Eff es (Either Text Void)
+    handleProtocolLimitFailure peer e =
+        pure $ Left $ "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
 
 
 --------------------------------------------------------------------------------
@@ -259,7 +272,7 @@ mkApplication unlift env codecs peer =
     OuroborosApplication
         [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
         , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch codecs peer
-        , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
+        , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs peer
         , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
           MiniProtocol

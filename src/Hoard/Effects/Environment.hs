@@ -24,10 +24,10 @@ import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
-import Hoard.Collectors.Config qualified as Collectors
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
+import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
@@ -56,11 +56,11 @@ data ConfigFile = ConfigFile
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
-    , collectors :: Collectors.Config
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
+    , peerManager :: PeerManager.Config
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -280,7 +280,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , maxFileDescriptors = configFile.maxFileDescriptors
                 , topology
                 , peerSnapshot
-                , collectors = configFile.collectors
+                , peerManager = configFile.peerManager
                 , cardanoProtocols = configFile.cardanoProtocols
                 , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
@@ -290,11 +290,15 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     runReader env eff
 
 
-runConfigReader :: (Reader Env :> es) => Eff (Reader Log.Config : Reader Config : es) a -> Eff es a
+runConfigReader
+    :: (Reader Env :> es)
+    => Eff (Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
+    -> Eff es a
 runConfigReader eff = do
     cfg <- asks config
     runReader cfg
         . runReader cfg.logging
+        . runReader cfg.peerManager
         $ eff
 
 

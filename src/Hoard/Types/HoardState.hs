@@ -5,15 +5,12 @@ import Data.Default (Default (..))
 import Data.Set qualified as S
 
 import Hoard.Data.BlockHash (BlockHash)
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 
 
 -- | Application state
 data HoardState = HoardState
-    { connectedPeers :: Set (ID Peer)
-    , immutableTip :: ChainPoint
+    { immutableTip :: ChainPoint
     , blocksBeingClassified :: Set BlockHash
     }
     deriving (Eq, Show)
@@ -22,7 +19,6 @@ data HoardState = HoardState
 instance Default HoardState where
     def =
         HoardState
-            { connectedPeers = S.empty
-            , immutableTip = ChainPoint C.ChainPointAtGenesis
+            { immutableTip = ChainPoint C.ChainPointAtGenesis
             , blocksBeingClassified = S.empty
             }

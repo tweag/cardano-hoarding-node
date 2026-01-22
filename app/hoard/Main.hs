@@ -10,8 +10,8 @@ import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
 import Hoard.BlockFetch qualified as BlockFetch
+import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync qualified as ChainSync
-import Hoard.Collectors qualified as Collectors
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -34,6 +34,8 @@ import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Listeners (runListeners)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
+import Hoard.PeerManager qualified as PeerManager
+import Hoard.PeerManager.Peers (Peers)
 import Hoard.PeerSharing qualified as PeerSharing
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
@@ -61,6 +63,7 @@ main =
         . runPubSub
         . runErrorThrowing
         . evalState @HoardState def
+        . evalState @Peers def
         . runNodeToNode
         . runMetrics
         . runDBRead
@@ -71,6 +74,7 @@ main =
         . runHoardStateRepo
         $ do
             setup
+            void bootstrapPeers
             runServer
             runListeners
             runTriggers
@@ -79,5 +83,5 @@ main =
             BlockFetch.run
             OrphanDetection.run
             Monitoring.run
-            Collectors.run
+            PeerManager.run
             Conc.awaitAll

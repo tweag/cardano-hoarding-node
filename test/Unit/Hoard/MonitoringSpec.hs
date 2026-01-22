@@ -1,22 +1,23 @@
 module Unit.Hoard.MonitoringSpec (spec_Monitoring) where
 
 import Cardano.Api qualified as C
-import Data.Default (def)
+import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
-import Effectful (runEff)
+import Effectful (Eff, runEff, (:>))
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (execWriter)
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Prelude hiding (evalState, runReader)
+import Prelude hiding (evalState, newEmptyMVar, runReader)
 
+import Effectful.Concurrent.MVar (Concurrent, newEmptyMVar, runConcurrent)
 import Hoard.Data.ID (ID (..))
-import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
 import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.Monitoring qualified as Monitoring
+import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
@@ -26,6 +27,8 @@ spec_Monitoring :: Spec
 spec_Monitoring = withCleanTestDatabase $ do
     describe "listener" do
         it "reports correct number of peers, immutable tip, and block count" $ \config -> do
+            let testTime = UTCTime (toEnum 0) 0
+            peers <- runEff . runConcurrent $ mkPeers testTime 3
             logs <-
                 runEff
                     . fmap (fmap (\m -> (m.severity, m.text)))
@@ -36,17 +39,27 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . runMetricsNoOp
                     . runDBRead
                     . evalState
-                        ( def
-                            { connectedPeers = fromList $ mkPeerIDs 3
-                            , immutableTip = ChainPoint C.ChainPointAtGenesis
+                        HoardState
+                            { immutableTip = ChainPoint C.ChainPointAtGenesis
+                            , blocksBeingClassified = mempty
                             }
-                        )
+                    . evalState peers
                     $ Monitoring.listener Monitoring.Poll
-            logs `shouldBe` [(INFO, "Currently connected to 3 peers | Immutable tip slot: genesis | Blocks in DB: 0")]
+            logs `shouldBe` [(INFO, "Currently connected to 1 peers | 2 peer connections pending | Immutable tip slot: genesis | Blocks in DB: 0")]
 
 
-mkPeerIDs :: Int -> [ID Peer]
-mkPeerIDs n =
-    [ ID $ UUID.fromWords64 (fromIntegral i) (fromIntegral i + 1)
-    | i <- [0 .. (n - 1)]
-    ]
+mkPeers :: (Concurrent :> es) => UTCTime -> Int -> Eff es Peers
+mkPeers connectedAt n = do
+    terminator <- newEmptyMVar
+    pure $
+        Peers $
+            fromList
+                [ ( ID $ UUID.fromWords64 (fromIntegral i) (fromIntegral i + 1)
+                  , Connection
+                        { connectedAt
+                        , terminator
+                        , state = if i < (n `div` 2) then Connected else Connecting
+                        }
+                  )
+                | i <- [0 .. (n - 1)]
+                ]
