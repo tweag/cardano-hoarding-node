@@ -1,5 +1,6 @@
 module Hoard.Bootstrap (bootstrapPeers) where
 
+import Control.Exception (try)
 import Data.IP (IP)
 import Data.IP qualified as IP
 import Data.Set qualified as S
@@ -9,12 +10,17 @@ import Network.Socket (HostName, PortNumber)
 import Network.Socket qualified as Socket
 import Prelude hiding (Reader, asks)
 
-import Control.Exception (try)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
-import Hoard.Types.Environment (BootstrapPeerDomain (..), BootstrapPeerIP (..), Config (..), LedgerPool (..), PeerSnapshotFile (..))
+import Hoard.Types.Environment
+    ( BootstrapPeerDomain (..)
+    , BootstrapPeerIP (..)
+    , Config (..)
+    , LedgerPool (..)
+    , PeerSnapshotFile (..)
+    )
 import Hoard.Types.NodeIP (NodeIP (..))
 
 
@@ -31,25 +37,8 @@ bootstrapPeers = do
 
     -- Resolve all relay addresses to PeerAddress
     addresses <- fmap (S.fromList . catMaybes) $ forM allRelays $ \relay -> case relay of
-        Left domain -> do
-            -- Resolve domain to IP
-            parts <- liftIO $ resolvePeerAddress (toString domain.domain) domain.port
-            case parts of
-                Just (ip, portNumber) ->
-                    pure $ Just $ PeerAddress (NodeIP ip) (fromIntegral portNumber)
-                Nothing -> pure Nothing
-        Right ipRelay -> do
-            -- Parse IP address directly, or resolve if it's actually a hostname
-            case readMaybe (toString ipRelay.address) of
-                Just ip ->
-                    pure $ Just $ PeerAddress (NodeIP ip) ipRelay.port
-                Nothing -> do
-                    -- If parsing fails, try to resolve it as a hostname
-                    parts <- liftIO $ resolvePeerAddress (toString ipRelay.address) ipRelay.port
-                    case parts of
-                        Just (ip, portNumber) ->
-                            pure $ Just $ PeerAddress (NodeIP ip) (fromIntegral portNumber)
-                        Nothing -> pure Nothing
+        Left domain -> resolveDomain domain
+        Right ipRelay -> resolveIPAddress ipRelay
 
     -- Use the first address as the bootstrap source for all peers
     -- (In reality, each peer is discovered from the network, but for initial bootstrap
@@ -59,6 +48,31 @@ bootstrapPeers = do
         (firstAddr : _) -> do
             timestamp <- Clock.currentTime
             upsertPeers addresses firstAddr timestamp
+
+
+resolveDomain :: (IOE :> es) => BootstrapPeerDomain -> Eff es (Maybe PeerAddress)
+resolveDomain domain = do
+    -- Resolve domain to IP
+    parts <- liftIO $ resolvePeerAddress (toString domain.domain) domain.port
+    case parts of
+        Just (ip, portNumber) ->
+            pure $ Just $ PeerAddress (NodeIP ip) (fromIntegral portNumber)
+        Nothing -> pure Nothing
+
+
+resolveIPAddress :: (IOE :> es) => BootstrapPeerIP -> Eff es (Maybe PeerAddress)
+resolveIPAddress ipRelay = do
+    -- Parse IP address directly, or resolve if it's actually a hostname
+    case readMaybe (toString ipRelay.address) of
+        Just ip ->
+            pure $ Just $ PeerAddress (NodeIP ip) ipRelay.port
+        Nothing -> do
+            -- If parsing fails, try to resolve it as a hostname
+            parts <- liftIO $ resolvePeerAddress (toString ipRelay.address) ipRelay.port
+            case parts of
+                Just (ip, portNumber) ->
+                    pure $ Just $ PeerAddress (NodeIP ip) (fromIntegral portNumber)
+                Nothing -> pure Nothing
 
 
 resolvePeerAddress :: HostName -> Int -> IO (Maybe (IP, PortNumber))
