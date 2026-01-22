@@ -10,7 +10,6 @@ module Hoard.Effects.Environment
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
 import Data.String.Conversions (cs)
-import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
@@ -24,6 +23,7 @@ import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
+import Hoard.Collectors.Config qualified as Collectors
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
@@ -56,7 +56,7 @@ data ConfigFile = ConfigFile
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
-    , peerFailureCooldownSeconds :: NominalDiffTime
+    , collectors :: Collectors.Config
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
@@ -280,7 +280,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , maxFileDescriptors = configFile.maxFileDescriptors
                 , topology
                 , peerSnapshot
-                , peerFailureCooldown = configFile.peerFailureCooldownSeconds
+                , collectors = configFile.collectors
                 , cardanoProtocols = configFile.cardanoProtocols
                 , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration

@@ -36,12 +36,12 @@ where
 
 import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
-import Data.Time (NominalDiffTime)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
+import Hoard.Collectors.Config qualified as Collectors
 import Hoard.KeepAlive.Config qualified as KeepAlive
 import Hoard.PeerSharing.Config qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock)
@@ -92,7 +92,7 @@ data Config = Config
     , maxFileDescriptors :: Maybe Word32
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
-    , peerFailureCooldown :: NominalDiffTime
+    , collectors :: Collectors.Config
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
