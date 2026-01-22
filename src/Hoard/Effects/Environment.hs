@@ -9,6 +9,7 @@ module Hoard.Effects.Environment
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
+import Data.Default (def)
 import Data.String.Conversions (cs)
 import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
@@ -24,6 +25,7 @@ import Prelude hiding (Reader, asks, runReader)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Collectors.Config qualified as Collectors
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Cardano (CardanoBlock)
@@ -36,14 +38,12 @@ import Hoard.Types.Environment
     , Config (..)
     , Env (..)
     , Handles (..)
-    , LogConfig
     , MonitoringConfig
     , NodeSocketsConfig
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
     )
-import Hoard.Types.Environment qualified as Log (LogConfig (..), Severity (..), defaultLogConfig)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -185,7 +185,7 @@ data LoggingConfig = LoggingConfig
     deriving (FromJSON) via QuietSnake LoggingConfig
 
 
-loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.LogConfig
+loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.Config
 loadLoggingConfig configFile = do
     log <- (>>= readMaybe) <$> lookupEnv "LOG"
     logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
@@ -193,7 +193,7 @@ loadLoggingConfig configFile = do
         (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
             <$> lookupEnv "DEBUG"
     let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
-    pure $ Log.defaultLogConfig {Log.minimumSeverity}
+    pure $ def {Log.minimumSeverity}
 
 
 loadCardanoProtocolHandles :: (Concurrent :> es) => ConfigFile -> Eff es CardanoProtocolHandles
@@ -290,7 +290,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     runReader env eff
 
 
-runConfigReader :: (Reader Env :> es) => Eff (Reader LogConfig : Reader Config : es) a -> Eff es a
+runConfigReader :: (Reader Env :> es) => Eff (Reader Log.Config : Reader Config : es) a -> Eff es a
 runConfigReader eff = do
     cfg <- asks config
     runReader cfg

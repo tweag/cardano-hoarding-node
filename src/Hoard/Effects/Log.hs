@@ -27,6 +27,7 @@ module Hoard.Effects.Log
     ( -- * Effect
       Log
     , Message (..)
+    , Config (..)
     , Severity (..)
     , log
     , info
@@ -43,7 +44,9 @@ module Hoard.Effects.Log
     ) where
 
 import Control.Tracer (Tracer (..))
+import Data.Aeson (FromJSON (..))
 import Data.ByteString.Char8 qualified as B8
+import Data.Default (Default (..))
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
@@ -52,7 +55,7 @@ import Effectful.Writer.Static.Shared (Writer, tell)
 import GHC.Stack (SrcLoc (..))
 import Prelude hiding (Reader, ask, local, runReader)
 
-import Hoard.Types.Environment (LogConfig (..), Severity (..))
+import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
 data Log :: Effect where
@@ -78,6 +81,27 @@ instance Semigroup Namespace where
     Namespace "" <> Namespace b = Namespace b
     Namespace a <> Namespace "" = Namespace a
     Namespace a <> Namespace b = Namespace (a <> "." <> b)
+
+
+data Config = Config
+    { minimumSeverity :: Severity
+    , output :: Handle
+    }
+data Severity
+    = DEBUG
+    | INFO
+    | WARN
+    | ERROR
+    deriving stock (Eq, Ord, Enum, Bounded, Show, Read)
+    deriving (FromJSON) via (JsonReadShow Severity)
+
+
+instance Default Config where
+    def =
+        Config
+            { minimumSeverity = minBound
+            , output = stdout
+            }
 
 
 makeEffect ''Log
@@ -126,7 +150,7 @@ runLogNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
     GetNamespace -> ask
 
 
-runLog :: (IOE :> es, Reader LogConfig :> es) => Eff (Log : es) a -> Eff es a
+runLog :: (IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
 runLog action = do
     config <- ask
 

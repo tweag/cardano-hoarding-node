@@ -46,6 +46,7 @@ import Hoard.ChainSync.Config ()
 import Hoard.Collectors.Config ()
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.KeepAlive.Config ()
@@ -59,14 +60,12 @@ import Hoard.Types.Environment
     , Env (..)
     , Handles (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
-    , LogConfig
     , MonitoringConfig (..)
     , NodeSocketsConfig (Local)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
     , TxSubmissionConfig (..)
-    , defaultLogConfig
     )
 import Hoard.Types.HoardState (HoardState)
 
@@ -140,7 +139,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , nodeConfig
                 , protocolInfo
                 , nodeSockets = Local $ MakeLocal {nodeToClientSocket = "preview.socket", tracerSocket = "preview_tracer.socket"}
-                , logging = defaultLogConfig
+                , logging = def
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
@@ -178,7 +177,7 @@ type TestAppEffs =
     , Writer [Dynamic]
     , Metrics
     , Log
-    , Reader LogConfig
+    , Reader Log.Config
     , Conc
     , Chan
     , Concurrent
