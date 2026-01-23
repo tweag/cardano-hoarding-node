@@ -23,6 +23,7 @@ library
       Hoard.BlockFetch.NodeToNode
       Hoard.Bootstrap
       Hoard.ChainSync
+      Hoard.ChainSync.Config
       Hoard.ChainSync.Events
       Hoard.ChainSync.Listeners
       Hoard.ChainSync.NodeToNode
