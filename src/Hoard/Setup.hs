@@ -9,14 +9,14 @@ module Hoard.Setup
 
 import Effectful (Eff, IOE, (:>))
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify)
+import Effectful.State.Static.Shared (State)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 import Prelude hiding (Reader, State, asks, modify)
 
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.NodeToClient qualified as N
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (refreshImmutableTip)
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -50,24 +50,9 @@ setup = do
     Log.info "Running application setup..."
 
     setFileDescriptorLimit
-    fetchAndStoreImmutableTip
+    refreshImmutableTip
 
     Log.info "Application setup complete"
-
-
--- | Fetch the immutable tip from the cardano-node and store it in HoardState.
---
--- This is called during application setup to initialize the immutable tip
--- before we start connecting to peers. If the NodeToClient connection fails,
--- the HoardState will retain its default value (ChainPointAtGenesis).
-fetchAndStoreImmutableTip
-    :: (NodeToClient :> es, State HoardState :> es, Log :> es)
-    => Eff es ()
-fetchAndStoreImmutableTip = do
-    Log.info "Fetching immutable tip from cardano-node..."
-    tip <- N.immutableTip
-    Log.info $ "Immutable tip: " <> show tip
-    modify (\hoardState -> hoardState {immutableTip = tip})
 
 
 -- | Set the file descriptor limit (soft limit) to the specified value.
