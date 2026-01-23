@@ -14,6 +14,7 @@ import Effectful.State.Static.Shared (State, modify, state, stateM)
 import Effectful.Timeout (Timeout)
 import Prelude hiding (Reader, State, asks, modify, state)
 
+import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.BlockFetch.Events (BlockFetchRequest (..), BlockReceived (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collectors.Events (CollectorEvent (..))
@@ -38,7 +39,7 @@ import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Network.Events (PeersReceived (..))
-import Hoard.Types.Environment (BlockFetchConfig (..), CardanoProtocolsConfig (..), Config (..))
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 

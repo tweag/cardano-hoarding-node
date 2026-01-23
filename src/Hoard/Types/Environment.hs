@@ -10,9 +10,11 @@ module Hoard.Types.Environment
     , CardanoProtocolsConfig (..)
     , PeerSharingConfig (..)
     , KeepAliveConfig (..)
-    , BlockFetchConfig (..)
     , ChainSyncConfig (..)
     , TxSubmissionConfig (..)
+
+      -- * Cardano protocol handles
+    , CardanoProtocolHandles (..)
 
       -- * Monitoring configuration
     , MonitoringConfig (..)
@@ -38,10 +40,10 @@ where
 import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.Time (NominalDiffTime)
-import Effectful.Concurrent.QSem (QSem)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
+import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
@@ -91,7 +93,6 @@ data Config = Config
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
     , peerFailureCooldown :: NominalDiffTime
-    , blockFetchQSem :: QSem
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
@@ -102,7 +103,7 @@ data Config = Config
 data CardanoProtocolsConfig = CardanoProtocolsConfig
     { peerSharing :: PeerSharingConfig
     , keepAlive :: KeepAliveConfig
-    , blockFetch :: BlockFetchConfig
+    , blockFetch :: BlockFetch.Config
     , chainSync :: ChainSyncConfig
     , txSubmission :: TxSubmissionConfig
     }
@@ -132,19 +133,6 @@ data KeepAliveConfig = KeepAliveConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake KeepAliveConfig
-
-
--- | Block fetch configuration
-data BlockFetchConfig = BlockFetchConfig
-    { batchSize :: Int
-    -- ^ Number of block fetch requests to batch
-    , batchTimeoutMicroseconds :: Int
-    -- ^ Timeout for batching block fetch requests
-    , maximumIngressQueue :: Int
-    -- ^ Max bytes queued in ingress queue
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake BlockFetchConfig
 
 
 -- | Chain sync configuration
@@ -236,6 +224,12 @@ data BootstrapPeerDomain = BootstrapPeerDomain
 data Handles = Handles
     { ioManager :: IOManager
     , dbPools :: DBPools
+    , cardanoProtocols :: CardanoProtocolHandles
+    }
+
+
+newtype CardanoProtocolHandles = CardanoProtocolHandles
+    { blockFetch :: BlockFetch.Handles
     }
 
 

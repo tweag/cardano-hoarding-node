@@ -7,6 +7,7 @@ module Hoard.TestHelpers
     )
 where
 
+import Control.Concurrent.QSem (newQSem)
 import Data.Default (def)
 import Data.Dynamic (Dynamic, fromDynamic)
 import Effectful
@@ -20,7 +21,6 @@ import Effectful
     , (:>)
     )
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Effectful.Concurrent.QSem (newQSem)
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
@@ -41,13 +41,14 @@ import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, r
 
 import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hoard.API (API, Routes, server)
+import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
-    ( BlockFetchConfig (..)
-    , CardanoNodeIntegrationConfig (..)
+    ( CardanoNodeIntegrationConfig (..)
+    , CardanoProtocolHandles (..)
     , CardanoProtocolsConfig (..)
     , ChainSyncConfig (..)
     , Config (..)
@@ -108,7 +109,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
     protocolInfo <- runEff $ loadProtocolInfo nodeConfig
-    blockFetchQSem <- runEff $ runConcurrent $ newQSem 1
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let cardanoProtocols =
@@ -124,12 +124,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                         { intervalMicroseconds = 10_000_000
                         , maximumIngressQueue = 1000
                         }
-                , blockFetch =
-                    BlockFetchConfig
-                        { batchSize = 10
-                        , batchTimeoutMicroseconds = 1_000_000
-                        , maximumIngressQueue = 393216
-                        }
+                , blockFetch = def
                 , chainSync = ChainSyncConfig {maximumIngressQueue = 1200}
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
                 }
@@ -138,6 +133,12 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             CardanoNodeIntegrationConfig
                 { sshServerAliveIntervalSeconds = 60
                 , immutableTipRefreshSeconds = 20
+                }
+    cardanoProtocolHandles <- do
+        qSem <- newQSem 10
+        pure
+            CardanoProtocolHandles
+                { blockFetch = BlockFetch.Handles {qSem}
                 }
     let config =
             Config
@@ -150,7 +151,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , peerFailureCooldown = 300
-                , blockFetchQSem
                 , cardanoProtocols
                 , monitoring = monitoringCfg
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
@@ -159,6 +159,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             Handles
                 { ioManager
                 , dbPools
+                , cardanoProtocols = cardanoProtocolHandles
                 }
     let env = Env {config, handles}
     ((a, finalState), events) <-
