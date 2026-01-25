@@ -116,125 +116,92 @@ runNodeToNode
     -> Eff es a
 runNodeToNode =
     interpret $ \_ -> \case
-        ConnectToPeer peer -> connectToPeerImpl peer
+        ConnectToPeer peer -> do
+            env <- ask
+            let protocolInfo = env.config.protocolInfo
+                ioManager = env.handles.ioManager
+            let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
+            -- Create connection using ouroboros-network
+            Log.debug $ "Attempting connection to " <> show addr
 
+            Log.debug "Creating snocket..."
+            let snocket = socketSnocket ioManager
 
---------------------------------------------------------------------------------
--- Implementation Functions
---------------------------------------------------------------------------------
+            -- Load protocol info and create codecs
+            Log.debug "Loading protocol configuration..."
+            let codecConfig = configCodec (pInfoConfig protocolInfo)
+            let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
--- | Implementation of connectToPeer.
---
--- This implementation:
--- 1. Resolves the peer's address
--- 2. Creates an IOManager and Snocket
--- 3. Constructs version negotiation data
--- 4. Creates mini-protocol applications
--- 5. Connects using ouroboros-network's connectTo
--- 6. Publishes connection events
-connectToPeerImpl
-    :: forall es
-     . ( Chan :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Error Text :> es
-       , IOE :> es
-       , Log :> es
-       , Pub :> es
-       , Reader Env :> es
-       , State HoardState :> es
-       , Sub :> es
-       , Timeout :> es
-       )
-    => Peer
-    -> Eff es Void
-connectToPeerImpl peer = do
-    env <- ask
-    let protocolInfo = env.config.protocolInfo
-        ioManager = env.handles.ioManager
-    let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
-    -- Create connection using ouroboros-network
-    Log.debug $ "Attempting connection to " <> show addr
+            -- Get all supported versions
+            let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
-    Log.debug "Creating snocket..."
-    let snocket = socketSnocket ioManager
+            Log.debug "Creating version-specific codecs and applications..."
 
-    -- Load protocol info and create codecs
-    Log.debug "Loading protocol configuration..."
-    let codecConfig = configCodec (pInfoConfig protocolInfo)
-    let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
+            -- Create version data for handshake
+            let versionData =
+                    NodeToNodeVersionData
+                        { networkMagic
+                        , diffusionMode = InitiatorOnlyDiffusionMode
+                        , peerSharing = PeerSharingEnabled -- Enable peer sharing
+                        , query = False
+                        }
 
-    -- Get all supported versions
-    let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
+            -- Helper function to create application for a specific version
+            let strat = ConcUnlift Persistent Unlimited
+                mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
+                    let codecs =
+                            hoistCodecs liftIO $
+                                defaultCodecs
+                                    codecConfig
+                                    blockVersion
+                                    encodeRemoteAddress
+                                    (\v -> decodeRemoteAddress v)
+                                    nodeVersion
+                    in  mkApplication unlift env codecs peer
 
-    Log.debug "Creating version-specific codecs and applications..."
+            -- Create versions for negotiation - offer all supported versions
+            Log.debug "Creating protocol versions..."
+            let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
+                    simpleSingletonVersions
+                        version
+                        versionData
+                        (\_ -> mkVersionedApp unlift version blockVersion)
 
-    -- Create version data for handshake
-    let versionData =
-            NodeToNodeVersionData
-                { networkMagic
-                , diffusionMode = InitiatorOnlyDiffusionMode
-                , peerSharing = PeerSharingEnabled -- Enable peer sharing
-                , query = False
-                }
+            -- Create versions for all supported protocol versions
+            let versions (unlift :: forall x. Eff es x -> IO x) =
+                    combineVersions
+                        [ mkVersions unlift nodeVersion blockVersion
+                        | (nodeVersion, blockVersion) <- Map.toList supportedVersions
+                        ]
 
-    -- Helper function to create application for a specific version
-    let strat = ConcUnlift Persistent Unlimited
-        mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
-            let codecs =
-                    hoistCodecs liftIO $
-                        defaultCodecs
-                            codecConfig
-                            blockVersion
-                            encodeRemoteAddress
-                            (\v -> decodeRemoteAddress v)
-                            nodeVersion
-            in  mkApplication unlift env codecs peer
+            Log.debug "Codecs created successfully"
+            adhocTracers <- withEffToIO strat $ \unlift ->
+                pure $
+                    nullNetworkConnectTracers
+                        { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
+                        }
 
-    -- Create versions for negotiation - offer all supported versions
-    Log.debug "Creating protocol versions..."
-    let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
-            simpleSingletonVersions
-                version
-                versionData
-                (\_ -> mkVersionedApp unlift version blockVersion)
+            -- Connect to the peer
+            Log.debug "Calling connectTo..."
+            result <- do
+                withEffToIO strat $ \unlift ->
+                    connectTo
+                        snocket
+                        adhocTracers
+                        (versions unlift)
+                        Nothing -- No local address binding
+                        addr
 
-    -- Create versions for all supported protocol versions
-    let versions (unlift :: forall x. Eff es x -> IO x) =
-            combineVersions
-                [ mkVersions unlift nodeVersion blockVersion
-                | (nodeVersion, blockVersion) <- Map.toList supportedVersions
-                ]
+            Log.debug "connectTo returned!"
 
-    Log.debug "Codecs created successfully"
-    adhocTracers <- withEffToIO strat $ \unlift ->
-        pure $
-            nullNetworkConnectTracers
-                { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
-                }
-
-    -- Connect to the peer
-    Log.debug "Calling connectTo..."
-    result <- do
-        withEffToIO strat $ \unlift ->
-            connectTo
-                snocket
-                adhocTracers
-                (versions unlift)
-                Nothing -- No local address binding
-                addr
-
-    Log.debug "connectTo returned!"
-
-    case result of
-        Left err -> do
-            throwError $ "Failed to connect to peer " <> show peer <> ": " <> show err
-        Right (Left ()) -> do
-            throwError "Connection closed unexpectedly"
-        Right (Right _) -> do
-            -- This shouldn't happen with InitiatorOnly mode
-            throwError "Unexpected responder mode result"
+            case result of
+                Left err -> do
+                    throwError $ "Failed to connect to peer " <> show peer <> ": " <> show err
+                Right (Left ()) -> do
+                    throwError "Connection closed unexpectedly"
+                Right (Right _) -> do
+                    -- This shouldn't happen with InitiatorOnly mode
+                    throwError "Unexpected responder mode result"
 
 
 --------------------------------------------------------------------------------
