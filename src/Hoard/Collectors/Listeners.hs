@@ -8,39 +8,28 @@ module Hoard.Collectors.Listeners
 import Data.Set qualified as S
 import Data.Time (diffUTCTime)
 import Effectful (Eff, (:>))
-import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify, state, stateM)
-import Effectful.Timeout (Timeout)
+import Effectful.State.Static.Shared (State, modify, stateM)
 import Prelude hiding (Reader, State, asks, modify, state)
 
-import Hoard.BlockFetch.Config qualified as BlockFetch
-import Hoard.BlockFetch.Events (BlockFetchRequest (..), BlockReceived (..))
-import Hoard.ChainSync.Events (HeaderReceived (..))
+import Hoard.BlockFetch.Listeners (pickBlockFetchRequest)
 import Hoard.Collectors.Events (CollectorEvent (..))
-import Hoard.Collectors.State (BlocksBeingFetched (..))
+import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
-import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.BlockRepo qualified as BlockRepo
-import Hoard.Effects.Chan (Chan)
-import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Input (Input, input, runInputChan, runTimedBatchedInput)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
-import Hoard.Effects.NodeToNode qualified as NodeToNode
-import Hoard.Effects.Output (Output, output, runOutputChan)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
-import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.PeerSharing.Events (PeersReceived (..))
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Config (..))
+import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -70,10 +59,8 @@ collectorEvent = \case
 -- - Starts collectors for all eligible peers
 dispatchDiscoveredNodes
     :: ( BlockRepo :> es
-       , Chan :> es
        , Clock :> es
        , Conc :> es
-       , Concurrent :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -81,7 +68,7 @@ dispatchDiscoveredNodes
        , Reader Config :> es
        , State BlocksBeingFetched :> es
        , State HoardState :> es
-       , Timeout :> es
+       , Sub :> es
        )
     => PeersReceived
     -> Eff es ()
@@ -113,10 +100,8 @@ dispatchDiscoveredNodes event = do
 -- terminates, whether due to an exception or normal completion.
 bracketCollector
     :: ( BlockRepo :> es
-       , Chan :> es
        , Clock :> es
        , Conc :> es
-       , Concurrent :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -124,7 +109,7 @@ bracketCollector
        , Reader Config :> es
        , State BlocksBeingFetched :> es
        , State HoardState :> es
-       , Timeout :> es
+       , Sub :> es
        )
     => Peer
     -> Eff es ()
@@ -167,101 +152,22 @@ bracketCollector peer = do
 
 collectFromPeer
     :: ( BlockRepo :> es
-       , Chan :> es
        , Conc :> es
-       , Concurrent :> es
        , NodeToNode :> es
        , Pub :> es
-       , Reader Config :> es
        , State BlocksBeingFetched :> es
-       , Timeout :> es
+       , Sub :> es
        )
     => Peer
-    -> Eff es Void
+    -> Eff es ()
 collectFromPeer peer = do
-    cfg <- asks $ (.cardanoProtocols.blockFetch)
-    withBridge @BlockFetchRequest
-        . withBridge @HeaderReceived
-        . withBridge @BlockReceived
-        . runTimedBatchedInput @BlockFetchRequest cfg.batchSize cfg.batchTimeoutMicroseconds
-        $ do
-            publish $ CollectorStarted peer.address
-            publish $ ConnectingToPeer peer.address
+    publish $ CollectorStarted peer.address
+    publish $ ConnectingToPeer peer.address
 
-            Conc.fork_ $ forever pickBlockFetchRequest
-            _conn <-
-                connectToPeer $
-                    NodeToNode.Config
-                        { peer
-                        , emitFetchedHeader = output
-                        , emitFetchedBlock = output
-                        , awaitBlockFetchRequests = input
-                        }
-            publish $ ConnectedToPeer peer.address
+    Conc.fork_ $ listen (pickBlockFetchRequest peer.id)
+    _conn <- connectToPeer peer
 
-            -- Connection is now running autonomously!
-            -- Protocols publish events as they receive data
-            -- For now, just keep the collector alive
-            forever $ threadDelay 1000000
-
-
--- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
-pickBlockFetchRequest
-    :: ( BlockRepo :> es
-       , Input HeaderReceived :> es
-       , State BlocksBeingFetched :> es
-       , Output BlockFetchRequest :> es
-       )
-    => Eff es ()
-pickBlockFetchRequest = do
-    event <- input
-    let hash = blockHashFromHeader event.header
-    -- This check can be implemented in 2 thread-safe ways, as far as we know:
-    -- 1. Keep the database check inside the `stateM` operation and ensure
-    --    thread-safety between checking the DB and the `blocksBeingFetched`
-    --    state.
-    -- 2. Check the in-memory `blocksBeingFetched` state first, update
-    --    `blocksBeingFetched` if the hash is not in there, then check the
-    --    database, removing the hash from `blocksBeingFetched` if it is
-    --    already in the database.
-    --
-    -- We decided to use option 2 to prevent having the database check inside
-    -- `state`/`stateM`, which would drastically increase the time spent in the
-    -- critical section `state`/`stateM` provides us.
-    fetchTheBlock <- state \s ->
-        if hash `S.notMember` s.blocksBeingFetched
-            then
-                (True, coerce S.insert hash s)
-            else
-                (False, s)
-    when fetchTheBlock do
-        existingBlock <- BlockRepo.getBlock event.header
-        if (isNothing existingBlock)
-            then
-                output
-                    BlockFetchRequest
-                        { timestamp = event.timestamp
-                        , header = event.header
-                        , peer = event.peer
-                        }
-            else
-                modify $ coerce S.delete hash
-
-
--- | Bridge effects through bidirectional channels.
---
--- Creates a channel pair and interprets Input/Output effects over them,
--- enabling communication between threads.
---
--- This function:
--- 1. Creates a bidirectional channel pair using 'Chan.newChan'
--- 2. Interprets 'Input' and 'Output' effects over these channels
--- 3. Provides these effects to the wrapped action
--- 4. The action can fork threads that communicate via these effects
-withBridge :: forall b es a. (Chan :> es) => Eff (Input b : Output b : es) a -> Eff es a
-withBridge action = do
-    (inChan, outChan) <- Chan.newChan
-    runOutputChan inChan . runInputChan outChan $ action
+    publish $ ConnectedToPeer peer.address
 
 
 -- | Check if a peer is eligible for connection based on failure cooldown

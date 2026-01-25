@@ -7,17 +7,14 @@ module Hoard.Collectors
 
 import Data.Set qualified as S
 import Effectful (Eff, IOE, (:>))
-import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
-import Effectful.Timeout (Timeout)
 import Prelude hiding (Reader, State, asks, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collectors.Listeners qualified as Listeners
 import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
@@ -32,10 +29,8 @@ import Hoard.Types.HoardState (HoardState (..))
 
 run
     :: ( BlockRepo :> es
-       , Chan :> es
        , Clock :> es
        , Conc :> es
-       , Concurrent :> es
        , IOE :> es
        , Log :> es
        , NodeToNode :> es
@@ -45,7 +40,6 @@ run
        , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
-       , Timeout :> es
        )
     => Eff es ()
 run = do
@@ -55,10 +49,8 @@ run = do
 
 runListeners
     :: ( BlockRepo :> es
-       , Chan :> es
        , Clock :> es
        , Conc :> es
-       , Concurrent :> es
        , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -67,7 +59,6 @@ runListeners
        , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
-       , Timeout :> es
        )
     => Eff es ()
 runListeners = do
@@ -82,10 +73,8 @@ runListeners = do
 -- - If no peers exist, bootstraps from the hardcoded preview-node peer
 runCollectors
     :: ( BlockRepo :> es
-       , Chan :> es
        , Clock :> es
        , Conc :> es
-       , Concurrent :> es
        , IOE :> es
        , Log :> es
        , NodeToNode :> es
@@ -94,7 +83,7 @@ runCollectors
        , Pub :> es
        , State BlocksBeingFetched :> es
        , State HoardState :> es
-       , Timeout :> es
+       , Sub :> es
        )
     => Eff es ()
 runCollectors = do

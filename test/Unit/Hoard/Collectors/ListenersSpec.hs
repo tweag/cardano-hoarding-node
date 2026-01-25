@@ -1,9 +1,11 @@
 module Unit.Hoard.Collectors.ListenersSpec (spec_Collectors_Listeners) where
 
+import Data.Dynamic (fromDynamic)
 import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
 import Effectful (runPureEff)
 import Effectful.State.Static.Shared (evalState, execState)
+import Effectful.Writer.Static.Shared (runWriter)
 import Ouroboros.Consensus.Block (GetHeader (getHeader))
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (BlockShelley))
 import Ouroboros.Network.Block (Tip (TipGenesis))
@@ -18,13 +20,13 @@ import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collectors.Listeners (pickBlockFetchRequest)
 import Hoard.Collectors.State (BlocksBeingFetched (..))
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (runBlockRepoState)
 import Hoard.Effects.Input (runInputConst)
-import Hoard.Effects.Output (runOutputList)
+import Hoard.Effects.Publishing (runPubWriter)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
@@ -104,11 +106,16 @@ spec_Collectors_Listeners = do
             reqs `shouldBe` []
             blocksBeingFetched `shouldBe` BlocksBeingFetched initialBbf
   where
+    runEff :: Set BlockHash -> [Block] -> (BlocksBeingFetched, [BlockFetchRequest])
     runEff bbf db =
-        runPureEff
-            . runOutputList
-            . runInputConst headerReceived
-            . execState (BlocksBeingFetched bbf)
-            . evalState db
-            . runBlockRepoState
-            $ pickBlockFetchRequest
+        let (blocksBeingFetched, events) =
+                runPureEff
+                    . runWriter
+                    . runPubWriter
+                    . runInputConst headerReceived
+                    . execState (BlocksBeingFetched bbf)
+                    . evalState db
+                    . runBlockRepoState
+                    $ pickBlockFetchRequest testPeer.id headerReceived
+            reqs = mapMaybe fromDynamic events
+        in  (blocksBeingFetched, reqs)

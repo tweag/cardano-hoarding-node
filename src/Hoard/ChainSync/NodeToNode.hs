@@ -33,7 +33,6 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip)
 import Hoard.Types.HoardState (HoardState (..))
@@ -48,11 +47,10 @@ miniProtocol
        )
     => (forall x. Eff es x -> IO x)
     -> Config
-    -> NodeToNode.Config (Eff es)
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf n2nConf codecs peer =
+miniProtocol unlift conf codecs peer =
     MiniProtocol
         { miniProtocolNum = chainSyncMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -63,7 +61,7 @@ miniProtocol unlift conf n2nConf codecs peer =
                     \_ ->
                         let codec = cChainSyncCodec codecs
                             -- Note: Exception logging added inside chainSyncClientImpl via Effect
-                            chainSyncClient = client unlift n2nConf peer
+                            chainSyncClient = client unlift peer
                         in  (nullTracer, codec, chainSyncClient)
         }
 
@@ -85,10 +83,9 @@ client
        , State HoardState :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> NodeToNode.Config (Eff es)
     -> Peer
     -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
-client unlift n2nConf peer =
+client unlift peer =
     ClientPipelined $
         Effect $
             unlift $
@@ -133,7 +130,6 @@ client unlift n2nConf peer =
                             , header
                             , tip
                             }
-                n2nConf.emitFetchedHeader event
                 publish event
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
