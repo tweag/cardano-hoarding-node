@@ -33,7 +33,7 @@ data BlockFetchRequest = BlockFetchRequest
     , timestamp :: UTCTime
     , header :: CardanoHeader
     }
-    deriving (Typeable)
+    deriving (Typeable, Eq, Show)
 
 
 data BlockReceived = BlockReceived

@@ -7,6 +7,7 @@ import Hoard.Data.BlockHash (BlockHash)
 
 
 newtype BlocksBeingFetched = BlocksBeingFetched {blocksBeingFetched :: (Set BlockHash)}
+    deriving stock (Eq, Show)
 
 
 instance Default BlocksBeingFetched where
