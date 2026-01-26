@@ -275,6 +275,7 @@ test-suite hoard-test
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
+      Unit.Hoard.Collectors.ListenersSpec
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.LogSpec

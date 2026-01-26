@@ -2,6 +2,7 @@ module Hoard.Collectors.Listeners
     ( dispatchDiscoveredNodes
     , collectorEvent
     , bracketCollector
+    , pickBlockFetchRequest
     ) where
 
 import Data.Set qualified as S
@@ -187,7 +188,7 @@ collectFromPeer peer = do
             publish $ CollectorStarted peer.address
             publish $ ConnectingToPeer peer.address
 
-            Conc.fork_ pickBlockFetchRequest
+            Conc.fork_ $ forever pickBlockFetchRequest
             _conn <-
                 connectToPeer $
                     NodeToNode.Config
@@ -211,8 +212,8 @@ pickBlockFetchRequest
        , State BlocksBeingFetched :> es
        , Output BlockFetchRequest :> es
        )
-    => Eff es Void
-pickBlockFetchRequest = forever do
+    => Eff es ()
+pickBlockFetchRequest = do
     event <- input
     let hash = blockHashFromHeader event.header
     -- This check can be implemented in 2 thread-safe ways, as far as we know:
@@ -235,7 +236,7 @@ pickBlockFetchRequest = forever do
                 (False, s)
     when fetchTheBlock do
         existingBlock <- BlockRepo.getBlock event.header
-        if (isJust existingBlock)
+        if (isNothing existingBlock)
             then
                 output
                     BlockFetchRequest

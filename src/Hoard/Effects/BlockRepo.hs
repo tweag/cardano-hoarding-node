@@ -3,6 +3,7 @@ module Hoard.Effects.BlockRepo
     , insertBlocks
     , getBlock
     , runBlockRepo
+    , runBlockRepoState
     ) where
 
 import Effectful (Eff, Effect, (:>))
@@ -12,7 +13,9 @@ import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
 import Rel8 (lit, where_, (==.))
 import Rel8 qualified
+import Prelude hiding (State, gets, modify)
 
+import Effectful.State.Static.Shared (State, gets, modify)
 import Hasql.Statement (Statement)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.DB.Schemas.Blocks qualified as Blocks
@@ -70,3 +73,9 @@ getBlockQuery header =
     extractSingleBlock = \case
         [x] -> Just x
         _ -> Nothing
+
+
+runBlockRepoState :: (State [Block] :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepoState = interpret_ \case
+    InsertBlocks blocks -> modify $ (blocks <>)
+    GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
