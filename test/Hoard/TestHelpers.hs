@@ -47,6 +47,7 @@ import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.KeepAlive.Config ()
+import Hoard.PeerSharing.Config ()
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig (..)
@@ -59,7 +60,6 @@ import Hoard.Types.Environment
     , LogConfig
     , MonitoringConfig (..)
     , NodeSocketsConfig (Local)
-    , PeerSharingConfig (..)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
@@ -113,12 +113,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let cardanoProtocols =
             CardanoProtocolsConfig
-                { peerSharing =
-                    PeerSharingConfig
-                        { requestIntervalMicroseconds = 3_600_000_000
-                        , requestAmount = 100
-                        , maximumIngressQueue = 1000
-                        }
+                { peerSharing = def
                 , keepAlive = def
                 , blockFetch = def
                 , chainSync = def

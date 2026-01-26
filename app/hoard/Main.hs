@@ -32,6 +32,7 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Listeners (runListeners)
 import Hoard.Monitoring qualified as Monitoring
+import Hoard.PeerSharing qualified as PeerSharing
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
 import Hoard.Triggers (runTriggers)
@@ -70,6 +71,7 @@ main =
             runServer
             runListeners
             runTriggers
+            PeerSharing.run
             ChainSync.run
             BlockFetch.run
             Monitoring.run

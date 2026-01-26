@@ -8,7 +8,6 @@ module Hoard.Types.Environment
 
       -- * Cardano protocol configuration
     , CardanoProtocolsConfig (..)
-    , PeerSharingConfig (..)
     , TxSubmissionConfig (..)
 
       -- * Cardano protocol handles
@@ -44,6 +43,7 @@ import Ouroboros.Network.IOManager (IOManager)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
 import Hoard.KeepAlive.Config qualified as KeepAlive
+import Hoard.PeerSharing.Config qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
@@ -101,7 +101,7 @@ data Config = Config
 
 -- | Cardano protocol configuration
 data CardanoProtocolsConfig = CardanoProtocolsConfig
-    { peerSharing :: PeerSharingConfig
+    { peerSharing :: PeerSharing.Config
     , keepAlive :: KeepAlive.Config
     , blockFetch :: BlockFetch.Config
     , chainSync :: ChainSync.Config
@@ -109,19 +109,6 @@ data CardanoProtocolsConfig = CardanoProtocolsConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake CardanoProtocolsConfig
-
-
--- | Peer sharing protocol configuration
-data PeerSharingConfig = PeerSharingConfig
-    { requestIntervalMicroseconds :: Int
-    -- ^ Interval between peer sharing requests
-    , requestAmount :: Int
-    -- ^ Number of peer addresses to request per query
-    , maximumIngressQueue :: Int
-    -- ^ Max bytes queued in ingress queue
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake PeerSharingConfig
 
 
 -- | Transaction submission configuration
