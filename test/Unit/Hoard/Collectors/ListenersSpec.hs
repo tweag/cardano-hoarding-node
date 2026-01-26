@@ -4,7 +4,7 @@ import Data.Dynamic (fromDynamic)
 import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
 import Effectful (runPureEff)
-import Effectful.State.Static.Shared (evalState, execState)
+import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (runWriter)
 import Ouroboros.Consensus.Block (GetHeader (getHeader))
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (BlockShelley))
@@ -18,14 +18,14 @@ import Prelude hiding (evalState, execState)
 import Hoard.BlockFetch.Events (BlockFetchRequest (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collectors.Listeners (pickBlockFetchRequest)
-import Hoard.Collectors.State (BlocksBeingFetched (..))
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (runBlockRepoState)
 import Hoard.Effects.Input (runInputConst)
+import Hoard.Effects.Log (runLogNoOp)
 import Hoard.Effects.Publishing (runPubWriter)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
@@ -83,13 +83,11 @@ spec_Collectors_Listeners :: Spec
 spec_Collectors_Listeners = do
     describe "pickBlockFetchRequest" do
         it "should not issue request for existing block" do
-            let (blocksBeingFetched, reqs) = runEff mempty [dbBlock]
-
+            let reqs = runEff [dbBlock]
             reqs `shouldBe` []
-            blocksBeingFetched `shouldBe` BlocksBeingFetched mempty
 
         it "should issue request for missing block" do
-            let (blocksBeingFetched, reqs) = runEff mempty []
+            let reqs = runEff []
             reqs
                 `shouldBe` [ BlockFetchRequest
                                 { peer = testPeer
@@ -97,25 +95,16 @@ spec_Collectors_Listeners = do
                                 , header = testHeader
                                 }
                            ]
-            blocksBeingFetched
-                `shouldBe` BlocksBeingFetched (one $ blockHashFromHeader testHeader)
-
-        it "should not issue request for block already being fetched" do
-            let initialBbf = one $ blockHashFromHeader testHeader
-                (blocksBeingFetched, reqs) = runEff initialBbf []
-            reqs `shouldBe` []
-            blocksBeingFetched `shouldBe` BlocksBeingFetched initialBbf
   where
-    runEff :: Set BlockHash -> [Block] -> (BlocksBeingFetched, [BlockFetchRequest])
-    runEff bbf db =
-        let (blocksBeingFetched, events) =
+    runEff :: [Block] -> [BlockFetchRequest]
+    runEff db =
+        let ((), events) =
                 runPureEff
+                    . runLogNoOp
                     . runWriter
                     . runPubWriter
                     . runInputConst headerReceived
-                    . execState (BlocksBeingFetched bbf)
                     . evalState db
                     . runBlockRepoState
                     $ pickBlockFetchRequest testPeer.id headerReceived
-            reqs = mapMaybe fromDynamic events
-        in  (blocksBeingFetched, reqs)
+        in  mapMaybe fromDynamic events

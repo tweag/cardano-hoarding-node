@@ -9,7 +9,7 @@ import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log)
+import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
 
@@ -22,7 +22,7 @@ run
        , Sub :> es
        )
     => Eff es ()
-run = runListeners
+run = withNamespace "BlockFetch" $ runListeners
 
 
 runListeners

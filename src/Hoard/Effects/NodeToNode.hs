@@ -231,7 +231,7 @@ mkApplication
 mkApplication unlift env codecs peer =
     OuroborosApplication
         [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
-        , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch codecs peer
+        , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch codecs peer
         , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
         , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)

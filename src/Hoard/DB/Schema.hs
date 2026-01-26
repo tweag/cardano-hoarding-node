@@ -1,6 +1,7 @@
 module Hoard.DB.Schema
     ( mkSchema
     , hoardSchema
+    , countRows
     )
 where
 
@@ -13,6 +14,8 @@ import Rel8
 import Text.Casing (quietSnake)
 
 import Data.List.NonEmpty qualified as NonEmpty
+import Effectful
+import Hoard.Effects.DBRead (DBRead, runQuery)
 import Rel8 qualified
 
 
@@ -40,3 +43,13 @@ mkSchema tableName =
                 @(row Name)
                 (quietSnake . NonEmpty.last)
         }
+
+
+countRows :: (Rel8able row, DBRead :> es) => TableSchema (row Name) -> Eff es Int
+countRows schema =
+    runQuery ("countRows[" <> toText schema.name.name <> "]") $
+        fmap fromIntegral $
+            Rel8.run1 $
+                Rel8.select $
+                    Rel8.aggregate Rel8.countStar $
+                        Rel8.each schema

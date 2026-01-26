@@ -13,7 +13,6 @@ import Prelude hiding (Reader, State, asks, gets, modify, state)
 
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collectors.Listeners qualified as Listeners
-import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
@@ -37,7 +36,6 @@ run
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        )
@@ -56,7 +54,6 @@ runListeners
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        )
@@ -81,7 +78,6 @@ runCollectors
        , Reader Config :> es
        , PeerRepo :> es
        , Pub :> es
-       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        )
