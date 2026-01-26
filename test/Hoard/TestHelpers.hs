@@ -46,6 +46,7 @@ import Hoard.ChainSync.Config ()
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
+import Hoard.KeepAlive.Config ()
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig (..)
@@ -54,7 +55,6 @@ import Hoard.Types.Environment
     , Config (..)
     , Env (..)
     , Handles (..)
-    , KeepAliveConfig (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
     , LogConfig
     , MonitoringConfig (..)
@@ -119,11 +119,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                         , requestAmount = 100
                         , maximumIngressQueue = 1000
                         }
-                , keepAlive =
-                    KeepAliveConfig
-                        { intervalMicroseconds = 10_000_000
-                        , maximumIngressQueue = 1000
-                        }
+                , keepAlive = def
                 , blockFetch = def
                 , chainSync = def
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}

@@ -68,6 +68,8 @@ library
       Hoard.Events.HeaderReceived
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
+      Hoard.KeepAlive.Config
+      Hoard.KeepAlive.NodeToNode
       Hoard.Listeners
       Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
