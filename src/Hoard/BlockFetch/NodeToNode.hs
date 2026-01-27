@@ -104,13 +104,10 @@ client unlift cfg handles peer =
         Log.debug "BlockFetch: Published BlockFetchStarted event"
         Log.debug "BlockFetch: Starting client, awaiting block download requests"
 
-        -- Create local channel for this peer's requests
         (inChan, outChan) <- Chan.newChan
 
-        -- Fork listener: global events → filter → local channel
-        Conc.fork_ $ listen \(req :: BlockFetchRequest) ->
-            when (req.peer.id == peer.id) $
-                Chan.writeChan inChan req
+        Conc.fork_ $ listen \req ->
+            when (req.peer.id == peer.id) $ Chan.writeChan inChan req
 
         awaitMessage outChan
   where

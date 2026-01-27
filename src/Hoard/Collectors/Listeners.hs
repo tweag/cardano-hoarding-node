@@ -10,14 +10,19 @@ import Data.Time (diffUTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify, stateM)
+import Effectful.State.Static.Shared (State, modify, state, stateM)
+import Hoard.ChainSync.Events (HeaderReceived (..))
+import Hoard.Collectors.State (BlocksBeingFetched (..))
+import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Prelude hiding (Reader, State, asks, modify, state)
 
-import Hoard.BlockFetch.Listeners (pickBlockFetchRequest)
+import Hoard.BlockFetch.Events
 import Hoard.Collectors.Events (CollectorEvent (..))
-import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
-import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
@@ -165,7 +170,7 @@ collectFromPeer peer = do
     publish $ ConnectingToPeer peer.address
 
     Conc.fork_ $ listen (pickBlockFetchRequest peer.id)
-    _conn <- connectToPeer peer
+    _ <- connectToPeer peer
 
     publish $ ConnectedToPeer peer.address
 
@@ -180,3 +185,49 @@ isPeerEligible peer = do
         Just failureTime ->
             let timeSinceFailure = diffUTCTime currentTime failureTime
             in  pure $ timeSinceFailure >= cooldown
+
+
+-- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
+--
+-- Filters events by peer ID and publishes block fetch requests for headers
+-- that are not already being fetched and not in the database.
+pickBlockFetchRequest
+    :: ( BlockRepo :> es
+       , State BlocksBeingFetched :> es
+       , Pub :> es
+       )
+    => ID Peer
+    -> HeaderReceived
+    -> Eff es ()
+pickBlockFetchRequest myPeerId event =
+    when (event.peer.id == myPeerId) do
+        let hash = blockHashFromHeader event.header
+        -- This check can be implemented in 2 thread-safe ways, as far as we know:
+        -- 1. Keep the database check inside the `stateM` operation and ensure
+        --    thread-safety between checking the DB and the `blocksBeingFetched`
+        --    state.
+        -- 2. Check the in-memory `blocksBeingFetched` state first, update
+        --    `blocksBeingFetched` if the hash is not in there, then check the
+        --    database, removing the hash from `blocksBeingFetched` if it is
+        --    already in the database.
+        --
+        -- We decided to use option 2 to prevent having the database check inside
+        -- `state`/`stateM`, which would drastically increase the time spent in the
+        -- critical section `state`/`stateM` provides us.
+        fetchTheBlock <- state \s ->
+            if hash `S.notMember` s.blocksBeingFetched
+                then
+                    (True, BlocksBeingFetched $ S.insert hash s.blocksBeingFetched)
+                else
+                    (False, s)
+        when fetchTheBlock do
+            existingBlock <- BlockRepo.getBlock event.header
+            if (isNothing existingBlock)
+                then
+                    publish
+                        BlockFetchRequest
+                            { timestamp = event.timestamp
+                            , header = event.header
+                            , peer = event.peer
+                            }
+                else modify \s -> BlocksBeingFetched $ S.delete hash s.blocksBeingFetched
