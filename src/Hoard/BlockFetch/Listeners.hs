@@ -14,7 +14,7 @@ import Ouroboros.Consensus.Block
     , blockSlot
     , getHeader
     )
-import Prelude hiding (State, modify)
+import Prelude hiding (State, modify, state)
 
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
@@ -26,7 +26,8 @@ import Hoard.Collectors.State (BlocksBeingFetched (..))
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.PoolID (mkPoolID)
-import Hoard.Effects.BlockRepo (BlockRepo, insertBlocks)
+import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 
@@ -44,7 +45,7 @@ blockReceived :: (Log :> es, State BlocksBeingFetched :> es, BlockRepo :> es) =>
 blockReceived event = do
     Log.info "📦 Block received!"
     let block = extractBlockData event
-    insertBlocks [block]
+    BlockRepo.insertBlocks [block]
     modify $ coerce Set.delete block.hash
     Log.debug $ "Persisted block: " <> show block.hash
 

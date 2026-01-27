@@ -4,6 +4,7 @@ import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.QSem (signalQSem, waitQSem)
+import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -20,7 +21,7 @@ import Ouroboros.Network.NodeToNode
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
-import Prelude hiding (Reader, State, asks, evalState)
+import Prelude hiding (State, evalState, get, modify)
 
 import Hoard.BlockFetch.Config (Config (..), Handles (..))
 import Hoard.BlockFetch.Events
@@ -32,36 +33,42 @@ import Hoard.BlockFetch.Events
     )
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Chan (Chan, readChanBatched)
+import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
-import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
 
 miniProtocol
-    :: ( Clock :> es
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
        , Concurrent :> es
        , Log :> es
        , Pub :> es
+       , Sub :> es
+       , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
     -> Handles
-    -> NodeToNode.Config (Eff es)
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf handles n2nConf codecs peer =
+miniProtocol unlift conf handles codecs peer =
     MiniProtocol
         { miniProtocolNum = blockFetchMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
-                blockFetchClient = client unlift handles n2nConf peer
+                blockFetchClient = client unlift conf handles peer
                 tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                     Log.debug "BlockFetch protocol started"
@@ -70,33 +77,42 @@ miniProtocol unlift conf handles n2nConf codecs peer =
         }
 
 
--- | Create a BlockFetch client that fetches blocks on request over a channel.
---
--- This client:
+-- | Create a BlockFetch client that fetches blocks on requests over events.
 client
     :: forall es
-     . ( Clock :> es
+     . ( Chan :> es
+       , Clock :> es
+       , Conc :> es
        , Concurrent :> es
        , Log :> es
        , Pub :> es
+       , Sub :> es
+       , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
+    -> Config
     -> Handles
-    -> NodeToNode.Config (Eff es)
     -> Peer
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
-client unlift handles n2nConf peer =
+client unlift cfg handles peer =
     BlockFetch.BlockFetchClient $ unlift $ do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted {peer, timestamp}
         Log.debug "BlockFetch: Published BlockFetchStarted event"
         Log.debug "BlockFetch: Starting client, awaiting block download requests"
-        awaitMessage
+
+        (inChan, outChan) <- Chan.newChan
+
+        Conc.fork_ $ listen \(req :: BlockFetchRequest) ->
+            when (req.peer.id == peer.id) $ Chan.writeChan inChan req
+
+        awaitMessage outChan
   where
-    awaitMessage :: Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
-    awaitMessage = do
+    awaitMessage outChan = do
         waitQSem handles.qSem
-        reqs <- n2nConf.awaitBlockFetchRequests
+
+        reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
+
         Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
@@ -105,7 +121,7 @@ client unlift handles n2nConf peer =
             $ BlockFetch.SendMsgRequestRange
                 (BlockFetch.ChainRange start end)
                 (handleResponse reqs)
-            $ client unlift handles n2nConf peer
+            $ client unlift cfg handles peer
 
     handleResponse reqs =
         BlockFetch.BlockFetchResponse
@@ -134,7 +150,6 @@ client unlift handles n2nConf peer =
                             , timestamp
                             , block
                             }
-                n2nConf.emitFetchedBlock event
                 publish event
                 pure $ blockReceiver $ blockCount + 1
             , handleBatchDone = unlift $ do

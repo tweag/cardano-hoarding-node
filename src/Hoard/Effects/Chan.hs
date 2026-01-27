@@ -16,13 +16,17 @@ module Hoard.Effects.Chan
       -- to maintain abstraction boundaries.
     , InChan
     , OutChan
+    , readChanBatched
     ) where
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import Control.Concurrent.Chan.Unagi qualified as Unagi
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.State.Static.Shared (evalState, get, modify)
 import Effectful.TH (makeEffect)
+import Effectful.Timeout (Timeout, timeout)
+import Prelude hiding (evalState, get, modify)
 
 
 -- | Effect for creating and operating on bidirectional channels.
@@ -57,3 +61,32 @@ runChan = interpret $ \_ -> \case
     ReadChan outChan -> liftIO $ Unagi.readChan outChan
     WriteChan inChan val -> liftIO $ Unagi.writeChan inChan val
     DupChan inChan -> liftIO $ Unagi.dupChan inChan
+
+
+-- | Read a batch of items from a channel.
+--
+-- Blocks until at least one item is available, then attempts to read
+-- up to @batchSize@ items total within the given timeout. Always returns
+-- at least one item.
+readChanBatched
+    :: forall a es
+     . ( Chan :> es
+       , Timeout :> es
+       )
+    => Int
+    -- ^ Timeout in microseconds for reading additional items after the first
+    -> Int
+    -- ^ Maximum number of items to read (batch size)
+    -> OutChan a
+    -- ^ Channel to read from
+    -> Eff es (NonEmpty a)
+    -- ^ Non-empty batch of items (at least one, up to batch size)
+readChanBatched timeoutMicroseconds batchSize outChan = do
+    evalState @[a] [] $ do
+        h <- readChan outChan -- blocking, get first item
+        _ <- timeout timeoutMicroseconds $
+            replicateM_ (batchSize - 1) $ do
+                x <- readChan outChan
+                modify (x :)
+        rest <- get
+        pure $ h :| reverse rest

@@ -5,16 +5,14 @@ module Hoard.Effects.Input
     , runInputConst
     , runInputChan
     , runInputList
-    , runTimedBatchedInput
     ) where
 
 import Effectful (Eff, Effect, inject, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.State.Static.Shared (evalState, get, modify, state)
+import Effectful.State.Static.Shared (evalState, state)
 import Effectful.TH (makeEffect)
 import Prelude hiding (State, atomically, evalState, get, modify, state)
 
-import Effectful.Timeout (Timeout, timeout)
 import Hoard.Effects.Chan (Chan, OutChan)
 import Hoard.Effects.Chan qualified as Chan
 
@@ -52,30 +50,5 @@ runInputList items =
             ( state $ \case
                 x :| [] -> (x, items)
                 x :| (y : ys) -> (x, y :| ys)
-            )
-        . inject
-
-
-runTimedBatchedInput
-    :: forall a es x
-     . (Input a :> es, Timeout :> es)
-    => Int
-    -- ^ Batch size
-    -> Int
-    -- ^ Timeout in microseconds
-    -> Eff (Input (NonEmpty a) : es) x
-    -> Eff es x
-runTimedBatchedInput size delay =
-    evalState @[a] []
-        . interpret_
-            ( \Input -> do
-                h <- input -- Get first item (blocking, no timeout)
-                _ <- timeout delay $
-                    replicateM_ (size - 1) do
-                        x <- input @a
-                        modify (x :)
-
-                (rest :: [a]) <- get
-                pure $ h :| reverse rest
             )
         . inject

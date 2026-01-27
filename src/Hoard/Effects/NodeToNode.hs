@@ -7,7 +7,6 @@
 module Hoard.Effects.NodeToNode
     ( -- * Effect
       NodeToNode
-    , Config (..)
     , connectToPeer
 
       -- * Interpreter
@@ -20,11 +19,12 @@ import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Dispatch.Dynamic (interpret, localUnlift)
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
+import Effectful.Timeout (Timeout)
 import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
@@ -60,13 +60,13 @@ import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Conc (concStrat)
+import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
-import Hoard.Effects.NodeToNode.Config (Config (..))
-import Hoard.Effects.Publishing (Pub)
+import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
 import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
@@ -84,7 +84,7 @@ import Hoard.Types.NodeIP (NodeIP (..))
 --
 -- Provides operations to connect to peers, disconnect, and check connection status.
 data NodeToNode :: Effect where
-    ConnectToPeer :: Config m -> NodeToNode m Void
+    ConnectToPeer :: Peer -> NodeToNode m Void
 
 
 -- Generate smart constructors using Template Haskell
@@ -99,7 +99,9 @@ makeEffect ''NodeToNode
 --
 -- This handler establishes actual network connections and spawns protocol threads.
 runNodeToNode
-    :: ( Clock :> es
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
        , Concurrent :> es
        , Error Text :> es
        , IOE :> es
@@ -107,137 +109,99 @@ runNodeToNode
        , Pub :> es
        , Reader Env :> es
        , State HoardState :> es
+       , Sub :> es
+       , Timeout :> es
        )
     => Eff (NodeToNode : es) a
     -> Eff es a
 runNodeToNode =
-    interpret $ \env -> \case
-        ConnectToPeer conf -> localUnlift env concStrat \unlift ->
-            connectToPeerImpl $ hoistConfig unlift conf
+    interpret $ \_ -> \case
+        ConnectToPeer peer -> do
+            env <- ask
+            let protocolInfo = env.config.protocolInfo
+                ioManager = env.handles.ioManager
+            let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
+            -- Create connection using ouroboros-network
+            Log.debug $ "Attempting connection to " <> show addr
 
+            Log.debug "Creating snocket..."
+            let snocket = socketSnocket ioManager
 
-hoistConfig :: (forall x. Eff localEs x -> Eff es x) -> Config (Eff localEs) -> Config (Eff es)
-hoistConfig unlift conf =
-    Config
-        { awaitBlockFetchRequests = unlift conf.awaitBlockFetchRequests
-        , emitFetchedHeader = unlift . conf.emitFetchedHeader
-        , emitFetchedBlock = unlift . conf.emitFetchedBlock
-        , peer = conf.peer
-        }
+            -- Load protocol info and create codecs
+            Log.debug "Loading protocol configuration..."
+            let codecConfig = configCodec (pInfoConfig protocolInfo)
+            let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
+            -- Get all supported versions
+            let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
---------------------------------------------------------------------------------
--- Implementation Functions
---------------------------------------------------------------------------------
+            Log.debug "Creating version-specific codecs and applications..."
 
--- | Implementation of connectToPeer.
---
--- This implementation:
--- 1. Resolves the peer's address
--- 2. Creates an IOManager and Snocket
--- 3. Constructs version negotiation data
--- 4. Creates mini-protocol applications
--- 5. Connects using ouroboros-network's connectTo
--- 6. Publishes connection events
-connectToPeerImpl
-    :: forall es
-     . ( Clock :> es
-       , Concurrent :> es
-       , Error Text :> es
-       , IOE :> es
-       , Log :> es
-       , Pub :> es
-       , Reader Env :> es
-       , State HoardState :> es
-       )
-    => Config (Eff es)
-    -> Eff es Void
-connectToPeerImpl conf = do
-    env <- ask
-    let protocolInfo = env.config.protocolInfo
-        ioManager = env.handles.ioManager
-    let addr = IP.toSockAddr (getNodeIP conf.peer.address.host, fromIntegral conf.peer.address.port)
-    -- Create connection using ouroboros-network
-    Log.debug $ "Attempting connection to " <> show addr
+            -- Create version data for handshake
+            let versionData =
+                    NodeToNodeVersionData
+                        { networkMagic
+                        , diffusionMode = InitiatorOnlyDiffusionMode
+                        , peerSharing = PeerSharingEnabled -- Enable peer sharing
+                        , query = False
+                        }
 
-    Log.debug "Creating snocket..."
-    let snocket = socketSnocket ioManager
+            -- Helper function to create application for a specific version
+            let strat = ConcUnlift Persistent Unlimited
+                mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
+                    let codecs =
+                            hoistCodecs liftIO $
+                                defaultCodecs
+                                    codecConfig
+                                    blockVersion
+                                    encodeRemoteAddress
+                                    (\v -> decodeRemoteAddress v)
+                                    nodeVersion
+                    in  mkApplication unlift env codecs peer
 
-    -- Load protocol info and create codecs
-    Log.debug "Loading protocol configuration..."
-    let codecConfig = configCodec (pInfoConfig protocolInfo)
-    let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
+            -- Create versions for negotiation - offer all supported versions
+            Log.debug "Creating protocol versions..."
+            let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
+                    simpleSingletonVersions
+                        version
+                        versionData
+                        (\_ -> mkVersionedApp unlift version blockVersion)
 
-    -- Get all supported versions
-    let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
+            -- Create versions for all supported protocol versions
+            let versions (unlift :: forall x. Eff es x -> IO x) =
+                    combineVersions
+                        [ mkVersions unlift nodeVersion blockVersion
+                        | (nodeVersion, blockVersion) <- Map.toList supportedVersions
+                        ]
 
-    Log.debug "Creating version-specific codecs and applications..."
+            Log.debug "Codecs created successfully"
+            adhocTracers <- withEffToIO strat $ \unlift ->
+                pure $
+                    nullNetworkConnectTracers
+                        { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
+                        }
 
-    -- Create version data for handshake
-    let versionData =
-            NodeToNodeVersionData
-                { networkMagic
-                , diffusionMode = InitiatorOnlyDiffusionMode
-                , peerSharing = PeerSharingEnabled -- Enable peer sharing
-                , query = False
-                }
+            -- Connect to the peer
+            Log.debug "Calling connectTo..."
+            result <- do
+                withEffToIO strat $ \unlift ->
+                    connectTo
+                        snocket
+                        adhocTracers
+                        (versions unlift)
+                        Nothing -- No local address binding
+                        addr
 
-    -- Helper function to create application for a specific version
-    let strat = ConcUnlift Persistent Unlimited
-        mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
-            let codecs =
-                    hoistCodecs liftIO $
-                        defaultCodecs
-                            codecConfig
-                            blockVersion
-                            encodeRemoteAddress
-                            (\v -> decodeRemoteAddress v)
-                            nodeVersion
-            in  mkApplication unlift env conf codecs conf.peer
+            Log.debug "connectTo returned!"
 
-    -- Create versions for negotiation - offer all supported versions
-    Log.debug "Creating protocol versions..."
-    let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
-            simpleSingletonVersions
-                version
-                versionData
-                (\_ -> mkVersionedApp unlift version blockVersion)
-
-    -- Create versions for all supported protocol versions
-    let versions (unlift :: forall x. Eff es x -> IO x) =
-            combineVersions
-                [ mkVersions unlift nodeVersion blockVersion
-                | (nodeVersion, blockVersion) <- Map.toList supportedVersions
-                ]
-
-    Log.debug "Codecs created successfully"
-    adhocTracers <- withEffToIO strat $ \unlift ->
-        pure $
-            nullNetworkConnectTracers
-                { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
-                }
-
-    -- Connect to the peer
-    Log.debug "Calling connectTo..."
-    result <- do
-        withEffToIO strat $ \unlift ->
-            connectTo
-                snocket
-                adhocTracers
-                (versions unlift)
-                Nothing -- No local address binding
-                addr
-
-    Log.debug "connectTo returned!"
-
-    case result of
-        Left err -> do
-            throwError $ "Failed to connect to peer " <> show conf.peer <> ": " <> show err
-        Right (Left ()) -> do
-            throwError "Connection closed unexpectedly"
-        Right (Right _) -> do
-            -- This shouldn't happen with InitiatorOnly mode
-            throwError "Unexpected responder mode result"
+            case result of
+                Left err -> do
+                    throwError $ "Failed to connect to peer " <> show peer <> ": " <> show err
+                Right (Left ()) -> do
+                    throwError "Connection closed unexpectedly"
+                Right (Right _) -> do
+                    -- This shouldn't happen with InitiatorOnly mode
+                    throwError "Unexpected responder mode result"
 
 
 --------------------------------------------------------------------------------
@@ -249,22 +213,25 @@ connectToPeerImpl conf = do
 -- This bundles together ChainSync, BlockFetch, and KeepAlive protocols into
 -- an application that runs over the multiplexed connection.
 mkApplication
-    :: ( Clock :> es
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
        , Concurrent :> es
        , Log :> es
        , Pub :> es
        , State HoardState :> es
+       , Sub :> es
+       , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Env
-    -> Config (Eff es)
     -> CardanoCodecs
     -> Peer
     -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication unlift env conf codecs peer =
+mkApplication unlift env codecs peer =
     OuroborosApplication
-        [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync conf codecs peer
-        , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch conf codecs peer
+        [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
+        , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch env.handles.cardanoProtocols.blockFetch codecs peer
         , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
         , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
         , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
