@@ -35,7 +35,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip)
-import Hoard.Types.HoardState (HoardState (..))
+import Hoard.Types.HoardState (ChainPoint (ChainPoint), HoardState (..))
 
 
 -- | ChainSync mini-protocol (pipelined)
@@ -100,7 +100,12 @@ client unlift peer =
                         publish $ ChainSyncStarted {peer, timestamp}
                         Log.debug "Published ChainSyncStarted event"
                         Log.debug "Starting pipelined client, finding intersection from genesis"
-                        initialPoints <- List.singleton . toConsensusPointHF <$> gets (.immutableTip)
+                        initialPoints <-
+                            fmap List.singleton
+                                . fmap toConsensusPointHF
+                                . coerce
+                                . gets @HoardState
+                                $ (.immutableTip)
                         pure (findIntersect initialPoints)
   where
     findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
