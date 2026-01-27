@@ -4,8 +4,7 @@ import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.QSem (signalQSem, waitQSem)
-import Effectful.State.Static.Shared (evalState, get, modify)
-import Effectful.Timeout (Timeout, timeout)
+import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -34,7 +33,7 @@ import Hoard.BlockFetch.Events
     )
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Chan (Chan)
+import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
@@ -78,9 +77,7 @@ miniProtocol unlift conf handles codecs peer =
         }
 
 
--- | Create a BlockFetch client that fetches blocks on request over a channel.
---
--- This client:
+-- | Create a BlockFetch client that fetches blocks on requests over events.
 client
     :: forall es
      . ( Chan :> es
@@ -106,24 +103,15 @@ client unlift cfg handles peer =
 
         (inChan, outChan) <- Chan.newChan
 
-        Conc.fork_ $ listen \req ->
+        Conc.fork_ $ listen \(req :: BlockFetchRequest) ->
             when (req.peer.id == peer.id) $ Chan.writeChan inChan req
 
         awaitMessage outChan
   where
-    awaitMessage :: Chan.OutChan BlockFetchRequest -> Eff es (BlockFetch.BlockFetchRequest CardanoBlock CardanoPoint IO ())
     awaitMessage outChan = do
         waitQSem handles.qSem
 
-        -- Read batches from local channel (similar to runTimedBatchedInput)
-        reqs <- evalState @[BlockFetchRequest] [] $ do
-            h <- Chan.readChan outChan -- blocking, get first item
-            _ <- timeout cfg.batchTimeoutMicroseconds $
-                replicateM_ (cfg.batchSize - 1) $ do
-                    x <- Chan.readChan outChan
-                    modify (x :)
-            rest <- get
-            pure $ h :| reverse rest
+        reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
 
         Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
         let points = headerPoint . (.header) <$> reqs
