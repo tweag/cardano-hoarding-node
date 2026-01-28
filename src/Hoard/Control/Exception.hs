@@ -22,7 +22,7 @@ withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         let msg = protocolName <> ": " <> toText (displayException e)
         if isGracefulShutdown e
-            then Log.info $ "graceful shutdown: " <> msg
+            then Log.debug $ "graceful shutdown: " <> msg
             else Log.err $ "error: " <> msg
         throwIO e
 

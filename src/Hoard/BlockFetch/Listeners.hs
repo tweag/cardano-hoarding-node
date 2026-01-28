@@ -14,7 +14,7 @@ import Ouroboros.Consensus.Block
     , blockSlot
     , getHeader
     )
-import Prelude hiding (State, modify, state)
+import Prelude hiding (State, gets, modify, state)
 
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
@@ -43,8 +43,8 @@ blockFetchStarted event = do
 -- Extracts block data and persists it to the database.
 blockReceived :: (Log :> es, State BlocksBeingFetched :> es, BlockRepo :> es) => BlockReceived -> Eff es ()
 blockReceived event = do
-    Log.info "📦 Block received!"
     let block = extractBlockData event
+    Log.info $ "📦 Block received at slot " <> show block.slotNumber <> " (hash: " <> show block.hash <> ")"
     BlockRepo.insertBlocks [block]
     modify $ coerce Set.delete block.hash
     Log.debug $ "Persisted block: " <> show block.hash

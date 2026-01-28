@@ -121,7 +121,6 @@ client unlift peer =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Received header (RollForward)"
                 timestamp <- Clock.currentTime
                 let event =
                         HeaderReceived
@@ -145,7 +144,6 @@ client unlift peer =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Received header after await (RollForward)"
                     timestamp <- Clock.currentTime
                     publish $
                         HeaderReceived

@@ -47,7 +47,7 @@ chainSyncStarted
     => ChainSyncStarted
     -> Eff es ()
 chainSyncStarted event = do
-    Log.info $ "⛓️  ChainSync protocol started at " <> show event.timestamp
+    Log.debug $ "⛓️  ChainSync protocol started at " <> show event.timestamp
 
 
 -- | Listener that handles ChainSync rollback events

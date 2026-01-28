@@ -10,20 +10,23 @@ import Data.Time (diffUTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify, state, stateM)
-import Hoard.ChainSync.Events (HeaderReceived (..))
-import Hoard.Collectors.State (BlocksBeingFetched (..))
+import Effectful.State.Static.Shared (State, modify, stateM)
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Ouroboros.Consensus.Block
+    ( SlotNo (..)
+    , blockSlot
+    )
 import Prelude hiding (Reader, State, asks, modify, state)
 
-import Hoard.BlockFetch.Events
+import Hoard.BlockFetch.Events (BlockFetchRequest (..))
+import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collectors.Events (CollectorEvent (..))
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
@@ -71,7 +74,6 @@ dispatchDiscoveredNodes
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        )
@@ -112,7 +114,6 @@ bracketCollector
        , PeerRepo :> es
        , Pub :> es
        , Reader Config :> es
-       , State BlocksBeingFetched :> es
        , State HoardState :> es
        , Sub :> es
        )
@@ -158,9 +159,9 @@ bracketCollector peer = do
 collectFromPeer
     :: ( BlockRepo :> es
        , Conc :> es
+       , Log :> es
        , NodeToNode :> es
        , Pub :> es
-       , State BlocksBeingFetched :> es
        , Sub :> es
        )
     => Peer
@@ -187,47 +188,28 @@ isPeerEligible peer = do
             in  pure $ timeSinceFailure >= cooldown
 
 
--- | Re-emit `HeaderReceived` events as `BlockFetchRequests`.
---
 -- Filters events by peer ID and publishes block fetch requests for headers
--- that are not already being fetched and not in the database.
+-- that are not in the database.
 pickBlockFetchRequest
     :: ( BlockRepo :> es
-       , State BlocksBeingFetched :> es
        , Pub :> es
+       , Log :> es
        )
     => ID Peer
     -> HeaderReceived
     -> Eff es ()
 pickBlockFetchRequest myPeerId event =
-    when (event.peer.id == myPeerId) do
+    unless (event.peer.id /= myPeerId) do
         let hash = blockHashFromHeader event.header
-        -- This check can be implemented in 2 thread-safe ways, as far as we know:
-        -- 1. Keep the database check inside the `stateM` operation and ensure
-        --    thread-safety between checking the DB and the `blocksBeingFetched`
-        --    state.
-        -- 2. Check the in-memory `blocksBeingFetched` state first, update
-        --    `blocksBeingFetched` if the hash is not in there, then check the
-        --    database, removing the hash from `blocksBeingFetched` if it is
-        --    already in the database.
-        --
-        -- We decided to use option 2 to prevent having the database check inside
-        -- `state`/`stateM`, which would drastically increase the time spent in the
-        -- critical section `state`/`stateM` provides us.
-        fetchTheBlock <- state \s ->
-            if hash `S.notMember` s.blocksBeingFetched
-                then
-                    (True, BlocksBeingFetched $ S.insert hash s.blocksBeingFetched)
-                else
-                    (False, s)
-        when fetchTheBlock do
-            existingBlock <- BlockRepo.getBlock event.header
-            if (isNothing existingBlock)
-                then
-                    publish
-                        BlockFetchRequest
-                            { timestamp = event.timestamp
-                            , header = event.header
-                            , peer = event.peer
-                            }
-                else modify \s -> BlocksBeingFetched $ S.delete hash s.blocksBeingFetched
+            slot = unSlotNo $ blockSlot event.header
+
+        existingBlock <- BlockRepo.getBlock event.header
+
+        when (isNothing existingBlock) $ do
+            Log.info $ "Publishing block fetch request for slot " <> show slot <> " (hash: " <> show hash <> ")"
+            publish
+                BlockFetchRequest
+                    { timestamp = event.timestamp
+                    , header = event.header
+                    , peer = event.peer
+                    }

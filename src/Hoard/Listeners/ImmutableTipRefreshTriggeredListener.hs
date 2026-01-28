@@ -23,9 +23,9 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = refreshImmut
 -- If fetching the tip fails due to a connection error, it retries once to reconnect and fetch.
 refreshImmutableTip :: (Log :> es, NodeToClient :> es, State HoardState :> es) => Eff es ()
 refreshImmutableTip = do
-    Log.debug "Fetching immutable tip from cardano-node..."
+    Log.info "Fetching immutable tip from cardano-node..."
     NodeToClient.immutableTip >>= \case
-        Nothing -> pure ()
+        Nothing -> Log.warn "Failed to fetch immutable tip from cardano-node (connection may be down)"
         Just tip -> do
-            Log.debug ("Immutable tip: " <> show tip)
+            Log.info ("Immutable tip updated: " <> show tip)
             modify (\hoardState -> hoardState {immutableTip = tip})
