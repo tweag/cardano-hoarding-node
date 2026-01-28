@@ -11,6 +11,7 @@ import Servant.Server.Generic (AsServerT)
 import Prelude hiding (appendFile, readFile)
 
 import Hoard.Effects ((::>))
+import Hoard.Effects.Metrics (Metrics, exportMetrics)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 
@@ -18,6 +19,7 @@ import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 -- | Named routes for the API
 data Routes mode = Routes
     { receiveHeader :: mode :- "header" :> ReqBody '[JSON] Header :> Post '[JSON] NoContent
+    , metrics :: mode :- "metrics" :> Get '[PlainText] Text
     }
     deriving (Generic)
 
@@ -27,10 +29,11 @@ type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
-server :: (Pub ::> es) => Routes (AsServerT (Eff es))
+server :: (Pub ::> es, Metrics ::> es) => Routes (AsServerT (Eff es))
 server =
     Routes
         { receiveHeader = headerHandler
+        , metrics = exportMetrics
         }
 
 

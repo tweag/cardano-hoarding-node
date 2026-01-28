@@ -19,7 +19,7 @@ import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
-import Effectful.Dispatch.Dynamic (interpret)
+import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
@@ -115,7 +115,7 @@ runNodeToNode
     => Eff (NodeToNode : es) a
     -> Eff es a
 runNodeToNode =
-    interpret $ \_ -> \case
+    interpret_ \case
         ConnectToPeer peer -> do
             env <- ask
             let protocolInfo = env.config.protocolInfo

@@ -24,6 +24,7 @@ import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv, runConfigReader, runHandlesReader)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.Log (runLog)
+import Hoard.Effects.Metrics (runMetrics)
 import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
@@ -61,6 +62,7 @@ main =
         . evalState @HoardState def
         . evalState @BlocksBeingFetched def
         . runNodeToNode
+        . runMetrics
         . runDBRead
         . runDBWrite
         . runHeaderRepo

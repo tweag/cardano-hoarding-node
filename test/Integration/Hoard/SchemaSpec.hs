@@ -1,5 +1,6 @@
 module Integration.Hoard.SchemaSpec (spec_Schema) where
 
+import Data.Time (UTCTime (..))
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
@@ -11,27 +12,33 @@ import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
+import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
 spec_Schema :: Spec
 spec_Schema = withCleanTestDatabase $ do
+    let testTime = UTCTime (toEnum 0) 0
+
     describe "Schema" $ do
         it "is correctly mapped" $ \config -> do
-            weakTestSchema config PeersSchema.schema
-            weakTestSchema config HeaderReceiptsSchema.schema
-            weakTestSchema config HeadersSchema.schema
-            weakTestSchema config BlocksSchema.schema
+            weakTestSchema config testTime PeersSchema.schema
+            weakTestSchema config testTime HeaderReceiptsSchema.schema
+            weakTestSchema config testTime HeadersSchema.schema
+            weakTestSchema config testTime BlocksSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors
-    weakTestSchema config schema = do
+    weakTestSchema config testTime schema = do
         let query = Rel8.run $ Rel8.select $ Rel8.each schema
         result <-
             runEff
                 . runErrorNoCallStack @Text
                 . runReader config.pools
+                . runMetricsNoOp
+                . runClockConst testTime
                 . runDBRead
                 $ runQuery "weak-schema-test" query
 

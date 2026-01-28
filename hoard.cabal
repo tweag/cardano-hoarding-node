@@ -55,6 +55,9 @@ library
       Hoard.Effects.HeaderRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
+      Hoard.Effects.Metrics
+      Hoard.Effects.Metrics.Definitions
+      Hoard.Effects.Metrics.Registry
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.Codecs
@@ -153,6 +156,8 @@ library
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , prometheus-client
+    , prometheus-metrics-ghc
     , rel8
     , relude
     , serialise
@@ -200,7 +205,7 @@ executable hoard-exe
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -with-rtsopts=-N -with-rtsopts=-T
   build-depends:
       aeson
     , async
@@ -240,6 +245,8 @@ executable hoard-exe
     , ouroboros-network-api
     , ouroboros-network-framework
     , ouroboros-network-protocols
+    , prometheus-client
+    , prometheus-metrics-ghc
     , rel8
     , relude
     , serialise
@@ -352,6 +359,8 @@ test-suite hoard-test
     , ouroboros-network-protocols
     , postgres-options
     , process
+    , prometheus-client
+    , prometheus-metrics-ghc
     , rel8
     , relude
     , serialise

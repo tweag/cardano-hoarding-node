@@ -17,31 +17,37 @@ import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
 spec_HeaderPersistence :: Spec
 spec_HeaderPersistence = do
-    let runWrite config action =
+    let runWrite config testTime action =
             runEff
                 . Log.runLogNoOp
                 . runErrorNoCallStack @Text
                 . runReader config.pools
+                . runMetricsNoOp
+                . runClockConst testTime
                 . runDBRead
                 . runDBWrite
                 . runPeerRepo
                 . runHeaderRepo
                 $ action
 
-    let runRead config action =
+    let runRead config testTime action =
             runEff
                 . runErrorNoCallStack @Text
                 . runReader config.pools
+                . runMetricsNoOp
+                . runClockConst testTime
                 . runDBRead
                 $ action
 
@@ -58,7 +64,7 @@ spec_HeaderPersistence = do
                         }
 
             -- First, create the peer (upsertPeers returns the peer with DB-assigned ID)
-            result <- runWrite config $ do
+            result <- runWrite config now $ do
                 upsertedPeers <- upsertPeers (fromList [peer.address]) peer.address now
                 persistedPeer <- case toList upsertedPeers of
                     [p] -> pure p
@@ -69,13 +75,13 @@ spec_HeaderPersistence = do
             result `shouldSatisfy` isRight
 
             -- Verify header was persisted
-            headerCount <- runRead config $ runQuery "count-headers" countHeadersStmt
+            headerCount <- runRead config now $ runQuery "count-headers" countHeadersStmt
             case headerCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Header count query failed: " <> show err
 
             -- Verify receipt was recorded
-            receiptCount <- runRead config $ runQuery "count-receipts" countReceiptsStmt
+            receiptCount <- runRead config now $ runQuery "count-receipts" countReceiptsStmt
             case receiptCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Receipt count query failed: " <> show err
@@ -92,7 +98,7 @@ spec_HeaderPersistence = do
                         }
 
             -- Create peer first (upsertPeers returns the peer with DB-assigned ID)
-            _ <- runWrite config $ do
+            _ <- runWrite config now $ do
                 upsertedPeers <- upsertPeers (fromList [peer.address]) peer.address now
                 persistedPeer <- case toList upsertedPeers of
                     [p] -> pure p
@@ -103,7 +109,7 @@ spec_HeaderPersistence = do
                 upsertHeader header persistedPeer now
 
             -- Should still have only 1 header
-            headerCount <- runRead config $ runQuery "count-headers-after-dup" countHeadersStmt
+            headerCount <- runRead config now $ runQuery "count-headers-after-dup" countHeadersStmt
             case headerCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Header count query failed: " <> show err
@@ -121,7 +127,7 @@ spec_HeaderPersistence = do
                         }
 
             -- Create both peers (upsertPeers returns peers with DB-assigned IDs)
-            _ <- runWrite config $ do
+            _ <- runWrite config now $ do
                 upsertedPeers1 <- upsertPeers (fromList [peer1.address]) peer1.address now
                 upsertedPeers2 <- upsertPeers (fromList [peer2.address]) peer2.address now
                 persistedPeer1 <- case toList upsertedPeers1 of
@@ -136,13 +142,13 @@ spec_HeaderPersistence = do
                 upsertHeader header persistedPeer2 now
 
             -- Should have 1 header
-            headerCount <- runRead config $ runQuery "count-headers-multi" countHeadersStmt
+            headerCount <- runRead config now $ runQuery "count-headers-multi" countHeadersStmt
             case headerCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Header count query failed: " <> show err
 
             -- Should have 2 receipts (one per peer)
-            receiptCount <- runRead config $ runQuery "count-receipts-multi" countReceiptsStmt
+            receiptCount <- runRead config now $ runQuery "count-receipts-multi" countReceiptsStmt
             case receiptCount of
                 Right count -> count `shouldBe` 2
                 Left err -> expectationFailure $ "Receipt count query failed: " <> show err

@@ -1,5 +1,6 @@
 module Integration.DBEffects (spec_DBEffects) where
 
+import Data.Time (UTCTime (..))
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
@@ -10,21 +11,27 @@ import Hasql.Transaction qualified as TX
 import Test.Hspec
 import Prelude hiding (runReader)
 
+import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Environment (defaultLogConfig)
 
 
 spec_DBEffects :: Spec
 spec_DBEffects = withCleanTestDatabase $ do
+    let testTime = UTCTime (toEnum 0) 0
+
     describe "DBRead effect" $ do
         it "can read from the database" $ \config -> do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runClockConst testTime
                     . runDBRead
                     $ runQuery "count-metadata" countMetadataStmt
 
@@ -50,6 +57,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                 runEff
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runClockConst testTime
                     . runDBRead
                     $ runQuery "count-after-insert" countMetadataStmt
 
@@ -102,6 +111,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                 runEff
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runClockConst testTime
                     . runDBRead
                     $ runQuery "count-after-delete" countMetadataStmt
 
@@ -116,6 +127,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                 runEff
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runClockConst testTime
                     . runDBRead
                     $ runQuery "illegal-insert" insertAsSelectStmt
 

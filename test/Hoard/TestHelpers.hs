@@ -45,6 +45,7 @@ import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
+import Hoard.Effects.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.KeepAlive.Config ()
 import Hoard.PeerSharing.Config ()
@@ -80,6 +81,7 @@ withServer
     :: forall b es
      . ( IOE :> es
        , Pub :> es
+       , Metrics :> es
        )
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> Eff es b
@@ -161,6 +163,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runConcNewScope
             . runReader env.config.logging
             . runLog
+            . runMetrics
             . runWriter
             . runPubWriter
             . runState @HoardState def
@@ -172,6 +175,7 @@ type TestAppEffs =
     [ State HoardState
     , Pub
     , Writer [Dynamic]
+    , Metrics
     , Log
     , Reader LogConfig
     , Conc
