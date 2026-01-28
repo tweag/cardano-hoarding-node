@@ -43,6 +43,7 @@ import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hoard.API (API, Routes, server)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
+import Hoard.Collectors.Config ()
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Metrics (Metrics, runMetrics)
@@ -143,7 +144,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
-                , peerFailureCooldown = 300
+                , collectors = def
                 , cardanoProtocols
                 , monitoring = monitoringCfg
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg

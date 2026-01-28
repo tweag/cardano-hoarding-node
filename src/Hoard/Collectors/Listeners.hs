@@ -21,6 +21,7 @@ import Prelude hiding (Reader, State, asks, modify, state)
 
 import Hoard.BlockFetch.Events (BlockFetchRequest (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
+import Hoard.Collectors.Config (Config (..))
 import Hoard.Collectors.Events (CollectorEvent (..))
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
@@ -37,7 +38,7 @@ import Hoard.Effects.NodeToNode (NodeToNode, connectToPeer)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.PeerSharing.Events (PeersReceived (..))
-import Hoard.Types.Environment (Config (..))
+import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -73,7 +74,7 @@ dispatchDiscoveredNodes
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
-       , Reader Config :> es
+       , Reader Env.Config :> es
        , State HoardState :> es
        , Sub :> es
        )
@@ -113,19 +114,20 @@ bracketCollector
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
-       , Reader Config :> es
+       , Reader Env.Config :> es
        , State HoardState :> es
        , Sub :> es
        )
     => Peer
     -> Eff es ()
 bracketCollector peer = do
+    conf <- asks (.collectors)
     _ <-
         Conc.forkTry @SomeException
             . withExceptionLogging ("collector " <> show peer.address)
             $ generalBracket
                 ( stateM \r -> do
-                    eligible <- isPeerEligible peer
+                    eligible <- isPeerEligible conf peer
                     if not (peer.id `S.member` r.connectedPeers) && eligible
                         then do
                             Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
@@ -177,15 +179,14 @@ collectFromPeer peer = do
 
 
 -- | Check if a peer is eligible for connection based on failure cooldown
-isPeerEligible :: (Reader Config :> es, Clock :> es) => Peer -> Eff es Bool
-isPeerEligible peer = do
+isPeerEligible :: (Clock :> es) => Config -> Peer -> Eff es Bool
+isPeerEligible conf peer = do
     currentTime <- Clock.currentTime
-    cooldown <- asks (.peerFailureCooldown)
     case peer.lastFailureTime of
         Nothing -> pure True -- Never failed, eligible
         Just failureTime ->
             let timeSinceFailure = diffUTCTime currentTime failureTime
-            in  pure $ timeSinceFailure >= cooldown
+            in  pure $ timeSinceFailure >= conf.peerFailureCooldownSeconds
 
 
 -- Filters events by peer ID and publishes block fetch requests for headers

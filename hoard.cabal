@@ -28,6 +28,7 @@ library
       Hoard.ChainSync.Listeners
       Hoard.ChainSync.NodeToNode
       Hoard.Collectors
+      Hoard.Collectors.Config
       Hoard.Collectors.Events
       Hoard.Collectors.Listeners
       Hoard.Collectors.State
