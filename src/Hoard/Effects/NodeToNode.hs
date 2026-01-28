@@ -56,8 +56,8 @@ import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, e
 import Ouroboros.Network.Snocket (socketSnocket)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import Hoard.BlockFetch.FlowControl qualified as BlockFetch
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
-import Hoard.BlockFetch.State qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -147,7 +147,7 @@ runNodeToNode =
                         , query = False
                         }
 
-            bfStatus <- BlockFetch.mkStatus
+            bfStatus <- BlockFetch.mkFlowControlState
 
             -- Helper function to create application for a specific version
             let strat = ConcUnlift Persistent Unlimited
@@ -224,7 +224,7 @@ mkApplication
        , Log :> es
        , Pub :> es
        , State HoardState :> es
-       , State BlockFetch.Status :> es
+       , State BlockFetch.FlowControlState :> es
        , Sub :> es
        , Timeout :> es
        )

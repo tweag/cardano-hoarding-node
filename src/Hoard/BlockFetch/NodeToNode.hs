@@ -32,7 +32,7 @@ import Hoard.BlockFetch.Events
     , BlockFetchStarted (..)
     , BlockReceived (..)
     )
-import Hoard.BlockFetch.State (Status, registerRequest, unregisterRequest, waitUntilReadyToFetch)
+import Hoard.BlockFetch.FlowControl (FlowControlState, registerRequest, unregisterRequest, waitUntilReadyToFetch)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
@@ -55,7 +55,7 @@ miniProtocol
        , Log :> es
        , Pub :> es
        , Sub :> es
-       , State Status :> es
+       , State FlowControlState :> es
        , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -89,7 +89,7 @@ client
        , Log :> es
        , Pub :> es
        , Sub :> es
-       , State Status :> es
+       , State FlowControlState :> es
        , Timeout :> es
        )
     => (forall x. Eff es x -> IO x)
