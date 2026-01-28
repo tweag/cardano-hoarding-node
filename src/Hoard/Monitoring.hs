@@ -21,6 +21,8 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.DBRead (DBRead)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (Metrics, gaugeSet)
+import Hoard.Effects.Metrics.Definitions (metricBlocksInDB, metricConnectedPeers)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Triggers (every)
@@ -37,6 +39,7 @@ run
        , Sub :> es
        , Log :> es
        , DBRead :> es
+       , Metrics :> es
        )
     => Eff es ()
 run = do
@@ -50,18 +53,24 @@ runListeners
        , Log :> es
        , State HoardState :> es
        , DBRead :> es
+       , Metrics :> es
        )
     => Eff es ()
 runListeners = do
     Conc.fork_ $ Sub.listen listener
 
 
-listener :: (Log :> es, State HoardState :> es, DBRead :> es) => Poll -> Eff es ()
+listener :: (Log :> es, State HoardState :> es, DBRead :> es, Metrics :> es) => Poll -> Eff es ()
 listener Poll = do
     withNamespace "Monitoring" $ do
         numPeers <- gets (S.size . (.connectedPeers))
         tip <- gets (.immutableTip)
         blockCount <- countRows BlocksSchema.schema
+
+        -- Update metrics
+        gaugeSet metricConnectedPeers (fromIntegral numPeers)
+        gaugeSet metricBlocksInDB (fromIntegral blockCount)
+
         let tipSlot = case tip of
                 ChainPointAtGenesis -> "genesis"
                 ChainPoint slot _ -> show slot

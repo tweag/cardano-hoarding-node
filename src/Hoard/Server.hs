@@ -15,6 +15,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (Metrics)
 import Hoard.Effects.Publishing (Pub)
 import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
 
@@ -23,6 +24,7 @@ runServer
     :: ( Conc :> es
        , IOE :> es
        , Log :> es
+       , Metrics :> es
        , Pub :> es
        , Reader Env :> es
        )

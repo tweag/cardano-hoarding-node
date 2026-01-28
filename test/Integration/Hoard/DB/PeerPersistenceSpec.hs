@@ -14,29 +14,35 @@ import Prelude hiding (runReader)
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
 spec_PeerPersistence :: Spec
 spec_PeerPersistence = do
-    let runWrite config action =
+    let runWrite config testTime action =
             runEff
                 . Log.runLogNoOp
                 . runErrorNoCallStack @Text
                 . runReader config.pools
+                . runMetricsNoOp
+                . runClockConst testTime
                 . runDBRead
                 . runDBWrite
                 . runPeerRepo
                 $ action
 
-    let runRead config action =
+    let runRead config testTime action =
             runEff
                 . runErrorNoCallStack @Text
                 . runReader config.pools
+                . runMetricsNoOp
+                . runClockConst testTime
                 . runDBRead
                 $ action
 
@@ -47,7 +53,7 @@ spec_PeerPersistence = do
 
             -- Insert peers
             result <-
-                runWrite config $ do
+                runWrite config now $ do
                     upsertPeers
                         ( fromList
                             [ PeerAddress (read "192.168.1.1") 3001
@@ -64,6 +70,8 @@ spec_PeerPersistence = do
                 runEff
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runClockConst now
                     . runDBRead
                     $ runQuery "count-peers" countPeersStmt
 
@@ -77,7 +85,7 @@ spec_PeerPersistence = do
 
             -- Insert peer first time
             _ <-
-                runWrite config $
+                runWrite config now $
                     upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
@@ -86,7 +94,7 @@ spec_PeerPersistence = do
             -- Wait a bit and insert same peer again with different timestamp
             let laterTime = addUTCTime 60 now -- 60 seconds later
             _ <-
-                runWrite config $
+                runWrite config now $
                     upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
@@ -94,7 +102,7 @@ spec_PeerPersistence = do
 
             -- Query to verify we still have only 1 peer
             queryResult <-
-                runRead config $ runQuery "count-peers-after-upsert" countPeersStmt
+                runRead config now $ runQuery "count-peers-after-upsert" countPeersStmt
 
             case queryResult of
                 Right count -> count `shouldBe` 1
@@ -102,7 +110,7 @@ spec_PeerPersistence = do
 
             -- Query the peer to verify lastSeen was updated but firstDiscovered was not
             peerResult <-
-                runRead config $ runQuery "get-peer" getPeerByAddressStmt
+                runRead config now $ runQuery "get-peer" getPeerByAddressStmt
 
             case peerResult of
                 Right peer -> do
@@ -122,7 +130,7 @@ spec_PeerPersistence = do
 
             -- Insert multiple peers at once
             result <-
-                runWrite config $
+                runWrite config now $
                     upsertPeers
                         ( fromList
                             [ PeerAddress (read "192.168.1.1") 3001
@@ -137,7 +145,7 @@ spec_PeerPersistence = do
             result `shouldSatisfy` isRight
 
             queryResult <-
-                runRead config $ runQuery "count-batch" countPeersStmt
+                runRead config now $ runQuery "count-batch" countPeersStmt
 
             case queryResult of
                 Right count -> count `shouldBe` 4
@@ -150,13 +158,13 @@ spec_PeerPersistence = do
 
             -- Insert a peer
             insertResult <-
-                runWrite config $
+                runWrite config now $
                     upsertPeers (fromList [testAddr]) sourcePeer.address now
 
             insertResult `shouldSatisfy` isRight
 
             -- Fetch it back using getPeerByAddress
-            fetchResult <- runWrite config $ getPeerByAddress testAddr
+            fetchResult <- runWrite config now $ getPeerByAddress testAddr
 
             case fetchResult of
                 Right (Just peer) -> do

@@ -23,17 +23,20 @@ import Hoard.Data.Header (Header (..))
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (Metrics)
+import Hoard.Effects.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward, recordHeaderReceived)
 
 
 -- | Listener that handles ChainSync HeaderReceived events
 --
 -- Extracts header data and persists it to the database.
 chainSyncHeaderReceived
-    :: (Log :> es, HeaderRepo :> es)
+    :: (Log :> es, HeaderRepo :> es, Metrics :> es)
     => HeaderReceived
     -> Eff es ()
 chainSyncHeaderReceived event = do
     Log.debug "📦 Header received!"
+    recordHeaderReceived
     -- Extract header data from the event
     let header = extractHeaderData event
     -- Upsert the header and record receipt
@@ -52,19 +55,21 @@ chainSyncStarted event = do
 
 -- | Listener that handles ChainSync rollback events
 chainSyncRollBackward
-    :: (Log :> es)
+    :: (Log :> es, Metrics :> es)
     => RollBackward
     -> Eff es ()
 chainSyncRollBackward _event = do
+    recordChainSyncRollback
     Log.info "⏪ Rollback occurred"
 
 
 -- | Listener that handles ChainSync roll forward events
 chainSyncRollForward
-    :: (Log :> es)
+    :: (Log :> es, Metrics :> es)
     => RollForward
     -> Eff es ()
 chainSyncRollForward _event = do
+    recordChainSyncRollforward
     Log.info "⏩ RollForward occurred"
 
 

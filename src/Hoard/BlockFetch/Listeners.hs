@@ -30,6 +30,8 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Metrics (Metrics)
+import Hoard.Effects.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
 
 
 -- | Listener that handles BlockFetch started events
@@ -41,18 +43,20 @@ blockFetchStarted event = do
 -- | Listener that handles block received events
 --
 -- Extracts block data and persists it to the database.
-blockReceived :: (Log :> es, State BlocksBeingFetched :> es, BlockRepo :> es) => BlockReceived -> Eff es ()
+blockReceived :: (Log :> es, State BlocksBeingFetched :> es, BlockRepo :> es, Metrics :> es) => BlockReceived -> Eff es ()
 blockReceived event = do
     let block = extractBlockData event
     Log.info $ "📦 Block received at slot " <> show block.slotNumber <> " (hash: " <> show block.hash <> ")"
+    recordBlockReceived
     BlockRepo.insertBlocks [block]
     modify $ coerce Set.delete block.hash
     Log.debug $ "Persisted block: " <> show block.hash
 
 
 -- | Listener that handles block fetch failed events
-blockFetchFailed :: (Log :> es, State BlocksBeingFetched :> es) => BlockFetchFailed -> Eff es ()
+blockFetchFailed :: (Log :> es, State BlocksBeingFetched :> es, Metrics :> es) => BlockFetchFailed -> Eff es ()
 blockFetchFailed event = do
+    recordBlockFetchFailure
     modify $ coerce Set.delete (blockHashFromHeader event.header)
     Log.warn $ "❗ Failed to fetch block from: " <> event.errorMessage
 
