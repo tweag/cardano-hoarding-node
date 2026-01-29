@@ -6,7 +6,7 @@ module Hoard.Monitoring
     , Poll (..)
     ) where
 
-import Cardano.Api (ChainPoint (..))
+import Cardano.Api qualified as C
 import Data.Set qualified as S
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
@@ -26,6 +26,7 @@ import Hoard.Effects.Metrics.Definitions (metricBlocksInDB, metricConnectedPeers
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Triggers (every)
+import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.Environment (Config (..), MonitoringConfig (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -71,9 +72,9 @@ listener Poll = do
         gaugeSet metricConnectedPeers (fromIntegral numPeers)
         gaugeSet metricBlocksInDB (fromIntegral blockCount)
 
-        let tipSlot = case tip of
-                ChainPointAtGenesis -> "genesis"
-                ChainPoint slot _ -> show slot
+        let tipSlot = case coerce tip of
+                C.ChainPointAtGenesis -> "genesis"
+                C.ChainPoint slot _ -> show slot
         Log.info $ "Currently connected to " <> show numPeers <> " peers | Immutable tip slot: " <> tipSlot <> " | Blocks in DB: " <> show blockCount
 
 

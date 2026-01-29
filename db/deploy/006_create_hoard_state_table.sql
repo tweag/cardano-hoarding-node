@@ -4,7 +4,7 @@ BEGIN;
 
 CREATE TYPE hoard.unit AS ENUM ('');
 CREATE TABLE hoard.hoard_state (
-    unit unit PRIMARY KEY DEFAULT '',
+    unit hoard.unit PRIMARY KEY DEFAULT '',
     immutable_tip JSONB
 );
 

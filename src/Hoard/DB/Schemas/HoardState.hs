@@ -12,7 +12,7 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Types.HoardState (ChainPoint)
+import Hoard.Types.Cardano (ChainPoint)
 
 
 data Row f = Row
