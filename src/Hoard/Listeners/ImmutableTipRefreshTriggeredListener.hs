@@ -1,4 +1,9 @@
-module Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefreshTriggeredListener, refreshImmutableTip, immutableTipRefreshedListener) where
+module Hoard.Listeners.ImmutableTipRefreshTriggeredListener
+    ( ImmutableTipRefreshed (..)
+    , immutableTipRefreshTriggeredListener
+    , refreshImmutableTip
+    , immutableTipRefreshedListener
+    ) where
 
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, gets, modifyM)
@@ -41,8 +46,9 @@ refreshImmutableTip = do
 data ImmutableTipRefreshed = ImmutableTipRefreshed
 
 
--- to do. call this somewhere
-
 -- | Persist the updated immutable tip to the database.
-immutableTipRefreshedListener :: (HoardStateRepo :> es, State HoardState :> es) => ImmutableTipRefreshed -> Eff es ()
-immutableTipRefreshedListener ImmutableTipRefreshed = persistImmutableTip =<< gets (.immutableTip)
+immutableTipRefreshedListener :: (HoardStateRepo :> es, State HoardState :> es, Log :> es) => ImmutableTipRefreshed -> Eff es ()
+immutableTipRefreshedListener ImmutableTipRefreshed =
+    do
+        Log.debug "persisting immutable tip."
+        persistImmutableTip =<< gets (.immutableTip)

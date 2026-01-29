@@ -34,8 +34,8 @@ import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip)
-import Hoard.Types.HoardState (ChainPoint (ChainPoint), HoardState (..))
+import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
+import Hoard.Types.HoardState (HoardState (..))
 
 
 -- | ChainSync mini-protocol (pipelined)
