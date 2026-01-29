@@ -9,14 +9,17 @@ module Hoard.Setup
 
 import Effectful (Eff, IOE, (:>))
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State)
+import Effectful.State.Static.Shared (State, modify)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 import Prelude hiding (Reader, State, asks, modify)
 
+import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (refreshImmutableTip)
+import Hoard.Effects.Publishing (Pub)
+import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered))
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (ImmutableTipRefreshed), immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -44,13 +47,18 @@ setup
        , Reader Config :> es
        , NodeToClient :> es
        , State HoardState :> es
+       , Pub :> es
+       , HoardStateRepo.HoardStateRepo :> es
        )
     => Eff es ()
 setup = do
     Log.info "Running application setup..."
 
     setFileDescriptorLimit
-    refreshImmutableTip
+    immutableTip <- HoardStateRepo.getImmutableTip
+    modify (\hoardState -> hoardState {immutableTip = immutableTip})
+    immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
+    immutableTipRefreshedListener ImmutableTipRefreshed
 
     Log.info "Application setup complete"
 

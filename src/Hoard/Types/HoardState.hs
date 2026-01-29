@@ -1,11 +1,12 @@
 module Hoard.Types.HoardState (HoardState (..)) where
 
-import Cardano.Api (ChainPoint (ChainPointAtGenesis))
+import Cardano.Api qualified as C
 import Data.Default (Default (..))
 import Data.Set qualified as S
 
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
+import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 
 
 -- | Application state
@@ -20,5 +21,5 @@ instance Default HoardState where
     def =
         HoardState
             { connectedPeers = S.empty
-            , immutableTip = ChainPointAtGenesis
+            , immutableTip = ChainPoint C.ChainPointAtGenesis
             }
