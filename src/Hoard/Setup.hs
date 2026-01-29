@@ -18,7 +18,8 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (refreshImmutableTip)
+import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered))
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (ImmutableTipRefreshed), immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -56,7 +57,8 @@ setup = do
     setFileDescriptorLimit
     immutableTip <- HoardStateRepo.getImmutableTip
     modify (\hoardState -> hoardState {immutableTip = immutableTip})
-    refreshImmutableTip
+    immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
+    immutableTipRefreshedListener ImmutableTipRefreshed
 
     Log.info "Application setup complete"
 
