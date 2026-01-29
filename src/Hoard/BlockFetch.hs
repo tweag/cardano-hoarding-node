@@ -1,11 +1,8 @@
 module Hoard.BlockFetch (run, runListeners) where
 
 import Effectful (Eff, (:>))
-import Prelude hiding (Reader, State)
 
-import Effectful.State.Static.Shared (State)
 import Hoard.BlockFetch.Listeners qualified as Listeners
-import Hoard.Collectors.State (BlocksBeingFetched)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
@@ -20,7 +17,6 @@ run
        , Conc :> es
        , Log :> es
        , Metrics :> es
-       , State BlocksBeingFetched :> es
        , Sub :> es
        )
     => Eff es ()
@@ -32,7 +28,6 @@ runListeners
        , Conc :> es
        , Log :> es
        , Metrics :> es
-       , State BlocksBeingFetched :> es
        , Sub :> es
        )
     => Eff es ()
