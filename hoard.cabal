@@ -31,7 +31,6 @@ library
       Hoard.Collectors.Config
       Hoard.Collectors.Events
       Hoard.Collectors.Listeners
-      Hoard.Collectors.State
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.BlockHash
