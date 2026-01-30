@@ -16,11 +16,10 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead)
-import Hoard.Effects.Log (Message (..), runLogWriter)
+import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
 import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.Environment (Severity (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 

@@ -1,5 +1,6 @@
 module Integration.DBEffects (spec_DBEffects) where
 
+import Data.Default (def)
 import Data.Time (UTCTime (..))
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
@@ -17,7 +18,6 @@ import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
-import Hoard.Types.Environment (defaultLogConfig)
 
 
 spec_DBEffects :: Spec
@@ -70,7 +70,7 @@ spec_DBEffects = withCleanTestDatabase $ do
         it "can write to the database" $ \config -> do
             result <-
                 runEff
-                    . runReader defaultLogConfig
+                    . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
@@ -85,7 +85,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- First insert
             _ <-
                 runEff
-                    . runReader defaultLogConfig
+                    . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
@@ -96,7 +96,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             -- Then delete
             result <-
                 runEff
-                    . runReader defaultLogConfig
+                    . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
