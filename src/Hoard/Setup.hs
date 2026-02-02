@@ -13,6 +13,7 @@ import Effectful.State.Static.Shared (State, modify)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 import Prelude hiding (Reader, State, asks, modify)
 
+import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
@@ -48,7 +49,7 @@ setup
        , NodeToClient :> es
        , State HoardState :> es
        , Pub :> es
-       , HoardStateRepo.HoardStateRepo :> es
+       , HoardStateRepo :> es
        )
     => Eff es ()
 setup = do

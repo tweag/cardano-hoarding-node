@@ -2,6 +2,7 @@
 
 BEGIN;
 
-DROP TABLE IF EXISTS hoard.hoard_state CASCADE;
+DROP TABLE hoard.hoard_state;
+DROP TYPE hoard.unit;
 
 COMMIT;

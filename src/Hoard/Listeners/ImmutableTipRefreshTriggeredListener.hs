@@ -33,7 +33,7 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = do
                 ( \hoardState ->
                     if hoardState.immutableTip < tip
                         then publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
-                        else Log.warn "observed a regressed immutable tip." $> hoardState
+                        else pure hoardState
                 )
 
 
@@ -42,7 +42,6 @@ data ImmutableTipRefreshed = ImmutableTipRefreshed
 
 -- | Persist the updated immutable tip to the database.
 immutableTipRefreshedListener :: (HoardStateRepo :> es, State HoardState :> es, Log :> es) => ImmutableTipRefreshed -> Eff es ()
-immutableTipRefreshedListener ImmutableTipRefreshed =
-    do
-        Log.debug "persisting immutable tip."
-        persistImmutableTip =<< gets (.immutableTip)
+immutableTipRefreshedListener ImmutableTipRefreshed = do
+    Log.debug "persisting immutable tip."
+    persistImmutableTip =<< gets (.immutableTip)

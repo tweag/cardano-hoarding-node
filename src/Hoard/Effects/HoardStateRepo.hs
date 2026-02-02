@@ -32,13 +32,8 @@ runHoardStateRepo = interpret_ $ \case
     GetImmutableTip ->
         runTransaction "get_immutable_tip"
             . TX.statement ()
-            . fmap
-                ( \case
-                    [] -> TS.immutableTip def
-                    [row] -> row
-                    _ -> error "`hoard_state` table should not be able to have more than 1 row."
-                )
-            . Rel8.run
+            . fmap (fromMaybe $ TS.immutableTip def)
+            . Rel8.runMaybe
             . Rel8.select
             . fmap HoardState.immutableTip
             . Rel8.each
