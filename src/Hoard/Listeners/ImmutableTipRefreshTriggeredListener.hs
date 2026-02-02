@@ -31,12 +31,10 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = do
         Nothing -> Log.warn "Failed to fetch immutable tip from cardano-node (connection may be down)"
         Just tip -> do
             Log.info ("Immutable tip updated: " <> show tip)
-            modifyM
-                ( \hoardState ->
-                    if hoardState.immutableTip < tip
-                        then publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
-                        else pure hoardState
-                )
+            modifyM $ \hoardState ->
+                if hoardState.immutableTip < tip
+                    then publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
+                    else pure hoardState
 
 
 data ImmutableTipRefreshed = ImmutableTipRefreshed

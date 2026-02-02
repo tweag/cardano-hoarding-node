@@ -11,6 +11,7 @@ import Prelude hiding (runReader)
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
+import Hoard.DB.Schemas.HoardState qualified as HoadStateSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
@@ -28,6 +29,7 @@ spec_Schema = withCleanTestDatabase $ do
             weakTestSchema config testTime HeaderReceiptsSchema.schema
             weakTestSchema config testTime HeadersSchema.schema
             weakTestSchema config testTime BlocksSchema.schema
+            weakTestSchema config testTime HoadStateSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors

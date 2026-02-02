@@ -14,6 +14,7 @@ import Rel8 qualified
 
 import Data.Default (Default (def))
 import Hoard.DB.Schemas.HoardState qualified as HoardState
+import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Types.Cardano (ChainPoint)
 import Hoard.Types.HoardState qualified as TS
@@ -27,7 +28,7 @@ data HoardStateRepo :: Effect where
 makeEffect ''HoardStateRepo
 
 
-runHoardStateRepo :: (DBWrite :> es) => Eff (HoardStateRepo : es) a -> Eff es a
+runHoardStateRepo :: (DBWrite :> es, DBRead :> es) => Eff (HoardStateRepo : es) a -> Eff es a
 runHoardStateRepo = interpret_ $ \case
     GetImmutableTip ->
         runTransaction "get_immutable_tip"
@@ -39,8 +40,7 @@ runHoardStateRepo = interpret_ $ \case
             . Rel8.each
             $ HoardState.schema
     PersistImmutableTip chainPoint ->
-        runTransaction "persist_immutable_tip"
-            . TX.statement ()
+        runQuery "persist_immutable_tip"
             . Rel8.run_
             . Rel8.insert
             $ Rel8.Insert
