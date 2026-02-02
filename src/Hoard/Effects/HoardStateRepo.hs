@@ -39,28 +39,26 @@ runHoardStateRepo = interpret_ $ \case
             . Rel8.each
             $ HoardState.schema
     PersistImmutableTip chainPoint ->
-        runTransaction "persist_immutable_tip" $ do
-            -- to do. avoid deleting by upserting
-            TX.statement ()
-                . Rel8.run_
-                . Rel8.delete
-                $ Rel8.Delete
-                    { from = HoardState.schema
-                    , using = pure ()
-                    , deleteWhere = \_ _ -> lit True
-                    , returning = Rel8.NoReturning
-                    }
-            TX.statement ()
-                . Rel8.run_
-                . Rel8.insert
-                $ Rel8.Insert
-                    { into = HoardState.schema
-                    , rows =
-                        Rel8.values
-                            [ HoardState.Row
-                                { HoardState.immutableTip = lit $ chainPoint
-                                }
-                            ]
-                    , onConflict = Rel8.DoNothing
-                    , returning = Rel8.NoReturning
-                    }
+        runTransaction "persist_immutable_tip"
+            . TX.statement ()
+            . Rel8.run_
+            . Rel8.insert
+            $ Rel8.Insert
+                { into = HoardState.schema
+                , rows =
+                    Rel8.values
+                        [ HoardState.Row
+                            { HoardState.unit = lit $ HoardState.Unit
+                            , HoardState.immutableTip = lit chainPoint
+                            }
+                        ]
+                , onConflict =
+                    Rel8.DoUpdate $
+                        Rel8.Upsert
+                            { index = HoardState.unit
+                            , predicate = Nothing
+                            , set = \new _old -> new
+                            , updateWhere = \_ _ -> Rel8.true
+                            }
+                , returning = Rel8.NoReturning
+                }

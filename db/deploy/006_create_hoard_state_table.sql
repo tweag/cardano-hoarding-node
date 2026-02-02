@@ -2,9 +2,9 @@
 
 BEGIN;
 
-CREATE TYPE hoard.unit AS ENUM ('');
+CREATE TYPE hoard.unit AS ENUM ('Unit');
 CREATE TABLE hoard.hoard_state (
-    unit hoard.unit PRIMARY KEY DEFAULT '',
+    unit hoard.unit PRIMARY KEY DEFAULT 'Unit',
     immutable_tip JSONB
 );
 

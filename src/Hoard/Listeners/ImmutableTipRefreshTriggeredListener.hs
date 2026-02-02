@@ -12,8 +12,10 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.NodeToClient qualified as NodeToClient
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
-import Hoard.Types.HoardState (HoardState (..))
+import Hoard.Events.ImmutableTipRefreshTriggered
+    ( ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
+    )
+import Hoard.Types.HoardState (HoardState (immutableTip))
 import Prelude hiding (State, gets, modify)
 
 
