@@ -31,16 +31,14 @@ makeEffect ''HoardStateRepo
 runHoardStateRepo :: (DBWrite :> es, DBRead :> es) => Eff (HoardStateRepo : es) a -> Eff es a
 runHoardStateRepo = interpret_ $ \case
     GetImmutableTip ->
-        runTransaction "get_immutable_tip"
-            . TX.statement ()
+        runQuery "get_immutable_tip"
             . fmap (fromMaybe $ TS.immutableTip def)
             . Rel8.runMaybe
             . Rel8.select
-            . fmap HoardState.immutableTip
-            . Rel8.each
-            $ HoardState.schema
+            $ HoardState.immutableTip <$> Rel8.each HoardState.schema
     PersistImmutableTip chainPoint ->
-        runQuery "persist_immutable_tip"
+        runTransaction "persist_immutable_tip"
+            . TX.statement ()
             . Rel8.run_
             . Rel8.insert
             $ Rel8.Insert
