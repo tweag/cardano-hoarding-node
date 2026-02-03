@@ -43,6 +43,7 @@ library
       Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
+      Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.BlockRepo
@@ -53,6 +54,7 @@ library
       Hoard.Effects.DBWrite
       Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
+      Hoard.Effects.HoardStateRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.Metrics

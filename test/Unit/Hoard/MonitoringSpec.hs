@@ -1,6 +1,6 @@
 module Unit.Hoard.MonitoringSpec (spec_Monitoring) where
 
-import Cardano.Api (ChainPoint (..))
+import Cardano.Api qualified as C
 import Data.Default (def)
 import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
@@ -20,6 +20,7 @@ import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
 import Hoard.Effects.Metrics (runMetricsNoOp)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
 
@@ -41,7 +42,7 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . evalState
                         ( def
                             { connectedPeers = fromList $ mkPeerIDs 3
-                            , immutableTip = ChainPointAtGenesis
+                            , immutableTip = ChainPoint C.ChainPointAtGenesis
                             }
                         )
                     $ Monitoring.listener Monitoring.Poll

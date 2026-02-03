@@ -6,8 +6,7 @@ module Hoard.Effects.NodeToClient
     ) where
 
 import Cardano.Api
-    ( ChainPoint
-    , ConsensusModeParams (CardanoModeParams)
+    ( ConsensusModeParams (CardanoModeParams)
     , EpochSize
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
@@ -57,6 +56,7 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
+import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.Environment (Config (..))
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
@@ -197,14 +197,14 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                     pure
                         . Q.SendMsgQuery QueryChainPoint
                         . Q.ClientStQuerying
-                        $ \result -> P.putMVar resultVar result $> Q.SendMsgRelease queryImmutableTip
+                        $ \result -> P.putMVar resultVar (ChainPoint result) $> Q.SendMsgRelease queryImmutableTip
                 , recvMsgFailure = error "`ImmutableTip` should never fail to be acquired."
                 }
-    queryIsOnChain :: IO (S.ClientStIdle header ChainPoint tip IO void)
+    queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
     queryIsOnChain = do
         (point, resultVar) <- readChan isOnChainQueries
         pure $
-            S.SendMsgFindIntersect [point] $
+            S.SendMsgFindIntersect [coerce point] $
                 S.ClientStIntersect
                     { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
                     , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain

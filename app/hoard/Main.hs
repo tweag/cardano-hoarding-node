@@ -22,6 +22,7 @@ import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv, runConfigReader, runHandlesReader)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
+import Hoard.Effects.HoardStateRepo (runHoardStateRepo)
 import Hoard.Effects.Log (runLog)
 import Hoard.Effects.Metrics (runMetrics)
 import Hoard.Effects.NodeToClient (runNodeToClient)
@@ -66,6 +67,7 @@ main =
         . runHeaderRepo
         . runPeerRepo
         . runBlockRepo
+        . runHoardStateRepo
         $ do
             setup
             runServer
