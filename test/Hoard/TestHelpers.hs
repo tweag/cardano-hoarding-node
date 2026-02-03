@@ -10,6 +10,7 @@ where
 import Control.Concurrent.QSem (newQSem)
 import Data.Default (def)
 import Data.Dynamic (Dynamic, fromDynamic)
+import Data.Time (UTCTime (..))
 import Effectful
     ( Eff
     , IOE
@@ -25,10 +26,9 @@ import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, runState)
+import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
-import Hoard.Effects.Chan (Chan, runChan)
-import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Ouroboros.Network.IOManager (withIOManager)
@@ -39,11 +39,13 @@ import Servant.Client.Generic (genericClient)
 import Servant.Server (Handler (..))
 import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, runReader, runState)
 
-import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hoard.API (API, Routes, server)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
 import Hoard.Collectors.Config ()
+import Hoard.Effects.Chan (Chan, runChan)
+import Hoard.Effects.Clock (Clock, runClockConst)
+import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
@@ -111,6 +113,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
     protocolInfo <- runEff $ loadProtocolInfo nodeConfig
+    let testTime = UTCTime (toEnum 0) 0
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
     let cardanoProtocols =
@@ -163,6 +166,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runConcNewScope
             . runReader env.config.logging
             . runLog
+            . runClockConst testTime
             . runMetrics
             . runWriter
             . runPubWriter
@@ -176,6 +180,7 @@ type TestAppEffs =
     , Pub
     , Writer [Dynamic]
     , Metrics
+    , Clock
     , Log
     , Reader Log.Config
     , Conc

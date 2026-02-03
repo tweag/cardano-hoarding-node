@@ -15,7 +15,6 @@ import Hasql.Session qualified as Session
 import Hasql.Statement (Statement)
 import Prelude hiding (Reader, asks)
 
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Metrics (Metrics, counterInc, withHistogramTiming)
 import Hoard.Effects.Metrics.Definitions (metricDBQueries, metricDBQueryDuration, metricDBQueryErrors)
 import Hoard.Types.DBConfig (DBPools)
@@ -32,7 +31,7 @@ makeEffect ''DBRead
 
 -- | Run the DBRead effect with a connection pool
 runDBRead
-    :: (Error Text :> es, IOE :> es, Reader DBPools :> es, Metrics :> es, Clock :> es)
+    :: (Error Text :> es, IOE :> es, Reader DBPools :> es, Metrics :> es)
     => Eff (DBRead : es) a
     -> Eff es a
 runDBRead eff = do

@@ -31,6 +31,7 @@ module Hoard.Effects.Metrics
 
       -- * Histogram Operations
     , histogramObserve
+    , withHistogramTiming
 
       -- * Export Operations
     , exportMetrics
@@ -38,11 +39,10 @@ module Hoard.Effects.Metrics
       -- * Interpreters
     , runMetrics
     , runMetricsNoOp
-    , withHistogramTiming
     ) where
 
 import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (interpretWith_, interpret_)
+import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.TH (makeEffect)
 import Prometheus qualified as Prom
 import Prometheus.Metric.GHC qualified as GHC
@@ -61,6 +61,8 @@ data Metrics :: Effect where
     CounterInc :: Text -> Metrics m ()
     CounterAdd :: Text -> Double -> Metrics m ()
     HistogramObserve :: Text -> Double -> Metrics m ()
+    -- | Time an action and record its duration to a histogram metric
+    WithHistogramTiming :: Text -> m a -> Metrics m a
     ExportMetrics :: Metrics m Text
 
 
@@ -71,47 +73,39 @@ makeEffect ''Metrics
 --
 -- Initializes the metric registry and registers GHC metrics automatically.
 runMetrics
-    :: (IOE :> es)
+    :: forall es a
+     . (Clock :> es, IOE :> es)
     => Eff (Metrics : es) a
     -> Eff es a
 runMetrics action = do
     -- Initialize metrics registry and register GHC metrics
     handles <- liftIO Registry.initMetricHandles
     void $ liftIO $ Prom.register GHC.ghcMetrics
-    interpretWith_ action \case
+    interpretWith action \env -> \case
         GaugeSet name value -> liftIO $ Registry.setGauge handles name value
         GaugeInc name -> liftIO $ Registry.incGauge handles name
         GaugeDec name -> liftIO $ Registry.decGauge handles name
         CounterInc name -> liftIO $ Registry.incCounter handles name
         CounterAdd name value -> liftIO $ Registry.addCounter handles name value
         HistogramObserve name value -> liftIO $ Registry.observeHistogram handles name value
+        WithHistogramTiming metricName eff -> do
+            start <- currentTime
+            result <- localSeqUnlift env \unlift -> unlift eff
+            end <- currentTime
+            let duration = realToFrac $ diffUTCTime end start
+            liftIO $ Registry.observeHistogram handles metricName duration
+            pure result
         ExportMetrics -> liftIO $ decodeUtf8 <$> Prom.exportMetricsAsText
 
 
 -- | No-op interpreter that discards all metrics operations
 runMetricsNoOp :: Eff (Metrics : es) a -> Eff es a
-runMetricsNoOp = interpret_ \case
+runMetricsNoOp = interpret \env -> \case
     GaugeSet _ _ -> pure ()
     GaugeInc _ -> pure ()
     GaugeDec _ -> pure ()
     CounterInc _ -> pure ()
     CounterAdd _ _ -> pure ()
     HistogramObserve _ _ -> pure ()
+    WithHistogramTiming _ eff -> localSeqUnlift env \unlift -> unlift eff
     ExportMetrics -> pure ""
-
-
--- | Time an action and record its duration to a histogram metric
-withHistogramTiming
-    :: (Metrics :> es, Clock :> es)
-    => Text
-    -- ^ Histogram metric name
-    -> Eff es a
-    -- ^ Action to time
-    -> Eff es a
-withHistogramTiming metricName action = do
-    start <- currentTime
-    result <- action
-    end <- currentTime
-    let duration = realToFrac $ diffUTCTime end start
-    histogramObserve metricName duration
-    pure result
