@@ -33,7 +33,8 @@ import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 
 miniProtocol
-    :: ( Clock :> es
+    :: forall es
+     . ( Clock :> es
        , Concurrent :> es
        , Log :> es
        , Pub :> es
@@ -43,7 +44,7 @@ miniProtocol
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
+miniProtocol unlift' conf codecs peer =
     MiniProtocol
         { miniProtocolNum = peerSharingMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -53,17 +54,19 @@ miniProtocol unlift conf codecs peer =
                 mkMiniProtocolCbFromPeer $
                     \_ ->
                         let peerSharingClient = client unlift conf peer
-                            -- IMPORTANT: Use the version-specific codec from the codecs record!
                             codec = cPeerSharingCodec codecs
                             wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ do
                                 timestamp <- Clock.currentTime
                                 publish $ PeerSharingStarted {peer, timestamp}
-                                Log.debug "PeerSharing: Published PeerSharingStarted event"
-                                Log.debug "PeerSharing: About to run peer protocol..."
+                                Log.debug "Published PeerSharingStarted event"
+                                Log.debug "About to run peer protocol..."
                                 pure (peerSharingClientPeer peerSharingClient)
-                            tracer = contramap (("[PeerSharing] " <>) . show) $ Log.asTracer unlift Log.DEBUG
+                            tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
                         in  (tracer, codec, wrappedPeer)
         }
+  where
+    unlift :: forall x. Eff es x -> IO x
+    unlift = unlift' . Log.withNamespace "PeerSharing"
 
 
 --------------------------------------------------------------------------------
@@ -87,8 +90,8 @@ client unlift conf peer = requestPeers withPeers
   where
     requestPeers = SendMsgShareRequest $ PeerSharingAmount $ fromIntegral conf.requestAmount
     withPeers peerAddrs = unlift do
-        Log.debug "PeerSharing: *** CALLBACK EXECUTED - GOT RESPONSE ***"
-        Log.debug $ "PeerSharing: Received response with " <> show (length peerAddrs) <> " peers"
+        Log.debug "*** CALLBACK EXECUTED - GOT RESPONSE ***"
+        Log.debug $ "Received response with " <> show (length peerAddrs) <> " peers"
         timestamp <- Clock.currentTime
         publish $
             PeersReceived
@@ -96,8 +99,8 @@ client unlift conf peer = requestPeers withPeers
                 , timestamp
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
-        Log.debug "PeerSharing: Published PeersReceived event"
-        Log.debug $ "PeerSharing: Waiting " <> show (conf.requestIntervalMicroseconds `div` 1_000_000) <> " seconds"
+        Log.debug "Published PeersReceived event"
+        Log.debug $ "Waiting " <> show (conf.requestIntervalMicroseconds `div` 1_000_000) <> " seconds"
         threadDelay conf.requestIntervalMicroseconds
-        Log.debug "PeerSharing: looping"
+        Log.debug "looping"
         pure $ requestPeers withPeers

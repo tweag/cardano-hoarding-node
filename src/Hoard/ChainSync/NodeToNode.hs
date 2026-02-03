@@ -40,7 +40,8 @@ import Hoard.Types.HoardState (HoardState (..))
 
 -- | ChainSync mini-protocol (pipelined)
 miniProtocol
-    :: ( State HoardState :> es
+    :: forall es
+     . ( State HoardState :> es
        , Clock :> es
        , Log :> es
        , Pub :> es
@@ -50,7 +51,7 @@ miniProtocol
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
+miniProtocol unlift' conf codecs peer =
     MiniProtocol
         { miniProtocolNum = chainSyncMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -64,6 +65,9 @@ miniProtocol unlift conf codecs peer =
                             chainSyncClient = client unlift peer
                         in  (nullTracer, codec, chainSyncClient)
         }
+  where
+    unlift :: forall x. Eff es x -> IO x
+    unlift = unlift' . Log.withNamespace "ChainSync"
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).
@@ -94,8 +98,8 @@ client unlift peer =
                         -- Publish started event
                         timestamp <- Clock.currentTime
                         publish $ ChainSyncStarted {peer, timestamp}
-                        Log.debug "ChainSync: Published ChainSyncStarted event"
-                        Log.debug "ChainSync: Starting pipelined client, finding intersection from genesis"
+                        Log.debug "Published ChainSyncStarted event"
+                        Log.debug "Starting pipelined client, finding intersection from genesis"
                         initialPoints <- List.singleton . toConsensusPointHF <$> gets (.immutableTip)
                         pure (findIntersect initialPoints)
   where
@@ -103,10 +107,10 @@ client unlift peer =
     findIntersect initialPoints =
         Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection not found (continuing anyway)"
+                Log.debug "Intersection not found (continuing anyway)"
                 pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Intersection found"
+                Log.debug "Intersection found"
                 timestamp <- Clock.currentTime
                 publish $
                     ChainSyncIntersectionFound
@@ -132,7 +136,7 @@ client unlift peer =
                 publish event
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                Log.debug "ChainSync: Rollback"
+                Log.debug "Rollback"
                 timestamp <- Clock.currentTime
                 publish $
                     RollBackward
@@ -154,7 +158,7 @@ client unlift peer =
                             }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
-                    Log.debug "ChainSync: Rollback after await"
+                    Log.debug "Rollback after await"
                     timestamp <- Clock.currentTime
                     publish $
                         RollBackward

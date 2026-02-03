@@ -25,14 +25,15 @@ import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 
 miniProtocol
-    :: ( Concurrent :> es
+    :: forall es
+     . ( Concurrent :> es
        , Log :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
     -> CardanoCodecs
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs =
+miniProtocol unlift' conf codecs =
     MiniProtocol
         { miniProtocolNum = keepAliveMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -47,9 +48,12 @@ miniProtocol unlift conf codecs =
                                     withExceptionLogging "KeepAlive" $ do
                                         Log.debug "KeepAlive protocol started"
                                         pure (keepAliveClientPeer $ client unlift conf)
-                            tracer = contramap (("[KeepAlive] " <>) . show) $ Log.asTracer unlift Log.DEBUG
+                            tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
                         in  (tracer, codec, wrappedPeer)
         }
+  where
+    unlift :: forall x. Eff es x -> IO x
+    unlift = unlift' . Log.withNamespace "KeepAlive"
 
 
 -- | KeepAlive client implementation.
@@ -65,11 +69,11 @@ client
 client unlift conf = KeepAliveClient sendFirst
   where
     sendFirst = unlift do
-        Log.debug "KeepAlive: Sending first keepalive message"
+        Log.debug "Sending first keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
-        Log.debug $ "KeepAlive: Response received, waiting " <> show (conf.intervalMicroseconds `div` 1_000_000) <> "s before next message"
+        Log.debug $ "Response received, waiting " <> show (conf.intervalMicroseconds `div` 1_000_000) <> "s before next message"
         threadDelay conf.intervalMicroseconds
-        Log.debug "KeepAlive: Sending keepalive message"
+        Log.debug "Sending keepalive message"
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

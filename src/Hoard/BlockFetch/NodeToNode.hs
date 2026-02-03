@@ -38,14 +38,15 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log, withNamespace)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
 
 miniProtocol
-    :: ( Chan :> es
+    :: forall es
+     . ( Chan :> es
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
@@ -59,7 +60,7 @@ miniProtocol
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
+miniProtocol unlift' conf codecs peer =
     MiniProtocol
         { miniProtocolNum = blockFetchMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -67,12 +68,15 @@ miniProtocol unlift conf codecs peer =
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
                 blockFetchClient = client unlift conf peer
-                tracer = (("[BlockFetch tracer] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
+                tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
                     Log.debug "BlockFetch protocol started"
                     pure $ blockFetchClientPeer blockFetchClient
             in  (tracer, codec, wrappedPeer)
         }
+  where
+    unlift :: forall x. Eff es x -> IO x
+    unlift = unlift' . Log.withNamespace "BlockFetch"
 
 
 -- | Create a BlockFetch client that fetches blocks on requests over events.
@@ -92,7 +96,7 @@ client
     -> Peer
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
 client unlift cfg peer =
-    BlockFetch.BlockFetchClient $ unlift $ withNamespace "BlockFetchClient" $ do
+    BlockFetch.BlockFetchClient $ unlift do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted {peer, timestamp}
         Log.debug "BlockFetch: Published BlockFetchStarted event"
