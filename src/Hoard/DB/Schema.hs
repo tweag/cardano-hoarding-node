@@ -2,14 +2,17 @@ module Hoard.DB.Schema
     ( mkSchema
     , hoardSchema
     , countRows
+    , countRowsWhere
     )
 where
 
 import Rel8
-    ( Name
+    ( Expr
+    , Name
     , Rel8able
     , TableSchema (..)
     , namesFromLabelsWith
+    , where_
     )
 import Text.Casing (quietSnake)
 
@@ -53,3 +56,20 @@ countRows schema =
                 Rel8.select $
                     Rel8.aggregate Rel8.countStar $
                         Rel8.each schema
+
+
+-- | Count rows in a table that satisfy a predicate
+countRowsWhere
+    :: (Rel8able row, DBRead :> es)
+    => TableSchema (row Name)
+    -> (row Expr -> Expr Bool)
+    -> Eff es Int
+countRowsWhere schema predicate =
+    runQuery ("countRowsWhere[" <> toText schema.name.name <> "]") $
+        fmap fromIntegral $
+            Rel8.run1 $
+                Rel8.select $
+                    Rel8.aggregate Rel8.countStar $ do
+                        row <- Rel8.each schema
+                        where_ $ predicate row
+                        pure row

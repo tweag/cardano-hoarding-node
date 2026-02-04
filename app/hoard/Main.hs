@@ -24,7 +24,8 @@ import Hoard.Effects.Environment (loadEnv, runConfigReader, runHandlesReader)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.HoardStateRepo (runHoardStateRepo)
 import Hoard.Effects.Log (runLog)
-import Hoard.Effects.Metrics (runMetrics)
+import Hoard.Effects.Monitoring.Metrics (runMetrics)
+import Hoard.Effects.Monitoring.Tracing (runTracingFromConfig)
 import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
@@ -58,14 +59,15 @@ main =
         . runClock
         . runFileSystem
         . runTemporary
+        . runMetrics
         . withNodeSockets
-        . runNodeToClient
         . runPubSub
         . runErrorThrowing
         . evalState @HoardState def
         . evalState @Peers def
+        . runTracingFromConfig
+        . runNodeToClient
         . runNodeToNode
-        . runMetrics
         . runDBRead
         . runDBWrite
         . runHeaderRepo

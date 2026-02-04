@@ -15,8 +15,7 @@ import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write), transaction)
 import Prelude hiding (Reader, asks)
 
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 import Hoard.Types.DBConfig qualified as DB
 
@@ -31,16 +30,23 @@ makeEffect ''DBWrite
 
 -- | Run the DBWrite effect with a connection pool
 runDBWrite
-    :: (Error Text :> es, IOE :> es, Log :> es, Reader DBPools :> es)
+    :: (Error Text :> es, IOE :> es, Tracing :> es, Reader DBPools :> es)
     => Eff (DBWrite : es) a
     -> Eff es a
 runDBWrite eff = do
     pool <- asks $ DB.writerPool
     interpretWith_ eff \case
-        RunTransaction txName tx -> do
+        RunTransaction txName tx -> withSpan "db.transaction" $ do
+            addAttribute "db.operation" "write"
+            addAttribute "db.transaction.name" txName
+            addAttribute "db.isolation_level" "ReadCommitted"
+
             result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
             case result of
                 Left err -> do
-                    Log.debug $ "DBWrite: " <> txName <> " failed: " <> show err
+                    addEvent "transaction_failed" [("transaction", txName), ("error", show err)]
+                    setStatus $ Error $ "Transaction failed: " <> show err
                     throwError $ "Transaction failed: " <> txName <> " - " <> show err
-                Right value -> pure value
+                Right value -> do
+                    setStatus Ok
+                    pure value

@@ -13,9 +13,11 @@ import Prelude hiding (evalState, newEmptyMVar, runReader)
 
 import Effectful.Concurrent.MVar (Concurrent, newEmptyMVar, runConcurrent)
 import Hoard.Data.ID (ID (..))
+import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
@@ -37,6 +39,8 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     . evalState
                         HoardState
@@ -45,7 +49,7 @@ spec_Monitoring = withCleanTestDatabase $ do
                             }
                     . evalState peers
                     $ Monitoring.listener Monitoring.Poll
-            logs `shouldBe` [(INFO, "Currently connected to 1 peers | 2 peer connections pending | Immutable tip slot: genesis | Blocks in DB: 0")]
+            logs `shouldBe` [(INFO, "Currently connected to 1 peers | 2 peer connections pending | Immutable tip slot: genesis | Blocks in DB: 0 | Unclassified: 0 | Being classified: 0")]
 
 
 mkPeers :: (Concurrent :> es) => UTCTime -> Int -> Eff es Peers

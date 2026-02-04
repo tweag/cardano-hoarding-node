@@ -2,6 +2,7 @@ module Hoard.Effects.BlockRepo
     ( BlockRepo
     , insertBlocks
     , getBlock
+    , blockExists
     , classifyBlock
     , getUnclassifiedBlocksBeforeSlot
     , getViolations
@@ -12,13 +13,13 @@ module Hoard.Effects.BlockRepo
 import Data.Set qualified as Set
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
-import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Dispatch.Dynamic (interpretWith, interpret_)
 import Effectful.TH (makeEffect)
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
 import Rel8 (isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
 import Rel8 qualified
-import Prelude hiding (State, gets, modify)
+import Prelude hiding (Reader, State, ask, atomically, gets, modify, newTVarIO, runReader)
 
 import Effectful.State.Static.Shared (State, gets, modify)
 import Hasql.Statement (Statement)
@@ -30,8 +31,7 @@ import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.BlockViolation (BlockViolation, blockToViolation)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.OrphanDetection.Data (BlockClassification)
 import Hoard.Types.Cardano (CardanoHeader)
 
@@ -39,6 +39,7 @@ import Hoard.Types.Cardano (CardanoHeader)
 data BlockRepo :: Effect where
     InsertBlocks :: [Block] -> BlockRepo m ()
     GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block)
+    BlockExists :: BlockHash -> BlockRepo m Bool
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
     GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
     GetViolations :: Maybe BlockClassification -> Maybe Int64 -> Maybe Int64 -> BlockRepo m [BlockViolation]
@@ -47,27 +48,43 @@ data BlockRepo :: Effect where
 makeEffect ''BlockRepo
 
 
-runBlockRepo :: (DBRead :> es, DBWrite :> es, Log :> es) => Eff (BlockRepo : es) a -> Eff es a
-runBlockRepo = interpret_ $ \case
-    InsertBlocks blocks ->
-        runTransaction "insert-blocks" $
-            insertBlocksTrans blocks
-    GetBlock header ->
-        runQuery "get-block" $
-            getBlockQuery header
-    ClassifyBlock blockHash classification timestamp ->
-        runTransaction "classify-block" $
-            classifyBlockTrans blockHash classification timestamp
-    GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes ->
-        runQuery "get-unclassified-blocks" $
-            getUnclassifiedBlocksQuery slot limit excludeHashes
-    GetViolations mbClassification mbMinSlot mbMaxSlot -> do
-        results <- runQuery "get-violations" $ getViolationsQuery mbClassification mbMinSlot mbMaxSlot
-        -- Log parsing errors before discarding them
-        let (errs, violations) = partitionEithers results
-        forM_ errs $ \err ->
-            Log.warn $ "Failed to parse block violation from database: " <> err
-        pure violations
+runBlockRepo :: (DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepo action = do
+    interpretWith action $ \_env -> \case
+        InsertBlocks blocks -> withSpan "block_repo.insert_blocks" $ do
+            addAttribute "blocks.count" (show $ length blocks)
+            runTransaction "insert-blocks" $
+                insertBlocksTrans blocks
+        GetBlock header -> withSpan "block_repo.get_block" $ do
+            let hash = blockHashFromHeader header
+            addAttribute "block.hash" (show hash)
+            runQuery "get-block" $
+                getBlockQuery header
+        BlockExists blockHash -> withSpan "block_repo.block_exists" $ do
+            addAttribute "block.hash" (show blockHash)
+            runQuery "block-exists" $ blockExistsQuery blockHash
+        ClassifyBlock blockHash classification timestamp -> withSpan "block_repo.classify_block" $ do
+            addAttribute "block.hash" (show blockHash)
+            addAttribute "block.classification" (show classification)
+            runTransaction "classify-block" $
+                classifyBlockTrans blockHash classification timestamp
+        GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> withSpan "block_repo.get_unclassified_blocks" $ do
+            addAttribute "slot" (show slot)
+            addAttribute "limit" (show limit)
+            addAttribute "exclude.count" (show $ Set.size excludeHashes)
+            runQuery "get-unclassified-blocks" $
+                getUnclassifiedBlocksQuery slot limit excludeHashes
+        GetViolations mbClassification mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" $ do
+            addAttribute "filter.classification" (show mbClassification)
+            addAttribute "filter.min_slot" (show mbMinSlot)
+            addAttribute "filter.max_slot" (show mbMaxSlot)
+            results <- runQuery "get-violations" $ getViolationsQuery mbClassification mbMinSlot mbMaxSlot
+
+            -- Log parsing errors before discarding them
+            let (parseErrors, violations) = partitionEithers results
+            addAttribute "parse.errors.count" (show $ length parseErrors)
+            forM_ parseErrors $ \err -> addEvent "parse_error" [("error", err)]
+            pure violations
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
@@ -99,6 +116,18 @@ getBlockQuery header =
     extractSingleBlock = \case
         [x] -> Just x
         _ -> Nothing
+
+
+blockExistsQuery :: BlockHash -> Statement () Bool
+blockExistsQuery blockHash =
+    fmap (not . null)
+        . Rel8.run
+        . Rel8.select
+        $ Rel8.limit 1
+        $ do
+            block <- Rel8.each Blocks.schema
+            where_ $ block.hash ==. lit blockHash
+            pure block.hash
 
 
 classifyBlockTrans :: BlockHash -> BlockClassification -> UTCTime -> Transaction ()
@@ -180,6 +209,7 @@ runBlockRepoState :: (State [Block] :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (blocks <>)
     GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
+    BlockExists blockHash -> gets $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp ->
         modify $ fmap $ \block ->
             if block.hash == blockHash

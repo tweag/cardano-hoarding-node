@@ -13,6 +13,7 @@ module Hoard.Types.Environment
 
       -- * Monitoring configuration
     , MonitoringConfig (..)
+    , TracingConfig (..)
 
       -- * Cardano node integration configuration
     , CardanoNodeIntegrationConfig (..)
@@ -62,6 +63,7 @@ data Config = Config
     { server :: ServerConfig
     , nodeSockets :: NodeSocketsConfig
     , logging :: Log.Config
+    , tracing :: TracingConfig
     , protocolInfo :: ProtocolInfo CardanoBlock
     , nodeConfig :: NodeConfig
     , maxFileDescriptors :: Maybe Word32
@@ -103,6 +105,19 @@ data MonitoringConfig = MonitoringConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake MonitoringConfig
+
+
+-- | Tracing configuration for OpenTelemetry
+data TracingConfig = TracingConfig
+    { enabled :: Bool
+    -- ^ Enable tracing
+    , serviceName :: Text
+    -- ^ Service name for traces
+    , otlpEndpoint :: Text
+    -- ^ OTLP endpoint (e.g., "http://localhost:4318")
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake TracingConfig
 
 
 -- | Configuration for integrating with a Cardano node

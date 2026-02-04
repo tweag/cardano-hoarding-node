@@ -10,20 +10,21 @@ import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
 import System.IO.Error (userError)
 
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addEvent, setStatus)
 
 
 -- | Wrap a protocol action with exception logging.
 --
--- Logs graceful shutdowns at INFO level and real errors at ERROR level.
-withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
+-- Emits trace events for graceful shutdowns and sets error status for real errors.
+withExceptionLogging :: (Tracing :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
-        let msg = protocolName <> ": " <> toText (displayException e)
+        let exceptionType = toText (displayException e)
         if isGracefulShutdown e
-            then Log.debug $ "graceful shutdown: " <> msg
-            else Log.err $ "error: " <> msg
+            then addEvent "graceful_shutdown" [("protocol", protocolName)]
+            else do
+                addEvent "protocol_error" [("protocol", protocolName), ("exception", exceptionType)]
+                setStatus $ Error (protocolName <> ": " <> exceptionType)
         throwIO e
 
 

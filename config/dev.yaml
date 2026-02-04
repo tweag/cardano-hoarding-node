@@ -28,6 +28,12 @@ database:
 logging:
   minimum_severity: DEBUG
 
+# Tracing configuration (OpenTelemetry)
+tracing:
+  enabled: true
+  service_name: "hoard"
+  otlp_endpoint: "http://localhost:4318"
+
 # Maximum number of file descriptors
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384
@@ -68,6 +74,25 @@ cardano_protocol_handles:
 # Monitoring configuration
 monitoring:
   polling_interval_seconds: 10
+  environment: "dev"
+  prometheus:
+    port: 9090
+    scrape_interval: "5s"
+    evaluation_interval: "5s"
+    targets:
+      hoard: "localhost:3000"
+      node_exporter: "localhost:9100"
+  grafana:
+    port: 3001
+    host: "0.0.0.0"
+    admin_user: "admin"
+    admin_password: "admin"
+  tempo:
+    http_port: 3200
+    block_retention: "24h"
+    max_block_duration: "5m"
+  node_exporter:
+    port: 9100
 
 # Cardano node integration configuration
 cardano_node_integration:

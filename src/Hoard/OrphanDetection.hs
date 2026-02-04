@@ -9,8 +9,7 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log, withNamespace)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
@@ -23,13 +22,15 @@ run
     :: ( BlockRepo :> es
        , Conc :> es
        , Clock :> es
-       , Log :> es
+       , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
        , Sub :> es
        )
     => Eff es ()
-run = withNamespace "OrphanDetection" runListeners
+run = withSpan "orphan_detection" $ do
+    addEvent "initializing" []
+    runListeners
 
 
 -- | Start orphan detection listeners
@@ -37,18 +38,19 @@ runListeners
     :: ( BlockRepo :> es
        , Conc :> es
        , Clock :> es
-       , Log :> es
+       , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
        , Sub :> es
        )
     => Eff es ()
-runListeners = do
-    _ <- Conc.fork_ $ Sub.listen $ withErrorHandling Listeners.blockReceivedClassifier
-    _ <- Conc.fork_ $ Sub.listen $ withErrorHandling Listeners.immutableTipUpdatedAger
+runListeners = withSpan "listeners" $ do
+    _ <- Conc.fork_ $ Sub.listen $ withErrorHandling "block_received_classifier" Listeners.blockReceivedClassifier
+    _ <- Conc.fork_ $ Sub.listen $ withErrorHandling "immutable_tip_ager" Listeners.immutableTipUpdatedAger
     pure ()
   where
-    withErrorHandling listener event =
-        runErrorNoCallStack (listener event) >>= \case
-            Left err -> Log.err err
-            Right () -> pure ()
+    withErrorHandling listenerName listener event =
+        withSpan listenerName $
+            runErrorNoCallStack (listener event) >>= \case
+                Left err -> addEvent "listener_error" [("error", err)]
+                Right () -> pure ()

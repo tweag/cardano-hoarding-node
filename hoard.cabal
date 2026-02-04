@@ -56,9 +56,11 @@ library
       Hoard.Effects.HoardStateRepo
       Hoard.Effects.Input
       Hoard.Effects.Log
-      Hoard.Effects.Metrics
-      Hoard.Effects.Metrics.Definitions
-      Hoard.Effects.Metrics.Registry
+      Hoard.Effects.Monitoring.Metrics
+      Hoard.Effects.Monitoring.Metrics.Definitions
+      Hoard.Effects.Monitoring.Metrics.Registry
+      Hoard.Effects.Monitoring.Tracing
+      Hoard.Effects.Monitoring.Tracing.Provider
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.Codecs
@@ -151,6 +153,12 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , hs-opentelemetry-api
+    , hs-opentelemetry-exporter-otlp
+    , hs-opentelemetry-sdk
+    , http-client
+    , http-client-tls
+    , http-types
     , iproute
     , ki
     , network
@@ -241,6 +249,12 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , hs-opentelemetry-api
+    , hs-opentelemetry-exporter-otlp
+    , hs-opentelemetry-sdk
+    , http-client
+    , http-client-tls
+    , http-types
     , iproute
     , ki
     , network
@@ -287,6 +301,7 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.DB.BlockPersistenceSpec
       Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
@@ -349,8 +364,13 @@ test-suite hoard-test
     , hasql-pool
     , hasql-transaction
     , hoard
+    , hs-opentelemetry-api
+    , hs-opentelemetry-exporter-otlp
+    , hs-opentelemetry-sdk
     , hspec
     , http-client
+    , http-client-tls
+    , http-types
     , iproute
     , ki
     , network

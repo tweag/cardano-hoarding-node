@@ -55,6 +55,7 @@ import Effectful.TH (makeEffect)
 import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.Environment (Config (..))
@@ -93,6 +94,7 @@ runNodeToClient
        , IOE :> es
        , Reader Config :> es
        , Concurrent :> es
+       , Tracing :> es
        )
     => Eff (NodeToClient : es) a
     -> Eff es a
@@ -103,12 +105,12 @@ runNodeToClient nodeToClient = do
         interpretWith_
             (inject nodeToClient)
             ( \case
-                ImmutableTip -> do
+                ImmutableTip -> withSpan "node_query.immutable_tip" $ do
                     Connection immutableTipQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan immutableTipQueries resultVar
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
-                IsOnChain point -> do
+                IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)

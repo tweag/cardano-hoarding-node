@@ -17,11 +17,13 @@ import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
@@ -34,7 +36,10 @@ spec_HeaderPersistence = do
                 . runErrorNoCallStack @Text
                 . runReader config.pools
                 . runMetricsNoOp
+                . runTracingNoOp
+                . runClock
                 . runDBRead
+                . runClock
                 . runDBWrite
                 . runPeerRepo
                 . runHeaderRepo
@@ -45,6 +50,8 @@ spec_HeaderPersistence = do
                 . runErrorNoCallStack @Text
                 . runReader config.pools
                 . runMetricsNoOp
+                . runTracingNoOp
+                . runClock
                 . runDBRead
                 $ action
 

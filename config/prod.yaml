@@ -30,6 +30,12 @@ database:
 logging:
   minimum_severity: INFO
 
+# Tracing configuration (OpenTelemetry) - disabled in production by default
+tracing:
+  enabled: false
+  service_name: "hoard"
+  otlp_endpoint: "http://localhost:4318"
+
 # Maximum number of file descriptors
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384

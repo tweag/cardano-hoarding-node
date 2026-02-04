@@ -21,65 +21,67 @@ import Hoard.ChainSync.Events
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics)
-import Hoard.Effects.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward, recordHeaderReceived)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward, recordHeaderReceived)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 
 
 -- | Listener that handles ChainSync HeaderReceived events
 --
 -- Extracts header data and persists it to the database.
 chainSyncHeaderReceived
-    :: (Log :> es, HeaderRepo :> es, Metrics :> es)
+    :: (Tracing :> es, HeaderRepo :> es, Metrics :> es)
     => HeaderReceived
     -> Eff es ()
-chainSyncHeaderReceived event = do
-    Log.debug "📦 Header received!"
+chainSyncHeaderReceived event = withSpan "header_received" $ do
     recordHeaderReceived
     -- Extract header data from the event
     let header = extractHeaderData event
+    addAttribute "header.hash" (show header.hash)
+    addAttribute "header.slot" (show header.slotNumber)
+    addAttribute "header.block_number" (show header.blockNumber)
+    addEvent "header_received" [("hash", show header.hash)]
     -- Upsert the header and record receipt
     upsertHeader header event.peer event.timestamp
-    Log.debug $ "Persisted header: " <> show header.hash
+    addEvent "header_persisted" [("hash", show header.hash)]
 
 
 -- | Listener that handles ChainSync started events
 chainSyncStarted
-    :: (Log :> es)
+    :: (Tracing :> es)
     => ChainSyncStarted
     -> Eff es ()
 chainSyncStarted event = do
-    Log.debug $ "⛓️  ChainSync protocol started at " <> show event.timestamp
+    addEvent "chain_sync_started" [("timestamp", show event.timestamp)]
 
 
 -- | Listener that handles ChainSync rollback events
 chainSyncRollBackward
-    :: (Log :> es, Metrics :> es)
+    :: (Tracing :> es, Metrics :> es)
     => RollBackward
     -> Eff es ()
 chainSyncRollBackward _event = do
     recordChainSyncRollback
-    Log.info "⏪ Rollback occurred"
+    addEvent "chain_sync_rollback" []
 
 
 -- | Listener that handles ChainSync roll forward events
 chainSyncRollForward
-    :: (Log :> es, Metrics :> es)
+    :: (Tracing :> es, Metrics :> es)
     => RollForward
     -> Eff es ()
 chainSyncRollForward _event = do
     recordChainSyncRollforward
-    Log.info "⏩ RollForward occurred"
+    addEvent "chain_sync_rollforward" []
 
 
 -- | Listener that handles ChainSync intersection found events
 chainSyncIntersectionFound
-    :: (Log :> es)
+    :: (Tracing :> es)
     => ChainSyncIntersectionFound
     -> Eff es ()
 chainSyncIntersectionFound _event = do
-    Log.info "🎯 ChainSync intersection found"
+    addEvent "chain_sync_intersection_found" []
 
 
 -- | Extract header data from a HeaderReceivedData event
