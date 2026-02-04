@@ -2,7 +2,6 @@ module Unit.Hoard.MonitoringSpec (spec_Monitoring) where
 
 import Cardano.Api qualified as C
 import Data.Default (def)
-import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
@@ -14,7 +13,6 @@ import Prelude hiding (evalState, runReader)
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
 import Hoard.Effects.Metrics (runMetricsNoOp)
@@ -28,7 +26,6 @@ spec_Monitoring :: Spec
 spec_Monitoring = withCleanTestDatabase $ do
     describe "listener" do
         it "reports correct number of peers, immutable tip, and block count" $ \config -> do
-            let testTime = UTCTime (toEnum 0) 0
             logs <-
                 runEff
                     . fmap (fmap (\m -> (m.severity, m.text)))
@@ -37,7 +34,6 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
-                    . runClockConst testTime
                     . runDBRead
                     . evalState
                         ( def
