@@ -33,6 +33,7 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Listeners (runListeners)
 import Hoard.Monitoring qualified as Monitoring
+import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerSharing qualified as PeerSharing
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
@@ -76,6 +77,7 @@ main =
             PeerSharing.run
             ChainSync.run
             BlockFetch.run
+            OrphanDetection.run
             Monitoring.run
             Collectors.run
             Conc.awaitAll

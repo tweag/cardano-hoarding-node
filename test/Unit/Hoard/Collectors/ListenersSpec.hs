@@ -61,8 +61,9 @@ dbBlock =
         , blockData = testBlock
         , validationStatus = ""
         , validationReason = ""
-        , isCanonical = False
         , firstSeen = epoch
+        , classification = Nothing
+        , classifiedAt = Nothing
         }
 
 

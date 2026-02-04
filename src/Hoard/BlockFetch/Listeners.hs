@@ -63,7 +63,7 @@ blockBatchCompleted event = do
 
 
 -- | Extract block data from a BlockReceived event.
--- Assumes the block is not in the canonical chain and has not been validated.
+-- Assumes the block has not been validated.
 extractBlockData :: BlockReceived -> Block
 extractBlockData event =
     Block
@@ -73,6 +73,7 @@ extractBlockData event =
         , blockData = event.block
         , validationStatus = "" -- Block has yet to be validated
         , validationReason = "" -- Block has yet to be validated
-        , isCanonical = False -- Default to False until proven otherwise.
         , firstSeen = event.timestamp
+        , classification = Nothing -- Block has yet to be classified
+        , classifiedAt = Nothing -- Block has yet to be classified
         }

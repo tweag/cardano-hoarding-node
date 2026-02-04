@@ -43,6 +43,8 @@ import Hoard.API (API, Routes, server)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
 import Hoard.Collectors.Config ()
+import Hoard.Data.Block (Block)
+import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
 import Hoard.Effects.Conc (Conc, runConcNewScope)
@@ -81,7 +83,8 @@ withEffectStackServer action = runEffectStackTest $ \_env -> withServer action
 
 withServer
     :: forall b es
-     . ( IOE :> es
+     . ( BlockRepo :> es
+       , IOE :> es
        , Pub :> es
        , Metrics :> es
        )
@@ -158,7 +161,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , cardanoProtocols = cardanoProtocolHandles
                 }
     let env = Env {config, handles}
-    ((a, finalState), events) <-
+    (((a, finalState), _blockState), events) <-
         runEff
             . runFileSystem
             . runConcurrent
@@ -170,6 +173,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runMetrics
             . runWriter
             . runPubWriter
+            . runState @[Block] []
+            . runBlockRepoState
             . runState @HoardState def
             $ mkEff env
     pure (a, finalState, events)
@@ -177,6 +182,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
 
 type TestAppEffs =
     [ State HoardState
+    , BlockRepo
+    , State [Block]
     , Pub
     , Writer [Dynamic]
     , Metrics

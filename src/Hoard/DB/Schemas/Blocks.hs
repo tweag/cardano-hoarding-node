@@ -21,6 +21,7 @@ import Hoard.Data.Block (Block (..), decodeCardanoBlock, encodeCardanoBlock)
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..), blockToEra)
 import Hoard.Data.PoolID (PoolID)
+import Hoard.OrphanDetection.Data (BlockClassification)
 
 
 data Row f = Row
@@ -31,8 +32,9 @@ data Row f = Row
     , blockData :: Column f ByteString
     , validationStatus :: Column f Text
     , validationReason :: Column f Text
-    , isCanonical :: Column f Bool
     , firstSeen :: Column f UTCTime
+    , classification :: Column f (Maybe BlockClassification)
+    , classifiedAt :: Column f (Maybe UTCTime)
     }
     deriving stock (Generic)
     deriving anyclass (Rel8able)
@@ -57,8 +59,9 @@ blockFromRow row = do
             , blockData = bd
             , validationStatus = row.validationStatus
             , validationReason = row.validationReason
-            , isCanonical = row.isCanonical
             , firstSeen = row.firstSeen
+            , classification = row.classification
+            , classifiedAt = row.classifiedAt
             }
 
 
@@ -72,6 +75,7 @@ rowFromBlock blk = do
         , blockData = lit $ encodeCardanoBlock blk.blockData
         , validationStatus = lit blk.validationStatus
         , validationReason = lit blk.validationReason
-        , isCanonical = lit blk.isCanonical
         , firstSeen = lit blk.firstSeen
+        , classification = lit blk.classification
+        , classifiedAt = lit blk.classifiedAt
         }
