@@ -15,7 +15,7 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.Log (Message (..), Severity (..), runLogWriter)
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))

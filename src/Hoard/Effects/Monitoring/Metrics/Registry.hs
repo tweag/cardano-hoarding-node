@@ -1,7 +1,7 @@
 -- | Metric registry for managing Prometheus metrics.
 --
 -- The actual implementation of the `runMetrics` handler.
-module Hoard.Effects.Metrics.Registry
+module Hoard.Effects.Monitoring.Metrics.Registry
     ( MetricHandles
     , initMetricHandles
     , setGauge

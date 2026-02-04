@@ -28,6 +28,18 @@ database:
 logging:
   minimum_severity: DEBUG
 
+# Tracing configuration (OpenTelemetry) - disabled in CI
+tracing:
+  enabled: false
+  service_name: "hoard"
+  otlp_endpoint: "http://localhost:4318"
+
+# Loki log aggregation - disabled in CI
+loki:
+  enabled: false
+  endpoint: "http://localhost:3100"
+  service_name: "hoard"
+
 # Maximum number of file descriptors
 max_file_descriptors: 16384
 

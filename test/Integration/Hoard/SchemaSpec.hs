@@ -15,7 +15,7 @@ import Hoard.DB.Schemas.HoardState qualified as HoadStateSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Effects.Clock (runClockConst)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 

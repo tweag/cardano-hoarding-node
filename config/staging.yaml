@@ -29,6 +29,18 @@ database:
 logging:
   minimum_severity: INFO
 
+# Tracing configuration (OpenTelemetry) - enabled in staging
+tracing:
+  enabled: true
+  service_name: "hoard"
+  otlp_endpoint: "http://localhost:4318"
+
+# Loki log aggregation - enabled in staging
+loki:
+  enabled: true
+  endpoint: "http://localhost:3100"
+  service_name: "hoard"
+
 # Maximum number of file descriptors (soft limit)
 # Increase this to support many concurrent peer connections
 max_file_descriptors: 16384

@@ -8,6 +8,8 @@ dist-newstyle/
 build.log
 postgres-data/
 grafana-data/
+loki-data/
 prometheus-data/
+tempo-data/
 node-db/
 .env.local

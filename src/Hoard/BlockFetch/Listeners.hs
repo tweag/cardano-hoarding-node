@@ -27,8 +27,8 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics)
-import Hoard.Effects.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
 
 
 -- | Listener that handles BlockFetch started events

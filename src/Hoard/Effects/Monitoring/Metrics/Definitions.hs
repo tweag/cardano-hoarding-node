@@ -1,7 +1,7 @@
 -- | Application-specific metric definitions.
 --
 -- Defines metric names and provides helper functions for common metric operations.
-module Hoard.Effects.Metrics.Definitions
+module Hoard.Effects.Monitoring.Metrics.Definitions
     ( -- * Metric Names
 
       -- ** Gauges
@@ -33,7 +33,7 @@ module Hoard.Effects.Metrics.Definitions
 
 import Effectful (Eff, (:>))
 
-import Hoard.Effects.Metrics (Metrics, counterInc)
+import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc)
 
 
 -- | Gauges - Point-in-time values

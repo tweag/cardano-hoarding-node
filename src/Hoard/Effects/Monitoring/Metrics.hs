@@ -16,7 +16,7 @@
 -- * Gauges: Point-in-time values that can go up or down
 -- * Counters: Monotonically increasing values
 -- * Histograms: Distributions with buckets for measuring durations
-module Hoard.Effects.Metrics
+module Hoard.Effects.Monitoring.Metrics
     ( -- * Effect
       Metrics
 
@@ -50,7 +50,7 @@ import Prelude hiding (Reader, ask)
 
 import Data.Time.Clock (diffUTCTime)
 import Hoard.Effects.Clock (Clock, currentTime)
-import Hoard.Effects.Metrics.Registry qualified as Registry
+import Hoard.Effects.Monitoring.Metrics.Registry qualified as Registry
 
 
 -- | Metrics effect for tracking application metrics

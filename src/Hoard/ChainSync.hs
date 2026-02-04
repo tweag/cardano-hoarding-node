@@ -11,7 +11,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
 

@@ -25,8 +25,9 @@
 -- @
 module Hoard.Effects.Log
     ( -- * Effect
-      Log
+      Log (..)
     , Message (..)
+    , Namespace (..)
     , Config (..)
     , Severity (..)
     , log
@@ -34,7 +35,9 @@ module Hoard.Effects.Log
     , warn
     , debug
     , err
+    , logMsg
     , withNamespace
+    , getNamespace
     , asTracer
 
       -- * Interpreters
