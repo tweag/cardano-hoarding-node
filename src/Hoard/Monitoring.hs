@@ -21,8 +21,8 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.DBRead (DBRead)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics, gaugeSet)
-import Hoard.Effects.Metrics.Definitions (metricBlocksInDB, metricConnectedPeers)
+import Hoard.Effects.Monitoring.Metrics (Metrics, gaugeSet)
+import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksInDB, metricConnectedPeers)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Triggers (every)

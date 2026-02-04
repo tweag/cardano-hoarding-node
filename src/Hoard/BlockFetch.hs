@@ -7,7 +7,7 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log, withNamespace)
-import Hoard.Effects.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
 

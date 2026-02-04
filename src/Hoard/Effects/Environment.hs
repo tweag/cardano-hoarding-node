@@ -38,11 +38,13 @@ import Hoard.Types.Environment
     , Config (..)
     , Env (..)
     , Handles (..)
+    , LokiConfig
     , MonitoringConfig
     , NodeSocketsConfig
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
+    , TracingConfig
     )
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -55,6 +57,8 @@ data ConfigFile = ConfigFile
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
+    , tracing :: TracingConfig
+    , loki :: LokiConfig
     , maxFileDescriptors :: Maybe Word32
     , collectors :: Collectors.Config
     , cardanoProtocols :: CardanoProtocolsConfig
@@ -277,6 +281,8 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , nodeConfig
                 , nodeSockets = configFile.nodeSockets
                 , logging
+                , tracing = configFile.tracing
+                , loki = configFile.loki
                 , maxFileDescriptors = configFile.maxFileDescriptors
                 , topology
                 , peerSnapshot

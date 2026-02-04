@@ -13,7 +13,7 @@ import Prelude hiding (appendFile, readFile)
 import Hoard.API.Violations (ViolationsAPI, violationsHandler)
 import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Metrics (Metrics, exportMetrics)
+import Hoard.Effects.Monitoring.Metrics (Metrics, exportMetrics)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.HeaderReceived (Header, HeaderReceived (..))
 

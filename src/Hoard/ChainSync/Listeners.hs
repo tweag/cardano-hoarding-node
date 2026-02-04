@@ -23,8 +23,8 @@ import Hoard.Data.Header (Header (..))
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics)
-import Hoard.Effects.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward, recordHeaderReceived)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward, recordHeaderReceived)
 
 
 -- | Listener that handles ChainSync HeaderReceived events
