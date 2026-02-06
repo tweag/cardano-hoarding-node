@@ -18,6 +18,7 @@ import Cardano.Api ()
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
+import Data.Time (NominalDiffTime)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
@@ -26,10 +27,10 @@ import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
-import GHC.IO.Exception (IOErrorType (..), IOException (..), userError)
+import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError, userError)
 import Network.Mux (Mode (..))
 import Network.Mux.Trace qualified as Mux
-import Network.Socket (SockAddr)
+import Network.Socket (SockAddr, Socket)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
@@ -54,7 +55,8 @@ import Ouroboros.Network.NodeToNode
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
 import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..))
-import Ouroboros.Network.Snocket (socketSnocket)
+import Ouroboros.Network.Snocket (Snocket (..), socketSnocket)
+import System.Timeout qualified as Timeout
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
@@ -66,6 +68,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
+import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
 import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
@@ -128,7 +131,8 @@ runNodeToNode =
             Log.debug $ "Attempting connection to " <> show addr
 
             Log.debug "Creating snocket..."
-            let snocket = socketSnocket ioManager
+            let connectionTimeout = env.config.nodeToNode.connectionTimeoutSeconds
+            let snocket = withConnectionTimeout connectionTimeout (socketSnocket ioManager)
 
             -- Load protocol info and create codecs
             Log.debug "Loading protocol configuration..."
@@ -273,3 +277,37 @@ mkApplication unlift env codecs peer =
         , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs peer
         , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
         ]
+
+
+--------------------------------------------------------------------------------
+-- Snocket with Connection Timeout
+--------------------------------------------------------------------------------
+
+-- | Wrap a snocket with a connection timeout.
+--
+-- This wraps only the 'connect' operation, so it only affects the TCP
+-- handshake phase. Once the connection is established, the timeout no longer
+-- applies.
+withConnectionTimeout
+    :: NominalDiffTime
+    -- ^ Timeout in seconds for the TCP connection handshake
+    -> Snocket IO Socket SockAddr
+    -> Snocket IO Socket SockAddr
+withConnectionTimeout timeoutDurationSeconds snocket =
+    snocket {connect = timedConnect}
+  where
+    timedConnect socket addr = do
+        let timeoutMicros = round (timeoutDurationSeconds * 1_000_000)
+        result <- Timeout.timeout timeoutMicros (connect snocket socket addr)
+        case result of
+            Nothing ->
+                ioError $
+                    IOError
+                        { ioe_handle = Nothing
+                        , ioe_type = TimeExpired
+                        , ioe_location = "connect"
+                        , ioe_description = "Connection timed out"
+                        , ioe_errno = Nothing
+                        , ioe_filename = Nothing
+                        }
+            Just () -> pure ()

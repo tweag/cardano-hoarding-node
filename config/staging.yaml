@@ -39,6 +39,11 @@ peer_manager:
   max_collector_lifetime_seconds: 3000 # 50 minutes
   max_concurrent_collectors: 100
 
+node_to_node:
+  # Timeout for TCP connection handshake (in seconds)
+  # This only affects the initial connection, not established connections
+  connection_timeout_seconds: 10
+
 # Cardano protocols configuration
 cardano_protocols:
   peer_sharing:

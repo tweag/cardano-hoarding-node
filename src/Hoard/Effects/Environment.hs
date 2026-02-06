@@ -25,6 +25,7 @@ import Prelude hiding (Reader, asks, runReader)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.PeerManager.Config qualified as PeerManager
@@ -61,6 +62,7 @@ data ConfigFile = ConfigFile
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
     , peerManager :: PeerManager.Config
+    , nodeToNode :: NodeToNode.Config
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -284,6 +286,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , cardanoProtocols = configFile.cardanoProtocols
                 , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
+                , nodeToNode = configFile.nodeToNode
                 }
         env = Env {config, handles}
 
