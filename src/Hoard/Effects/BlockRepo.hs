@@ -64,9 +64,10 @@ runBlockRepo = interpret_ $ \case
     GetViolations mbClassification mbMinSlot mbMaxSlot -> do
         results <- runQuery "get-violations" $ getViolationsQuery mbClassification mbMinSlot mbMaxSlot
         -- Log parsing errors before discarding them
-        forM_ (lefts results) $ \err ->
+        let (errs, violations) = partitionEithers results
+        forM_ errs $ \err ->
             Log.warn $ "Failed to parse block violation from database: " <> err
-        pure $ rights results
+        pure violations
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
