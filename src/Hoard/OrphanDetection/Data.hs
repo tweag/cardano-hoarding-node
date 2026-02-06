@@ -13,7 +13,7 @@ import Hoard.Types.JsonReadShow (JsonReadShow (..))
 data BlockClassification
     = -- | Block is on the canonical chain
       Canonical
-    | -- | Block is permanently orphaned (not on chain, past immutable tip)
+    | -- | Block is permanently orphaned (not on chain, before immutable tip)
       Orphaned
     deriving (Eq, Show, Read)
     deriving (DBType, DBEq) via (ReadShow BlockClassification)
