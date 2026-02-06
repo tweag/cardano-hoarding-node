@@ -64,7 +64,6 @@ import Hoard.Types.Environment
     , Env (..)
     , Handles (..)
     , Local (MakeLocal, nodeToClientSocket, tracerSocket)
-    , MonitoringConfig (..)
     , NodeSocketsConfig (Local)
     , PeerSnapshotFile (..)
     , ServerConfig (..)
@@ -127,7 +126,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , chainSync = def
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
                 }
-    let monitoringCfg = MonitoringConfig {pollingIntervalSeconds = 10}
     let cardanoNodeIntegrationCfg =
             CardanoNodeIntegrationConfig
                 { sshServerAliveIntervalSeconds = 60
@@ -150,7 +148,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , cardanoProtocols
-                , monitoring = monitoringCfg
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
                 , peerManager = def
                 , nodeToNode = def
