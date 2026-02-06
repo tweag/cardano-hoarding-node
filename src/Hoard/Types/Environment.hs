@@ -39,6 +39,7 @@ import Ouroboros.Network.IOManager (IOManager)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.KeepAlive.Config qualified as KeepAlive
 import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.PeerSharing.Config qualified as PeerSharing
@@ -70,6 +71,7 @@ data Config = Config
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
+    , nodeToNode :: NodeToNode.Config
     }
 
 
