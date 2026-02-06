@@ -4,21 +4,27 @@ module Hoard.Monitoring
     , listener
     , runTriggers
     , Poll (..)
+    , Config (..)
+    , ConfigFile (..)
+    , runConfig
     ) where
 
 import Cardano.Api qualified as C
 import Data.List (partition)
-import Effectful (Eff, (:>))
+import Effectful (Eff, IOE, (:>))
 import Effectful.Concurrent (Concurrent)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (Reader, asks, runReader)
 import Effectful.State.Static.Shared (State, gets)
-import Prelude hiding (Reader, State, asks, gets)
+import Prelude hiding (Reader, State, asks, gets, runReader)
 
+import Data.Aeson (FromJSON (..))
+import Data.Default (Default (..))
 import Hoard.DB.Schema (countRows)
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.DBRead (DBRead)
+import Hoard.Effects.Environment (ConfigPath (..), loadYaml)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Metrics (Metrics, gaugeSet)
@@ -28,8 +34,8 @@ import Hoard.Effects.Publishing qualified as Sub
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.Triggers (every)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
-import Hoard.Types.Environment (Config (..), MonitoringConfig (..))
 import Hoard.Types.HoardState (HoardState (..))
+import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 run
@@ -93,9 +99,38 @@ listener Poll = do
 
 runTriggers :: (Conc :> es, Concurrent :> es, Pub :> es, Reader Config :> es) => Eff es ()
 runTriggers = do
-    pollingInterval <- asks $ (.monitoring.pollingIntervalSeconds)
+    pollingInterval <- asks $ (.pollingIntervalSeconds)
     every pollingInterval $ publish Poll
 
 
 data Poll = Poll
     deriving stock (Show, Typeable)
+
+
+data Config = Config
+    { pollingIntervalSeconds :: Int
+    -- ^ Interval between peer status polling
+    }
+    deriving stock (Generic)
+    deriving (FromJSON) via QuietSnake Config
+
+
+instance Default Config where
+    def =
+        Config
+            { pollingIntervalSeconds = 5
+            }
+
+
+data ConfigFile = ConfigFile
+    { monitoring :: Config
+    }
+    deriving stock (Generic)
+    deriving (FromJSON) via QuietSnake ConfigFile
+
+
+runConfig :: (IOE :> es, Reader ConfigPath :> es) => Eff (Reader Config : es) a -> Eff es a
+runConfig eff = do
+    configPath <- asks (.unConfigPath)
+    configFile <- loadYaml @ConfigFile configPath
+    runReader configFile.monitoring eff

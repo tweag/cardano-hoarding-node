@@ -5,6 +5,9 @@ module Hoard.Effects.Environment
     , loadNodeConfig
     , loadProtocolInfo
     , loadTopology
+    , loadYaml
+    , ConfigPath (..)
+    , runConfigPath
     ) where
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
@@ -39,7 +42,6 @@ import Hoard.Types.Environment
     , Config (..)
     , Env (..)
     , Handles (..)
-    , MonitoringConfig
     , NodeSocketsConfig
     , PeerSnapshotFile (..)
     , ServerConfig (..)
@@ -58,7 +60,6 @@ data ConfigFile = ConfigFile
     , logging :: LoggingConfig
     , maxFileDescriptors :: Maybe Word32
     , cardanoProtocols :: CardanoProtocolsConfig
-    , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
     , peerManager :: PeerManager.Config
@@ -257,14 +258,14 @@ loadYaml path = do
 loadEnv
     :: ( Concurrent :> es
        , IOE :> es
-       , Reader Options :> es
+       , Reader ConfigPath :> es
        )
     => Eff (Reader Env : es) a
     -> Eff es a
 loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
-    deployment <- asks $ fromMaybe Dev . Options.deployment
-    putTextLn $ "Loading configuration for deployment: " <> show deployment
-    configFile <- loadYaml @ConfigFile $ "config" </> cs (deploymentName deployment) <> ".yaml"
+    configPath <- asks @ConfigPath (.unConfigPath)
+    putTextLn $ "Loading configuration from: " <> show configPath
+    configFile <- loadYaml @ConfigFile configPath
     secrets <- loadYaml @SecretConfig $ configFile.secretsFile
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
     protocolInfo <- loadProtocolInfo nodeConfig
@@ -284,13 +285,22 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerManager = configFile.peerManager
                 , cardanoProtocols = configFile.cardanoProtocols
-                , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
                 , nodeToNode = configFile.nodeToNode
                 }
         env = Env {config, handles}
 
     runReader env eff
+
+
+newtype ConfigPath = ConfigPath {unConfigPath :: FilePath}
+
+
+runConfigPath :: (Reader Options :> es) => Eff (Reader ConfigPath : es) a -> Eff es a
+runConfigPath eff = do
+    deployment <- asks $ fromMaybe Dev . Options.deployment
+    let configPath = ConfigPath $ "config" </> cs (deploymentName deployment) <> ".yaml"
+    runReader configPath eff
 
 
 runConfigReader
