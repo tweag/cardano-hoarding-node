@@ -105,6 +105,51 @@ let
           };
         }
         {
+          id = 2;
+          title = "Pending Peers";
+          type = "stat";
+          description = "Number of peers pending connection. These are peers that have been discovered but are not yet fully connected.";
+          gridPos = {
+            x = 8;
+            y = 0;
+            w = 8;
+            h = 8;
+          };
+          targets = [
+            {
+              expr = "hoard_pending_peers";
+              refId = "A";
+            }
+          ];
+          options = {
+            textMode = "auto";
+            colorMode = "value";
+            graphMode = "area";
+          };
+          fieldConfig = {
+            defaults = {
+              unit = "none";
+              thresholds = {
+                mode = "absolute";
+                steps = [
+                  {
+                    value = 0;
+                    color = "green";
+                  }
+                  {
+                    value = 10;
+                    color = "yellow";
+                  }
+                  {
+                    value = 50;
+                    color = "red";
+                  }
+                ];
+              };
+            };
+          };
+        }
+        {
           id = 3;
           title = "Blocks in Database";
           type = "stat";
@@ -225,7 +270,79 @@ let
           ];
         }
 
-        # Row 3: Database Performance
+        # Row 3: Peer Management
+        {
+          id = 15;
+          title = "Cull Batch Size";
+          type = "graph";
+          description = "Distribution of collectors culled per cull event (5-minute window). Shows p50, p90, and p99 quantiles of cull batch sizes.";
+          gridPos = {
+            x = 0;
+            y = 16;
+            w = 12;
+            h = 8;
+          };
+          targets = [
+            {
+              expr = "histogram_quantile(0.5, rate(hoard_peer_manager_cull_batches_bucket[5m]))";
+              refId = "A";
+              legendFormat = "p50";
+            }
+            {
+              expr = "histogram_quantile(0.9, rate(hoard_peer_manager_cull_batches_bucket[5m]))";
+              refId = "B";
+              legendFormat = "p90";
+            }
+            {
+              expr = "histogram_quantile(0.99, rate(hoard_peer_manager_cull_batches_bucket[5m]))";
+              refId = "C";
+              legendFormat = "p99";
+            }
+          ];
+          yaxes = [
+            {
+              format = "none";
+              label = "Collectors culled";
+              show = true;
+            }
+            {
+              format = "none";
+              show = false;
+            }
+          ];
+        }
+        {
+          id = 16;
+          title = "Collector Replenishment Rate";
+          type = "graph";
+          description = "Rate at which collectors are being replenished (5-minute average). Shows how frequently the peer manager replaces culled or lost collectors.";
+          gridPos = {
+            x = 12;
+            y = 16;
+            w = 12;
+            h = 8;
+          };
+          targets = [
+            {
+              expr = "rate(hoard_peer_manager_replenished_collector_count[5m])";
+              refId = "A";
+              legendFormat = "replenishments/sec";
+            }
+          ];
+          yaxes = [
+            {
+              format = "ops";
+              label = "Replenishments/sec";
+              show = true;
+            }
+            {
+              format = "none";
+              show = false;
+            }
+          ];
+        }
+
+        # Row 4: Database Performance
         {
           id = 7;
           title = "Database Query Rate";
@@ -233,7 +350,7 @@ let
           description = "Rate of database queries being executed (5-minute average). Shows the database workload as blocks and metadata are stored and retrieved.";
           gridPos = {
             x = 0;
-            y = 16;
+            y = 24;
             w = 8;
             h = 8;
           };
@@ -263,7 +380,7 @@ let
           description = "95th percentile of database query execution time. This represents the duration that 95% of queries complete within, helping identify performance issues.";
           gridPos = {
             x = 8;
-            y = 16;
+            y = 24;
             w = 8;
             h = 8;
           };
@@ -293,7 +410,7 @@ let
           description = "Rate of database query errors (5-minute average). Should be zero under normal operation. Non-zero values indicate database connectivity or query issues.";
           gridPos = {
             x = 16;
-            y = 16;
+            y = 24;
             w = 8;
             h = 8;
           };
@@ -322,7 +439,7 @@ let
           };
         }
 
-        # Row 4: GHC Runtime
+        # Row 5: GHC Runtime
         {
           id = 10;
           title = "Heap Size";
@@ -330,7 +447,7 @@ let
           description = "Current size of live data in the GHC heap. Shows memory actively used by the application, excluding garbage-collected data.";
           gridPos = {
             x = 0;
-            y = 24;
+            y = 32;
             w = 8;
             h = 8;
           };
@@ -360,7 +477,7 @@ let
           description = "Percentage of time spent in garbage collection (5-minute average). Shows GC CPU time and wall clock time. High values indicate memory pressure or inefficient allocation patterns.";
           gridPos = {
             x = 8;
-            y = 24;
+            y = 32;
             w = 8;
             h = 8;
           };
@@ -389,7 +506,7 @@ let
           ];
         }
 
-        # Row 5: System Resources
+        # Row 6: System Resources
         {
           id = 13;
           title = "CPU Usage";
@@ -397,7 +514,7 @@ let
           description = "System-wide CPU usage percentage (5-minute average). Shows overall CPU utilization across all cores. High sustained usage may indicate the need for more CPU resources.";
           gridPos = {
             x = 0;
-            y = 32;
+            y = 40;
             w = 12;
             h = 8;
           };
@@ -427,7 +544,7 @@ let
           description = "System-wide memory usage percentage. Shows the proportion of total system memory currently in use. Values approaching 100% may lead to swapping and performance degradation.";
           gridPos = {
             x = 12;
-            y = 32;
+            y = 40;
             w = 12;
             h = 8;
           };

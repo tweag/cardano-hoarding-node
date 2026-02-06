@@ -1,4 +1,4 @@
-module Unit.Hoard.Collectors.ListenersSpec (spec_Collectors_Listeners) where
+module Unit.Hoard.CollectorSpec (spec_Collector) where
 
 import Data.Dynamic (fromDynamic)
 import Data.Time (UTCTime (..))
@@ -17,7 +17,7 @@ import Prelude hiding (evalState, execState)
 
 import Hoard.BlockFetch.Events (BlockFetchRequest (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))
-import Hoard.Collectors.Listeners (pickBlockFetchRequest)
+import Hoard.Collector (pickBlockFetchRequest)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID (..))
@@ -80,8 +80,8 @@ testPeer =
         }
 
 
-spec_Collectors_Listeners :: Spec
-spec_Collectors_Listeners = do
+spec_Collector :: Spec
+spec_Collector = do
     describe "pickBlockFetchRequest" do
         it "should not issue request for existing block" do
             let reqs = runEff [dbBlock]
