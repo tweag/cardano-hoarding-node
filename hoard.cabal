@@ -16,6 +16,7 @@ build-type:    Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.API.Violations
       Hoard.BlockFetch
       Hoard.BlockFetch.Config
       Hoard.BlockFetch.Events
@@ -34,6 +35,7 @@ library
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.BlockHash
+      Hoard.Data.BlockViolation
       Hoard.Data.Eras
       Hoard.Data.Header
       Hoard.Data.ID
@@ -80,6 +82,9 @@ library
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
       Hoard.Network.Events
+      Hoard.OrphanDetection
+      Hoard.OrphanDetection.Data
+      Hoard.OrphanDetection.Listeners
       Hoard.PeerSharing
       Hoard.PeerSharing.Config
       Hoard.PeerSharing.Events

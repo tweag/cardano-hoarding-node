@@ -36,6 +36,7 @@ import Ouroboros.Consensus.Shelley.Ledger
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..))
 import Hoard.Data.PoolID (PoolID)
+import Hoard.OrphanDetection.Data (BlockClassification)
 import Hoard.Types.Cardano (CardanoBlock, Crypto)
 
 
@@ -46,8 +47,9 @@ data Block = Block
     , blockData :: CardanoBlock
     , validationStatus :: Text
     , validationReason :: Text
-    , isCanonical :: Bool
     , firstSeen :: UTCTime
+    , classification :: Maybe BlockClassification
+    , classifiedAt :: Maybe UTCTime
     }
     deriving (Eq)
 
