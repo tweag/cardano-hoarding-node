@@ -18,14 +18,14 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
-import Effectful.Concurrent (Concurrent, threadDelay)
+import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
-import Network.Mux (Mode (..), StartOnDemandOrEagerly (..))
+import Network.Mux (Mode (..))
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
@@ -34,12 +34,8 @@ import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersi
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
-    ( MiniProtocol (..)
-    , MiniProtocolCb (..)
-    , MiniProtocolLimits (..)
-    , OuroborosApplication (..)
+    ( OuroborosApplication (..)
     , OuroborosApplicationWithMinimalCtx
-    , RunMiniProtocol (..)
     )
 import Ouroboros.Network.NodeToNode
     ( DiffusionMode (..)
@@ -50,7 +46,6 @@ import Ouroboros.Network.NodeToNode
     , networkMagic
     , nullNetworkConnectTracers
     , simpleSingletonVersions
-    , txSubmissionMiniProtocolNum
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
 import Ouroboros.Network.Snocket (socketSnocket)
@@ -58,7 +53,6 @@ import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
-import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
@@ -70,7 +64,7 @@ import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
 import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env, TxSubmissionConfig (..))
+import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
 import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -234,18 +228,4 @@ mkApplication unlift env codecs peer =
         , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch codecs peer
         , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs
         , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
-        , -- TxSubmission mini-protocol (stub - runs forever to avoid terminating)
-          MiniProtocol
-            { miniProtocolNum = txSubmissionMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits env.config.cardanoProtocols.txSubmission.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx _channel ->
-                unlift $ withExceptionLogging "TxSubmission" $ do
-                    Log.debug "TxSubmission protocol stub started - will sleep forever to keep connection alive"
-                    -- Sleep forever instead of terminating immediately
-                    -- This prevents the stub from signaling connection termination
-                    threadDelay maxBound
-                    Log.debug "TxSubmission stub woke up (should never happen)"
-                    pure ((), Nothing)
-            }
         ]
