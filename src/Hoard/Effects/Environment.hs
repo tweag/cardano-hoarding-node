@@ -10,28 +10,24 @@ module Hoard.Effects.Environment
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
 import Data.Default (def)
-import Data.String.Conversions (cs)
-import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (throwIO)
-import Effectful.Reader.Static (Reader, asks, runReader)
+import Effectful.Reader.Static (Reader, ask, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
-import Prelude hiding (Reader, asks, runReader)
+import Prelude hiding (Reader, ask, asks, runReader)
 
 import Hoard.BlockFetch.Config qualified as BlockFetch
+import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
-import Hoard.Effects.Options (Options)
-import Hoard.Effects.Options qualified as Options
 import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
-import Hoard.Types.Deployment (Deployment (..), deploymentName)
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig
     , CardanoProtocolHandles (..)
@@ -39,7 +35,6 @@ import Hoard.Types.Environment
     , Config (..)
     , Env (..)
     , Handles (..)
-    , MonitoringConfig
     , NodeSocketsConfig
     , PeerSnapshotFile (..)
     , ServerConfig (..)
@@ -53,14 +48,13 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 data ConfigFile = ConfigFile
     { server :: ServerConfig
     , database :: DatabaseConfigFile
-    , secretsFile :: String
+    , secretsFile :: ConfigPath
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
     , tracing :: TracingConfig
     , maxFileDescriptors :: Maybe Word32
     , cardanoProtocols :: CardanoProtocolsConfig
-    , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
     , peerManager :: PeerManager.Config
@@ -245,28 +239,20 @@ lookupNonEmpty n =
         s -> toText <$> s
 
 
-loadYaml :: forall a es. (IOE :> es) => (FromJSON a) => String -> Eff es a
-loadYaml path = do
-    result <- liftIO $ Yaml.decodeFileEither path
-    case result of
-        Left err -> throwIO $ userError $ "Failed to parse " <> path <> ": " <> show err
-        Right configFile -> pure configFile
-
-
 -- | Load the full application environment for a given deployment
 -- Loads both the public config YAML and the secrets YAML file,
 -- then acquires all necessary runtime handles
 loadEnv
     :: ( Concurrent :> es
        , IOE :> es
-       , Reader Options :> es
+       , Reader ConfigPath :> es
        )
     => Eff (Reader Env : es) a
     -> Eff es a
 loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
-    deployment <- asks $ fromMaybe Dev . Options.deployment
-    putTextLn $ "Loading configuration for deployment: " <> show deployment
-    configFile <- loadYaml @ConfigFile $ "config" </> cs (deploymentName deployment) <> ".yaml"
+    configPath <- ask @ConfigPath
+    putTextLn $ "Loading configuration from: " <> show configPath
+    configFile <- loadYaml @ConfigFile configPath
     secrets <- loadYaml @SecretConfig $ configFile.secretsFile
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
     protocolInfo <- loadProtocolInfo nodeConfig
@@ -287,7 +273,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerManager = configFile.peerManager
                 , cardanoProtocols = configFile.cardanoProtocols
-                , monitoring = configFile.monitoring
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
                 , nodeToNode = configFile.nodeToNode
                 }

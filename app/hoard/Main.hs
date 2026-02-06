@@ -18,6 +18,7 @@ import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc (runConcNewScope)
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.ConfigPath (runConfigPath)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv, runConfigReader, runHandlesReader)
@@ -52,9 +53,11 @@ main =
         . runChan
         . runConcNewScope
         . loadOptions
+        . runConfigPath
         . loadEnv
         . runConfigReader
         . runHandlesReader
+        . Monitoring.runConfig
         . runLog
         . runClock
         . runFileSystem
