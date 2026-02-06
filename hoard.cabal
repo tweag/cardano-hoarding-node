@@ -62,6 +62,7 @@ library
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.Codecs
+      Hoard.Effects.NodeToNode.Config
       Hoard.Effects.Options
       Hoard.Effects.Output
       Hoard.Effects.PeerRepo
