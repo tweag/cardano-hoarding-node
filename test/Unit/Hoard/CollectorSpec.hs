@@ -27,6 +27,7 @@ import Hoard.Effects.BlockRepo (runBlockRepoState)
 import Hoard.Effects.Log (runLogNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.Publishing (runPubWriter)
+import Hoard.Effects.Verifier (runAllValidVerifier)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
@@ -107,5 +108,6 @@ spec_Collector = do
                     . runPubWriter @BlockFetchRequest
                     . evalState db
                     . runBlockRepoState
+                    . runAllValidVerifier
                     $ pickBlockFetchRequest testPeer.id headerReceived
         in  events

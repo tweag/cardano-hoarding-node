@@ -71,6 +71,7 @@ library
       Hoard.Effects.Options
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
+      Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events
       Hoard.Events.ImmutableTipRefreshTriggered

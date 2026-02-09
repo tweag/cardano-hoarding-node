@@ -37,6 +37,7 @@ import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
+import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
@@ -76,6 +77,9 @@ main =
         . runClock
         . runFileSystem
         . runTemporary
+        . runByronConfig
+        . runShelleyConfig
+        . runVerifier
         . runMetrics
         . withNodeSockets
         . runErrorThrowing
