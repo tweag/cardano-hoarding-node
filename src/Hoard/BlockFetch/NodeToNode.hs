@@ -6,7 +6,7 @@ import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
-import Ouroboros.Consensus.Block.Abstract (headerPoint)
+import Ouroboros.Consensus.Block.Abstract (GetHeader (..), headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
@@ -20,6 +20,7 @@ import Ouroboros.Network.NodeToNode
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
 import Prelude hiding (State, evalState, get, modify)
 
+import Data.Set qualified as Set
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
@@ -33,6 +34,7 @@ import Hoard.BlockFetch.Events
     , BlockReceived (..)
     )
 import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Clock (Clock)
@@ -123,18 +125,19 @@ client unlift cfg peer =
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
+            requestedHashes = Set.fromList $ blockHashFromHeader . (.header) <$> toList reqs
         addAttribute "range.start" (show start)
         addAttribute "range.end" (show end)
         pure
             $ BlockFetch.SendMsgRequestRange
                 (BlockFetch.ChainRange start end)
-                (handleResponse reqs)
+                (handleResponse requestedHashes reqs)
             $ client unlift cfg peer
 
-    handleResponse reqs =
+    handleResponse requestedHashes reqs =
         BlockFetch.BlockFetchResponse
             { handleStartBatch =
-                pure $ blockReceiver 0
+                pure $ blockReceiver requestedHashes 0
             , handleNoBlocks = unlift $ do
                 addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
                 timestamp <- Clock.currentTime
@@ -148,18 +151,19 @@ client unlift cfg peer =
                             }
             }
 
-    blockReceiver blockCount =
+    blockReceiver requestedHashes blockCount =
         BlockFetch.BlockFetchReceiver
             { handleBlock = \block -> unlift $ do
                 timestamp <- Clock.currentTime
-                let event =
+                let blockHash = blockHashFromHeader $ getHeader block
+                when (blockHash `Set.member` requestedHashes)
+                    $ publish
                         BlockReceived
                             { peer
                             , timestamp
                             , block
                             }
-                publish event
-                pure $ blockReceiver $ blockCount + 1
+                pure $ blockReceiver requestedHashes $ blockCount + 1
             , handleBatchDone = unlift $ do
                 addEvent "batch_completed" [("blocks_fetched", show blockCount)]
                 timestamp <- Clock.currentTime
