@@ -12,6 +12,7 @@ import Hoard.Effects.Publishing (Sub)
 
 import Hoard.BlockFetch.Listeners qualified as Listeners
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Effects.Verifier (Verifier)
 
 
 data BlockFetch = BlockFetch
@@ -28,6 +29,7 @@ instance Component BlockFetch es where
             , Sub BlockReceived :> es
             , Sub BlockFetchFailed :> es
             , Sub BlockBatchCompleted :> es
+            , Verifier :> es
             )
 
 

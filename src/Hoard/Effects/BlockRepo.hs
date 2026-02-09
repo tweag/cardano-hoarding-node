@@ -27,11 +27,12 @@ import Rel8 qualified
 
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
 import Hoard.Data.BlockViolation (BlockViolation, blockToViolation)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification)
 import Hoard.Types.Cardano (CardanoHeader)
 
@@ -41,7 +42,7 @@ import Hoard.Effects.Cache.Singleflight qualified as Singleflight
 
 
 data BlockRepo :: Effect where
-    InsertBlocks :: [Block] -> BlockRepo m ()
+    InsertBlocks :: [Verified 'Valid Block] -> BlockRepo m ()
     GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block)
     BlockExists :: BlockHash -> BlockRepo m Bool
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
@@ -57,9 +58,11 @@ runBlockRepo action = do
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
         InsertBlocks blocks -> withSpan "block_repo.insert_blocks" $ do
             addAttribute "blocks.count" (show $ length blocks)
-            runTransaction "insert-blocks" $ insertBlocksTrans blocks
+            runTransaction "insert-blocks"
+                $ insertBlocksTrans
+                $ getVerified <$> blocks
             -- Pre-populate cache: we know these blocks exist after insertion
-            Singleflight.updateCache (map (\b -> (b.hash, True)) blocks)
+            Singleflight.updateCache (map ((,True) . (.hash) . getVerified) blocks)
         GetBlock header -> withSpan "block_repo.get_block" $ do
             let hash = blockHashFromHeader header
             addAttribute "block.hash" (show hash)
@@ -211,7 +214,7 @@ getViolationsQuery mbClassification mbMinSlot mbMaxSlot =
 
 runBlockRepoState :: (State [Block] :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
-    InsertBlocks blocks -> modify $ (blocks <>)
+    InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
     GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
     BlockExists blockHash -> gets $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp ->
