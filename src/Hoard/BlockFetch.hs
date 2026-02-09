@@ -8,6 +8,7 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Sub)
+import Hoard.Effects.Verifier (Verifier)
 
 import Hoard.BlockFetch.Listeners qualified as Listeners
 import Hoard.Effects.Publishing qualified as Sub
@@ -21,6 +22,7 @@ component
        , Sub BlockFetchStarted :> es
        , Sub BlockReceived :> es
        , Tracing :> es
+       , Verifier :> es
        )
     => Component es
 component =
