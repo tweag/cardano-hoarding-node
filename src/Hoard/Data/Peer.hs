@@ -9,6 +9,7 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
 import Network.Socket (SockAddr)
+import Text.Show qualified as Show
 
 import Data.IP qualified as IP
 import Hoard.Data.ID (ID)
@@ -35,8 +36,13 @@ data PeerAddress = PeerAddress
     { host :: NodeIP
     , port :: Int
     }
-    deriving stock (Eq, Ord, Generic, Show)
+    deriving stock (Eq, Ord, Generic)
     deriving (FromJSON, ToJSON)
+
+
+instance Show PeerAddress where
+    -- Shows PeerAddress as "192.168.0.1:3001"
+    show (PeerAddress {host, port}) = show host <> ":" <> show port
 
 
 -- | Convert a SockAddr to a PeerAddress

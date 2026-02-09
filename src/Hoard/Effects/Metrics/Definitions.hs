@@ -6,6 +6,7 @@ module Hoard.Effects.Metrics.Definitions
 
       -- ** Gauges
       metricConnectedPeers
+    , metricPendingPeers
     , metricBlocksInDB
 
       -- ** Counters
@@ -20,6 +21,8 @@ module Hoard.Effects.Metrics.Definitions
       -- ** Histograms
     , metricBlockFetchDuration
     , metricDBQueryDuration
+    , metricPeerManagerCullBatches
+    , metricPeerManagerReplenishedCollector
 
       -- * Helper Functions
     , recordBlockReceived
@@ -39,6 +42,10 @@ import Hoard.Effects.Metrics (Metrics, counterInc)
 -- | Gauges - Point-in-time values
 metricConnectedPeers :: Text
 metricConnectedPeers = "hoard_connected_peers"
+
+
+metricPendingPeers :: Text
+metricPendingPeers = "hoard_pending_peers"
 
 
 metricBlocksInDB :: Text
@@ -81,6 +88,14 @@ metricBlockFetchDuration = "hoard_block_fetch_duration_seconds"
 
 metricDBQueryDuration :: Text
 metricDBQueryDuration = "hoard_db_query_duration_seconds"
+
+
+metricPeerManagerCullBatches :: Text
+metricPeerManagerCullBatches = "hoard_peer_manager_cull_batches"
+
+
+metricPeerManagerReplenishedCollector :: Text
+metricPeerManagerReplenishedCollector = "hoard_peer_manager_replenished_collector"
 
 
 -- | Record a block received event

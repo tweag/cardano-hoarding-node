@@ -4,24 +4,28 @@ module Hoard.Effects.PeerRepo
     , getPeerByAddress
     , getAllPeers
     , updatePeerFailure
+    , updateLastConnected
+    , getEligiblePeers
     , runPeerRepo
     )
 where
 
-import Data.Time (UTCTime)
+import Data.Time (NominalDiffTime, UTCTime, calendarTimeTime)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
+import Rel8 (in_, lit, select, (&&.), (>.))
+import Rel8 qualified
+import Rel8.Expr.Time qualified as Rel8
 
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Rel8 (lit, select)
-import Rel8 qualified
 
 
 -- | Effect for peer repository operations
@@ -55,6 +59,23 @@ data PeerRepo :: Effect where
         -> UTCTime
         -- ^ The failure timestamp
         -> PeerRepo m ()
+    -- | Update time for last connection to a peer.
+    UpdateLastConnected
+        :: ID Peer
+        -- ^ Peer to update
+        -> UTCTime
+        -- ^ New "last connected" time
+        -> PeerRepo m ()
+    -- | Fetch a set of peers eligible for collectors based on the passed
+    -- arguments.
+    GetEligiblePeers
+        :: NominalDiffTime
+        -- ^ Threshold for how long ago a peer must have last failed.
+        -> Set (ID Peer)
+        -- ^ Peers that we are currently connected to.
+        -> Word
+        -- ^ The maximum number of peers we want.
+        -> PeerRepo m (Set Peer)
 
 
 -- | Template Haskell to generate smart constructors
@@ -78,6 +99,12 @@ runPeerRepo = interpret $ \_ -> \case
     UpdatePeerFailure peer timestamp ->
         runTransaction "update-peer-failure" $
             updatePeerFailureImpl peer timestamp
+    UpdateLastConnected peerId timestamp ->
+        runTransaction "update-last-connected" $
+            updateLastConnectedImpl peerId timestamp
+    GetEligiblePeers failureTimeout alreadyConnectedPeers limit ->
+        runQuery "get-eligible-peers" $
+            getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
 
 
 upsertPeersImpl
@@ -168,3 +195,39 @@ updatePeerFailureImpl peer timestamp = do
                         }
                 , returning = Rel8.NoReturning
                 }
+
+
+-- | Update a peer's last failure time
+updateLastConnectedImpl :: ID Peer -> UTCTime -> Transaction ()
+updateLastConnectedImpl peerId timestamp = do
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.update
+            Rel8.Update
+                { target = PeersSchema.schema
+                , from = pure ()
+                , updateWhere = \_ row -> row.id Rel8.==. lit peerId
+                , set = \_ row ->
+                    row
+                        { PeersSchema.lastConnected = lit (Just timestamp)
+                        }
+                , returning = Rel8.NoReturning
+                }
+
+
+getEligiblePeersImpl :: NominalDiffTime -> Set (ID Peer) -> Word -> Statement () (Set Peer)
+getEligiblePeersImpl failureTimeout currentPeers limit =
+    fmap (fromList . fmap PeersSchema.peerFromRow) $
+        Rel8.run $
+            select $ Rel8.limit limit do
+                peer <- Rel8.each PeersSchema.schema
+
+                let didNotFailRecently =
+                        Rel8.nullable
+                            Rel8.true
+                            (\ft -> Rel8.diffTime Rel8.now ft >. lit (calendarTimeTime failureTimeout))
+                            peer.lastFailureTime
+                    isNotACurrentPeer = Rel8.not_ $ peer.id `in_` (lit <$> toList currentPeers)
+
+                Rel8.where_ $ isNotACurrentPeer &&. didNotFailRecently
+                pure peer

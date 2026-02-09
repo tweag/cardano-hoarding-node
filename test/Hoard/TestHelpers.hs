@@ -42,7 +42,6 @@ import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, r
 import Hoard.API (API, Routes, server)
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
-import Hoard.Collectors.Config ()
 import Hoard.Data.Block (Block)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
@@ -54,6 +53,7 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.KeepAlive.Config ()
+import Hoard.PeerManager.Config ()
 import Hoard.PeerSharing.Config ()
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
@@ -149,10 +149,10 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
-                , collectors = def
                 , cardanoProtocols
                 , monitoring = monitoringCfg
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
+                , peerManager = def
                 }
     let handles =
             Handles
