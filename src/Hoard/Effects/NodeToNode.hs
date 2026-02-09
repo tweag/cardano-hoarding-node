@@ -70,6 +70,7 @@ import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute,
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
+import Hoard.Effects.UUID (GenUUID)
 import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
 import Hoard.Events.KeepAlive (KeepAlivePing)
 import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
@@ -118,6 +119,7 @@ runNodeToNode
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , GenUUID :> es
        , IOE :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
@@ -326,6 +328,7 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , GenUUID :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es
