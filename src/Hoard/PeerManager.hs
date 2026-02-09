@@ -32,6 +32,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSp
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
+import Hoard.Effects.Verifier (Verifier)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
@@ -76,6 +77,7 @@ instance Component PeerManager es where
             , Sub PeerRequested :> es
             , Sub ChainSync.HeaderReceived :> es
             , Tracing :> es
+            , Verifier :> es
             , IOE :> es
             )
 
@@ -204,6 +206,7 @@ replenishCollectors
        , State Peers :> es
        , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
+       , Verifier :> es
        )
     => PeerRequested
     -> Eff es ()
@@ -245,6 +248,7 @@ bracketCollector
        , State Peers :> es
        , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
+       , Verifier :> es
        )
     => Peer
     -> Eff es ()
