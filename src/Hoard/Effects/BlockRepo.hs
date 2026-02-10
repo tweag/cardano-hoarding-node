@@ -13,7 +13,8 @@ module Hoard.Effects.BlockRepo
 import Data.Set qualified as Set
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
-import Effectful.Dispatch.Dynamic (interpretWith, interpret_)
+import Effectful.Concurrent (Concurrent)
+import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith)
 import Effectful.TH (makeEffect)
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as TX
@@ -29,6 +30,7 @@ import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.BlockViolation (BlockViolation, blockToViolation)
+import Hoard.Effects.Cache.Singleflight qualified as Singleflight
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
@@ -48,21 +50,21 @@ data BlockRepo :: Effect where
 makeEffect ''BlockRepo
 
 
-runBlockRepo :: (DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepo action = do
-    interpretWith action $ \_env -> \case
+    reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
         InsertBlocks blocks -> withSpan "block_repo.insert_blocks" $ do
             addAttribute "blocks.count" (show $ length blocks)
-            runTransaction "insert-blocks" $
-                insertBlocksTrans blocks
+            runTransaction "insert-blocks" $ insertBlocksTrans blocks
+            -- Pre-populate cache: we know these blocks exist after insertion
+            Singleflight.updateCache (map (\b -> (b.hash, True)) blocks)
         GetBlock header -> withSpan "block_repo.get_block" $ do
             let hash = blockHashFromHeader header
             addAttribute "block.hash" (show hash)
-            runQuery "get-block" $
-                getBlockQuery header
+            runQuery "get-block" $ getBlockQuery header
         BlockExists blockHash -> withSpan "block_repo.block_exists" $ do
             addAttribute "block.hash" (show blockHash)
-            runQuery "block-exists" $ blockExistsQuery blockHash
+            Singleflight.withCache blockHash (runQuery "block-exists" $ blockExistsQuery blockHash)
         ClassifyBlock blockHash classification timestamp -> withSpan "block_repo.classify_block" $ do
             addAttribute "block.hash" (show blockHash)
             addAttribute "block.classification" (show classification)
