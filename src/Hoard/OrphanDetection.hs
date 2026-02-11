@@ -5,6 +5,7 @@ import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.State.Static.Shared (State)
 import Prelude hiding (State)
 
+import Hoard.BlockFetch.Events (BlockReceived)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
@@ -13,6 +14,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Listeners qualified as Listeners
 import Hoard.Types.HoardState (HoardState)
 
@@ -25,7 +27,8 @@ run
        , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
-       , Sub :> es
+       , Sub BlockReceived :> es
+       , Sub ImmutableTipRefreshed :> es
        )
     => Eff es ()
 run = withSpan "orphan_detection" $ do
@@ -41,7 +44,8 @@ runListeners
        , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
-       , Sub :> es
+       , Sub BlockReceived :> es
+       , Sub ImmutableTipRefreshed :> es
        )
     => Eff es ()
 runListeners = withSpan "listeners" $ do

@@ -23,7 +23,7 @@ import Prelude hiding (State, gets, modify)
 -- This is called regularly and during application setup to initialize the immutable tip
 -- before we start connecting to peers.
 -- If fetching the tip fails due to a connection error, it retries once to reconnect and fetch.
-immutableTipRefreshTriggeredListener :: (NodeToClient :> es, State HoardState :> es, Tracing :> es, Pub :> es) => ImmutableTipRefreshTriggered -> Eff es ()
+immutableTipRefreshTriggeredListener :: (NodeToClient :> es, State HoardState :> es, Tracing :> es, Pub ImmutableTipRefreshed :> es) => ImmutableTipRefreshTriggered -> Eff es ()
 immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "immutable_tip.refresh" $ do
     addEvent "fetching_immutable_tip" []
     NodeToClient.immutableTip >>= \case

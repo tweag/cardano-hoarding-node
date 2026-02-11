@@ -36,12 +36,12 @@ import Rel8 (isNull)
 
 run
     :: ( Concurrent :> es
-       , Pub :> es
+       , Pub Poll :> es
        , Reader Config :> es
        , State HoardState :> es
        , State Peers :> es
        , Conc :> es
-       , Sub :> es
+       , Sub Poll :> es
        , Log :> es
        , DBRead :> es
        , Metrics :> es
@@ -54,7 +54,7 @@ run = do
 
 runListeners
     :: ( Conc :> es
-       , Sub :> es
+       , Sub Poll :> es
        , Log :> es
        , State HoardState :> es
        , State Peers :> es
@@ -96,7 +96,7 @@ listener Poll = do
         Log.info $ "Currently connected to " <> show connectedPeers <> " peers | " <> show pendingPeers <> " peer connections pending | Immutable tip slot: " <> tipSlot <> " | Blocks in DB: " <> show blockCount <> " | Unclassified: " <> show unclassifiedCount <> " | Being classified: " <> show beingClassifiedCount
 
 
-runTriggers :: (Conc :> es, Concurrent :> es, Pub :> es, Reader Config :> es) => Eff es ()
+runTriggers :: (Conc :> es, Concurrent :> es, Pub Poll :> es, Reader Config :> es) => Eff es ()
 runTriggers = do
     pollingInterval <- asks $ (.monitoring.pollingIntervalSeconds)
     every pollingInterval $ publish Poll

@@ -3,13 +3,11 @@ module Hoard.TestHelpers
     , runEffectStackTest
     , withEffectStackServer
     , client
-    , filterEvents
     )
 where
 
 import Control.Concurrent.QSem (newQSem)
 import Data.Default (def)
-import Data.Dynamic (Dynamic, fromDynamic)
 import Data.Time (UTCTime (..))
 import Effectful
     ( Eff
@@ -52,6 +50,7 @@ import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
+import Hoard.Events.HeaderReceived (HeaderReceived)
 import Hoard.KeepAlive.Config ()
 import Hoard.PeerManager.Config ()
 import Hoard.PeerSharing.Config ()
@@ -78,7 +77,7 @@ import Hoard.Types.HoardState (HoardState)
 withEffectStackServer
     :: (MonadIO m, es ~ TestAppEffs)
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
-    -> m (b, HoardState, [Dynamic])
+    -> m (b, HoardState, [HeaderReceived])
 withEffectStackServer action = runEffectStackTest $ \_env -> withServer action
 
 
@@ -86,7 +85,7 @@ withServer
     :: forall b es
      . ( BlockRepo :> es
        , IOE :> es
-       , Pub :> es
+       , Pub HeaderReceived :> es
        , Metrics :> es
        )
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
@@ -112,7 +111,7 @@ withServer action = do
 runEffectStackTest
     :: (MonadIO m)
     => (Env -> Eff TestAppEffs a)
-    -> m (a, HoardState, [Dynamic])
+    -> m (a, HoardState, [HeaderReceived])
 runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
@@ -175,7 +174,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runClockConst testTime
             . runMetrics
             . runWriter
-            . runPubWriter
+            . runPubWriter @HeaderReceived
             . runState @[Block] []
             . runBlockRepoState
             . runState @HoardState def
@@ -187,8 +186,8 @@ type TestAppEffs =
     [ State HoardState
     , BlockRepo
     , State [Block]
-    , Pub
-    , Writer [Dynamic]
+    , Pub HeaderReceived
+    , Writer [HeaderReceived]
     , Metrics
     , Clock
     , Log
@@ -204,7 +203,3 @@ type TestAppEffs =
 -- | Generate servant client from API
 client :: Routes (AsClientT ClientM)
 client = genericClient
-
-
-filterEvents :: (Typeable a) => [Dynamic] -> [a]
-filterEvents = mapMaybe fromDynamic

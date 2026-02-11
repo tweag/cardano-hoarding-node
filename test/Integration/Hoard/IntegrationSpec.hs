@@ -4,13 +4,13 @@ import Test.Hspec
 
 import Hoard.API (Routes (..))
 import Hoard.Events.HeaderReceived (Header (..), HeaderReceived (..))
-import Hoard.TestHelpers (client, filterEvents, withEffectStackServer)
+import Hoard.TestHelpers (client, withEffectStackServer)
 
 
 spec_HeaderIntegration :: Spec
 spec_HeaderIntegration = describe "Header Integration Tests" $ do
     describe "POST /header" $ do
-        it "receives header data and emits HeaderReceived event" $ do
+        it "receives header data" $ do
             -- Setup: Create test header
             let testHeader = Header {info = "test header info"}
 
@@ -18,7 +18,7 @@ spec_HeaderIntegration = describe "Header Integration Tests" $ do
                 result <- runClient (client.receiveHeader testHeader)
                 liftIO $ result `shouldSatisfy` isRight
 
-            case filterEvents events of
+            case events of
                 [HeaderReceived header] ->
                     header `shouldBe` testHeader
                 xs ->
@@ -40,7 +40,7 @@ spec_HeaderIntegration = describe "Header Integration Tests" $ do
                 liftIO $ result2 `shouldSatisfy` isRight
 
             -- Assert events contain correct data (in order)
-            case filterEvents events of
+            case events of
                 [HeaderReceived h1, HeaderReceived h2] -> do
                     h1 `shouldBe` testHeader1
                     h2 `shouldBe` testHeader2

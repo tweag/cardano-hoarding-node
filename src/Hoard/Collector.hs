@@ -29,8 +29,8 @@ collectFromPeer
        , Conc :> es
        , Concurrent :> es
        , NodeToNode :> es
-       , Pub :> es
-       , Sub :> es
+       , Pub BlockFetchRequest :> es
+       , Sub HeaderReceived :> es
        , Tracing :> es
        )
     => Peer
@@ -66,7 +66,7 @@ collectFromPeer peer conn = withSpan "collector.collect_from_peer" $ do
 -- that are not in the database.
 pickBlockFetchRequest
     :: ( BlockRepo :> es
-       , Pub :> es
+       , Pub BlockFetchRequest :> es
        , Tracing :> es
        )
     => ID Peer

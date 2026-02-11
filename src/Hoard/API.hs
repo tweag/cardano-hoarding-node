@@ -32,7 +32,7 @@ type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
-server :: (Pub ::> es, Metrics ::> es, BlockRepo ::> es) => Routes (AsServerT (Eff es))
+server :: (Pub HeaderReceived ::> es, Metrics ::> es, BlockRepo ::> es) => Routes (AsServerT (Eff es))
 server =
     Routes
         { receiveHeader = headerHandler
@@ -42,7 +42,7 @@ server =
 
 
 -- | Handler for header data
-headerHandler :: (Pub ::> es) => Header -> Eff es NoContent
+headerHandler :: (Pub HeaderReceived ::> es) => Header -> Eff es NoContent
 headerHandler headerData = do
     -- Publish event via Publisher effect
     publish $ HeaderReceived headerData

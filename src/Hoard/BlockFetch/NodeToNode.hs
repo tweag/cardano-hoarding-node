@@ -50,8 +50,11 @@ miniProtocol
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub :> es
-       , Sub :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockReceived :> es
+       , Pub BlockBatchCompleted :> es
+       , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -86,8 +89,11 @@ client
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub :> es
-       , Sub :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockReceived :> es
+       , Pub BlockBatchCompleted :> es
+       , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
        )
