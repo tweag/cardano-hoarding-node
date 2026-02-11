@@ -17,10 +17,9 @@ import Hoard.BlockFetch.Events
     , BlockFetchStarted
     , BlockReceived
     )
-import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync (ChainSync (..))
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
-import Hoard.Component (runComponent)
+import Hoard.Component (component, runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Core (Core (..))
 import Hoard.Effects.BlockRepo (runBlockRepo)
@@ -55,7 +54,6 @@ import Hoard.PeerManager.Peers (Peers)
 import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Server (runServer)
-import Hoard.Setup (setup)
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -113,14 +111,16 @@ main =
         . runBlockRepo
         . runHoardStateRepo
         $ do
-            setup
-            void bootstrapPeers
             runServer
-            runComponent @Core
-            runComponent @PeerSharing
-            runComponent @ChainSync
-            runComponent @BlockFetch
-            runComponent @OrphanDetection
-            runComponent @Monitoring
-            runComponent @PeerManager
+
+            runSystem
+                [ component @Core
+                , component @PeerSharing
+                , component @ChainSync
+                , component @BlockFetch
+                , component @OrphanDetection
+                , component @Monitoring
+                , component @PeerManager
+                ]
+
             Conc.awaitAll

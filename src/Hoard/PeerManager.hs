@@ -8,7 +8,7 @@ module Hoard.PeerManager
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Time (UTCTime, diffUTCTime)
-import Effectful (Eff, (:>))
+import Effectful (Eff, IOE, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
@@ -16,6 +16,7 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
 import Hoard.BlockFetch.Events (BlockFetchRequest)
+import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), Listener, Trigger)
@@ -40,6 +41,7 @@ import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
+import Hoard.Types.Environment qualified as Env
 
 
 -- * Component
@@ -63,6 +65,7 @@ instance Component PeerManager es where
             , Pub CullRequested :> es
             , Pub PeerDisconnected :> es
             , Reader Config :> es
+            , Reader Env.Config :> es
             , State Peers :> es
             , Sub KeepAlivePing :> es
             , Sub PeersReceived :> es
@@ -71,7 +74,15 @@ instance Component PeerManager es where
             , Sub PeerRequested :> es
             , Sub ChainSync.HeaderReceived :> es
             , Tracing :> es
+            , IOE :> es
             )
+
+
+    setup :: (Effects PeerManager es) => Eff es ()
+    setup = withSpan "peer_manager:setup" $ do
+        addEvent "bootstrapping_peers" []
+        void bootstrapPeers
+        addEvent "peers_bootstrapped" []
 
 
     listeners :: (Effects PeerManager es) => Eff es [Listener es]
@@ -240,10 +251,10 @@ bracketCollector peer = do
         Conc.forkTry @SomeException
             . withSpan "collector"
             . withExceptionLogging ("Collector " <> show peer.address)
-            $ generalBracket setup cleanup (collectFromPeer peer)
+            $ generalBracket connect cleanup (collectFromPeer peer)
     pure ()
   where
-    setup = do
+    connect = do
         addEvent "adding_peer" [("peer", show peer.address)]
         conn <- mkConnection
         modify $ coerce $ Map.insert peer.id conn

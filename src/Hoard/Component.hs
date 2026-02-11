@@ -5,6 +5,9 @@ module Hoard.Component
     , Listener
     , Trigger
     , runComponent
+    , SomeComponent (..)
+    , component
+    , runSystem
     , defaultComponentName
     ) where
 
@@ -39,6 +42,11 @@ class (Typeable c) => Component c es where
     componentName = defaultComponentName
 
 
+    -- | Setup component (runs before listeners/triggers start)
+    setup :: (Effects c es) => Eff es ()
+    setup = pure ()
+
+
     -- | Event listeners (react to events)
     listeners :: (Effects c es) => Eff es [Listener es]
     listeners = pure []
@@ -47,6 +55,21 @@ class (Typeable c) => Component c es where
     -- | Triggers (initiate periodic/scheduled work)
     triggers :: (Effects c es) => Eff es [Trigger es]
     triggers = pure []
+
+
+    -- | Post-start actions (runs after all components have started)
+    start :: (Effects c es) => Eff es ()
+    start = pure ()
+
+
+-- | Existential wrapper for components to allow heterogeneous lists
+data SomeComponent es where
+    SomeComponent :: forall c es. (Component c es, Effects c es) => Proxy c -> SomeComponent es
+
+
+-- | Helper to create a component with type application syntax
+component :: forall c es. (Component c es, Effects c es) => SomeComponent es
+component = SomeComponent (Proxy @c)
 
 
 -- | Run a component by forking its listeners and triggers
@@ -63,6 +86,45 @@ runComponent = withSpan (componentName @c @es Proxy) $ do
     ts <- triggers @c
     traverse_ Conc.fork_ ls
     traverse_ Conc.fork_ ts
+
+
+-- | Run multiple components with structured lifecycle coordination
+--
+-- Executes components in three sequential phases:
+--   1. Run @setup for all components (initialization before activation)
+--   2. Fork all listeners and triggers (components become active)
+--   3. Run @start for all components (actions that require active components)
+--
+-- This separation allows components to prepare resources during setup, then perform
+-- work during start that depends on listeners already running (e.g., publishing events).
+runSystem
+    :: forall es
+     . (Conc :> es, Tracing :> es)
+    => [SomeComponent es]
+    -> Eff es ()
+runSystem components = do
+    -- Phase 1: Setup all components
+    traverse_ setupComponent components
+
+    -- Phase 2: Start all components (fork listeners/triggers)
+    traverse_ startComponent components
+
+    -- Phase 3: Post-start actions
+    traverse_ postStartComponent components
+  where
+    setupComponent :: SomeComponent es -> Eff es ()
+    setupComponent (SomeComponent (p :: Proxy c)) =
+        withSpan (componentName @c @es p <> ":setup") $
+            setup @c @es
+
+    startComponent :: SomeComponent es -> Eff es ()
+    startComponent (SomeComponent (_ :: Proxy c)) =
+        runComponent @c
+
+    postStartComponent :: SomeComponent es -> Eff es ()
+    postStartComponent (SomeComponent (p :: Proxy c)) =
+        withSpan (componentName @c @es p <> ":start") $
+            start @c @es
 
 
 -- | Auto-derive component name from type name
