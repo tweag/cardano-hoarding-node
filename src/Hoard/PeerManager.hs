@@ -36,6 +36,7 @@ import Hoard.Effects.Verifier (Verifier)
 import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
+import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Triggers (every)
 import Hoard.Types.Environment (PeerSnapshotFile)
 
@@ -45,6 +46,7 @@ import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
+import Hoard.Sentry qualified as Sentry
 
 
 -- * Component
@@ -66,6 +68,7 @@ component
        , Reader Config :> es
        , Reader PeerSnapshotFile :> es
        , State Peers :> es
+       , Sub AdversarialBehavior :> es
        , Sub ChainSync.HeaderReceived :> es
        , Sub CullRequested :> es
        , Sub KeepAlivePing :> es
@@ -88,6 +91,7 @@ component =
                 , Sub.listen cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen replenishCollectors
+                , Sub.listen cullAdversarialPeers
                 ]
         , triggers =
             pure
@@ -160,6 +164,14 @@ cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
         histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
         addEvent "culling_collectors" [("count", show numOld)]
     for_ oldConnections signalTermination
+
+
+cullAdversarialPeers :: (Concurrent :> es, State Peers :> es) => AdversarialBehavior -> Eff es ()
+cullAdversarialPeers event = do
+    when (event.severity == Sentry.Critical) $ do
+        conn <- gets $ fmap snd . find ((event.peer.id ==) . fst) . Map.toList . (.peers)
+        _ <- traverse signalTermination conn
+        pure ()
 
 
 noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es) => PeerDisconnected -> Eff es ()

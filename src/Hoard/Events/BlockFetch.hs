@@ -7,6 +7,7 @@ module Hoard.Events.BlockFetch
     ) where
 
 import Data.Time (UTCTime)
+import Data.UUID (UUID)
 import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
 import Hoard.Data.Peer (Peer (..))
@@ -37,6 +38,7 @@ data BlockReceived = BlockReceived
     { peer :: Peer
     , timestamp :: UTCTime
     , block :: CardanoBlock
+    , requestId :: UUID
     }
     deriving (Typeable)
 
