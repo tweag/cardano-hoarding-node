@@ -19,8 +19,7 @@ import Hoard.BlockFetch.Events
     )
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync qualified as ChainSync
-import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward, RollForward)
-import Hoard.ChainSync.Events qualified as ChainSync
+import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -41,7 +40,6 @@ import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
-import Hoard.Events.HeaderReceived qualified as API
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.Listeners (runListeners)
@@ -87,7 +85,7 @@ main =
         . runPubSub @ChainSyncIntersectionFound
         . runPubSub @RollBackward
         . runPubSub @RollForward
-        . runPubSub @ChainSync.HeaderReceived
+        . runPubSub @HeaderReceived
         . runPubSub @BlockFetchStarted
         . runPubSub @BlockFetchRequest
         . runPubSub @BlockReceived
@@ -104,7 +102,6 @@ main =
         . runPubSub @ImmutableTipRefreshed
         . runPubSub @ProtocolError
         . runPubSub @KeepAlivePing
-        . runPubSub @API.HeaderReceived
         . runNodeToClient
         . runNodeToNode
         . runDBRead
