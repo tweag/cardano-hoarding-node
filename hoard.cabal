@@ -29,6 +29,7 @@ library
       Hoard.ChainSync.Listeners
       Hoard.ChainSync.NodeToNode
       Hoard.Collector
+      Hoard.Component
       Hoard.Control.Exception
       Hoard.Data.Block
       Hoard.Data.BlockHash

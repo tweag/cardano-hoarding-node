@@ -20,6 +20,7 @@ import Hoard.BlockFetch.Events
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync qualified as ChainSync
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
+import Hoard.Component (runComponent)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -52,7 +53,7 @@ import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager qualified as PeerManager
 import Hoard.PeerManager.Peers (Peers)
-import Hoard.PeerSharing qualified as PeerSharing
+import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
@@ -119,7 +120,7 @@ main =
             runServer
             runListeners
             runTriggers
-            PeerSharing.run
+            runComponent @PeerSharing
             ChainSync.run
             BlockFetch.run
             OrphanDetection.run
