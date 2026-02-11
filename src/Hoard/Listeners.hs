@@ -10,9 +10,12 @@ import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen)
+import Hoard.Events.HeaderReceived (HeaderReceived)
+import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.Listeners.HeaderReceivedListener (headerReceivedListener)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed, immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
 import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
+import Hoard.Network.Events (ProtocolError)
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -21,8 +24,11 @@ runListeners
        , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
-       , Sub :> es
-       , Pub :> es
+       , Sub HeaderReceived :> es
+       , Sub ProtocolError :> es
+       , Sub ImmutableTipRefreshTriggered :> es
+       , Sub ImmutableTipRefreshed :> es
+       , Pub ImmutableTipRefreshed :> es
        , HoardStateRepo :> es
        )
     => Eff es ()

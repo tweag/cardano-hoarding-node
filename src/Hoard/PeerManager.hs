@@ -1,4 +1,9 @@
-module Hoard.PeerManager (run) where
+module Hoard.PeerManager
+    ( run
+    , PeerRequested (..)
+    , CullRequested (..)
+    , PeerDisconnected (..)
+    ) where
 
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -10,6 +15,8 @@ import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets, modify)
 import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
+import Hoard.BlockFetch.Events (BlockFetchRequest)
+import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Collector (collectFromPeer)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
@@ -45,10 +52,18 @@ run
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub :> es
+       , Pub PeerRequested :> es
+       , Pub BlockFetchRequest :> es
+       , Pub CullRequested :> es
+       , Pub PeerDisconnected :> es
        , Reader Config :> es
        , State Peers :> es
-       , Sub :> es
+       , Sub KeepAlivePing :> es
+       , Sub PeersReceived :> es
+       , Sub CullRequested :> es
+       , Sub PeerDisconnected :> es
+       , Sub PeerRequested :> es
+       , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
        )
     => Eff es ()
@@ -61,7 +76,8 @@ run = withSpan "peer_manager" do
 runTriggers
     :: ( Conc :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub CullRequested :> es
+       , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es
        )
@@ -79,10 +95,17 @@ runListeners
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub :> es
+       , Pub PeerRequested :> es
+       , Pub BlockFetchRequest :> es
+       , Pub PeerDisconnected :> es
        , Reader Config :> es
        , State Peers :> es
-       , Sub :> es
+       , Sub KeepAlivePing :> es
+       , Sub PeersReceived :> es
+       , Sub CullRequested :> es
+       , Sub PeerDisconnected :> es
+       , Sub PeerRequested :> es
+       , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
        )
     => Eff es ()
@@ -97,7 +120,7 @@ runListeners = withSpan "listeners" do
 -- * Triggers
 
 
-triggerCull :: (Concurrent :> es, Conc :> es, Pub :> es) => Eff es ()
+triggerCull :: (Concurrent :> es, Conc :> es, Pub CullRequested :> es) => Eff es ()
 triggerCull = every 10 do
     publish CullRequested
 
@@ -105,7 +128,7 @@ triggerCull = every 10 do
 triggerReplenish
     :: ( Conc :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es
        )
@@ -173,7 +196,7 @@ cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
     for_ oldConnections signalTermination
 
 
-noteDisconnectedPeer :: (PeerRepo :> es, Pub :> es) => PeerDisconnected -> Eff es ()
+noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es) => PeerDisconnected -> Eff es ()
 noteDisconnectedPeer event = do
     PeerRepo.updateLastConnected event.peerId event.timestamp
     publish $ PeerRequested 1
@@ -187,10 +210,11 @@ replenishCollectors
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub :> es
+       , Pub BlockFetchRequest :> es
+       , Pub PeerDisconnected :> es
        , Reader Config :> es
        , State Peers :> es
-       , Sub :> es
+       , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
        )
     => PeerRequested
@@ -228,9 +252,10 @@ bracketCollector
        , Concurrent :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub :> es
+       , Pub BlockFetchRequest :> es
+       , Pub PeerDisconnected :> es
        , State Peers :> es
-       , Sub :> es
+       , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
        )
     => Peer

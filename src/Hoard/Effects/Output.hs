@@ -11,7 +11,6 @@ where
 
 import Prelude hiding (modify, runState)
 
-import Data.Dynamic qualified as Dyn
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)
 import Effectful.State.Static.Local (modify, runState)
@@ -46,8 +45,8 @@ runOutputChan inChan = runOutputEff $ Chan.writeChan inChan
 
 
 -- | Run an Output by publishing values with the `Pub` effect.
-runOutputAsPub :: (Typeable a, Pub :> es) => Eff (Output a : es) x -> Eff es x
-runOutputAsPub = runOutputEff $ publish . Dyn.toDyn
+runOutputAsPub :: (Pub a :> es) => Eff (Output a : es) x -> Eff es x
+runOutputAsPub = runOutputEff publish
 
 
 -- | Collect all values from an Output effect into a list.

@@ -36,7 +36,7 @@ miniProtocol
     :: forall es
      . ( Clock :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub KeepAlivePing :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -73,7 +73,7 @@ miniProtocol unlift conf codecs peer =
 client
     :: ( Clock :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub KeepAlivePing :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)

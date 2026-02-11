@@ -47,7 +47,7 @@ setup
        , Reader Config :> es
        , NodeToClient :> es
        , State HoardState :> es
-       , Pub :> es
+       , Pub ImmutableTipRefreshed :> es
        , HoardStateRepo :> es
        )
     => Eff es ()

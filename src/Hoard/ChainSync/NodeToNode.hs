@@ -42,7 +42,10 @@ miniProtocol
     :: forall es
      . ( State HoardState :> es
        , Clock :> es
-       , Pub :> es
+       , Pub ChainSyncStarted :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub HeaderReceived :> es
+       , Pub RollBackward :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -77,7 +80,10 @@ miniProtocol unlift conf codecs peer =
 client
     :: forall es
      . ( Clock :> es
-       , Pub :> es
+       , Pub ChainSyncStarted :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub HeaderReceived :> es
+       , Pub RollBackward :> es
        , State HoardState :> es
        , Tracing :> es
        )
