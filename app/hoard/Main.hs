@@ -22,6 +22,7 @@ import Hoard.ChainSync (ChainSync (..))
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runComponent)
 import Hoard.Control.Exception (runErrorThrowing)
+import Hoard.Core (Core (..))
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
@@ -44,7 +45,6 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
-import Hoard.Listeners (runListeners)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.Monitoring (Monitoring (..), Poll)
 import Hoard.Monitoring qualified as Monitoring
@@ -56,7 +56,6 @@ import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
-import Hoard.Triggers (runTriggers)
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -117,8 +116,7 @@ main =
             setup
             void bootstrapPeers
             runServer
-            runListeners
-            runTriggers
+            runComponent @Core
             runComponent @PeerSharing
             runComponent @ChainSync
             runComponent @BlockFetch
