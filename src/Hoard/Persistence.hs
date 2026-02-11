@@ -11,12 +11,14 @@ import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.PeerNote (NoteType (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockReceived, recordHeaderReceived)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Quota (MessageStatus (..), Quota)
@@ -24,8 +26,10 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
+import Hoard.Sentry (PeerMarkedAsMalicious (..))
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Effects.Quota qualified as Quota
@@ -35,10 +39,12 @@ component
     :: ( BlockRepo :> es
        , HeaderRepo :> es
        , Metrics :> es
+       , PeerNoteRepo :> es
        , PeerRepo :> es
        , Quota (ID Peer, Int64) :> es
        , Sub BlockReceived :> es
        , Sub HeaderReceived :> es
+       , Sub PeerMarkedAsMalicious :> es
        , Sub PeersReceived :> es
        , Tracing :> es
        , Verifier :> es
@@ -52,6 +58,7 @@ component =
                 [ Sub.listen headerReceived
                 , Sub.listen blockReceived
                 , Sub.listen peersReceived
+                , Sub.listen markMaliciousPeer
                 ]
         }
 
@@ -124,6 +131,12 @@ peersReceived event = withSpan "peers_received" $ do
         addEvent "peer_address" [("host", show addr.host), ("port", show addr.port)]
     void $ PeerRepo.upsertPeers event.peerAddresses event.peer.address event.timestamp
     addEvent "peers_persisted" []
+
+
+markMaliciousPeer :: (PeerNoteRepo :> es, Tracing :> es) => PeerMarkedAsMalicious -> Eff es ()
+markMaliciousPeer event = withSpan "mark_malicious_peer" do
+    _ <- PeerNoteRepo.saveNote event.peer.id Malicious event.reason
+    pure ()
 
 
 extractHeaderData :: HeaderReceived -> Header

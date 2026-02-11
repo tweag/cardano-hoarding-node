@@ -19,7 +19,7 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 -- | Newtype wrapper for block hash
 newtype BlockHash = BlockHash Text
     deriving stock (Eq, Generic, Ord, Show)
-    deriving newtype (DBEq, DBOrd, DBType, FromJSON, ToJSON)
+    deriving newtype (DBEq, DBOrd, DBType, FromJSON, Hashable, ToJSON)
 
 
 blockHashFromHeader :: CardanoHeader -> BlockHash
