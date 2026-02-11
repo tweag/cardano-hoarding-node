@@ -9,7 +9,7 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
-import Hoard.BlockFetch qualified as BlockFetch
+import Hoard.BlockFetch (BlockFetch (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted
     , BlockFetchFailed
@@ -18,7 +18,7 @@ import Hoard.BlockFetch.Events
     , BlockReceived
     )
 import Hoard.Bootstrap (bootstrapPeers)
-import Hoard.ChainSync qualified as ChainSync
+import Hoard.ChainSync (ChainSync (..))
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runComponent)
 import Hoard.Control.Exception (runErrorThrowing)
@@ -46,12 +46,11 @@ import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.Listeners (runListeners)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
-import Hoard.Monitoring (Poll)
+import Hoard.Monitoring (Monitoring (..), Poll)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.Network.Events (ProtocolError)
-import Hoard.OrphanDetection qualified as OrphanDetection
-import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
-import Hoard.PeerManager qualified as PeerManager
+import Hoard.OrphanDetection (OrphanDetection (..))
+import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerManager (..), PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
 import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
@@ -121,9 +120,9 @@ main =
             runListeners
             runTriggers
             runComponent @PeerSharing
-            ChainSync.run
-            BlockFetch.run
-            OrphanDetection.run
-            Monitoring.run
-            PeerManager.run
+            runComponent @ChainSync
+            runComponent @BlockFetch
+            runComponent @OrphanDetection
+            runComponent @Monitoring
+            runComponent @PeerManager
             Conc.awaitAll

@@ -1,47 +1,40 @@
-module Hoard.BlockFetch (run, runListeners) where
+module Hoard.BlockFetch (BlockFetch (..)) where
 
 import Effectful (Eff, (:>))
 
 import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchStarted, BlockReceived)
 import Hoard.BlockFetch.Listeners qualified as Listeners
+import Hoard.Component (Component (..), Listener)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Monitoring.Metrics (Metrics)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
 
 
-run
-    :: ( BlockRepo :> es
-       , Conc :> es
-       , Tracing :> es
-       , Metrics :> es
-       , Sub BlockFetchStarted :> es
-       , Sub BlockReceived :> es
-       , Sub BlockFetchFailed :> es
-       , Sub BlockBatchCompleted :> es
-       )
-    => Eff es ()
-run = withSpan "block_fetch" $ do
-    runListeners
+data BlockFetch = BlockFetch
 
 
-runListeners
-    :: ( BlockRepo :> es
-       , Conc :> es
-       , Tracing :> es
-       , Metrics :> es
-       , Sub BlockFetchStarted :> es
-       , Sub BlockReceived :> es
-       , Sub BlockFetchFailed :> es
-       , Sub BlockBatchCompleted :> es
-       )
-    => Eff es ()
-runListeners = withSpan "listeners" $ do
-    _ <- Conc.fork_ $ Sub.listen Listeners.blockFetchStarted
-    _ <- Conc.fork_ $ Sub.listen Listeners.blockReceived
-    _ <- Conc.fork_ $ Sub.listen Listeners.blockFetchFailed
-    _ <- Conc.fork_ $ Sub.listen Listeners.blockBatchCompleted
-    pure ()
+instance Component BlockFetch es where
+    type
+        Effects BlockFetch es =
+            ( BlockRepo :> es
+            , Conc :> es
+            , Tracing :> es
+            , Metrics :> es
+            , Sub BlockFetchStarted :> es
+            , Sub BlockReceived :> es
+            , Sub BlockFetchFailed :> es
+            , Sub BlockBatchCompleted :> es
+            )
+
+
+    listeners :: (Effects BlockFetch es) => Eff es [Listener es]
+    listeners =
+        pure
+            [ Sub.listen Listeners.blockFetchStarted
+            , Sub.listen Listeners.blockReceived
+            , Sub.listen Listeners.blockFetchFailed
+            , Sub.listen Listeners.blockBatchCompleted
+            ]

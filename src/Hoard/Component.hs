@@ -40,13 +40,13 @@ class (Typeable c) => Component c es where
 
 
     -- | Event listeners (react to events)
-    listeners :: (Effects c es) => [Listener es]
-    listeners = []
+    listeners :: (Effects c es) => Eff es [Listener es]
+    listeners = pure []
 
 
     -- | Triggers (initiate periodic/scheduled work)
-    triggers :: (Effects c es) => [Trigger es]
-    triggers = []
+    triggers :: (Effects c es) => Eff es [Trigger es]
+    triggers = pure []
 
 
 -- | Run a component by forking its listeners and triggers
@@ -59,8 +59,10 @@ runComponent
        )
     => Eff es ()
 runComponent = withSpan (componentName @c @es Proxy) $ do
-    traverse_ Conc.fork_ $ listeners @c
-    traverse_ Conc.fork_ $ triggers @c
+    ls <- listeners @c
+    ts <- triggers @c
+    traverse_ Conc.fork_ ls
+    traverse_ Conc.fork_ ts
 
 
 -- | Auto-derive component name from type name

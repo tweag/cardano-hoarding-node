@@ -1,6 +1,6 @@
 module Hoard.PeerSharing (PeerSharing (..)) where
 
-import Effectful ((:>))
+import Effectful (Eff, (:>))
 import Hoard.Component (Component (..), Listener)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
@@ -26,9 +26,10 @@ instance Component PeerSharing es where
             )
 
 
-    listeners :: (Effects PeerSharing es) => [Listener es]
+    listeners :: (Effects PeerSharing es) => Eff es [Listener es]
     listeners =
-        [ Sub.listen Listeners.peerSharingStarted
-        , Sub.listen Listeners.peersReceived
-        , Sub.listen Listeners.peerSharingFailed
-        ]
+        pure
+            [ Sub.listen Listeners.peerSharingStarted
+            , Sub.listen Listeners.peersReceived
+            , Sub.listen Listeners.peerSharingFailed
+            ]

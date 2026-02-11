@@ -1,5 +1,5 @@
 module Hoard.PeerManager
-    ( run
+    ( PeerManager (..)
     , PeerRequested (..)
     , CullRequested (..)
     , PeerDisconnected (..)
@@ -18,6 +18,7 @@ import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 import Hoard.BlockFetch.Events (BlockFetchRequest)
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Collector (collectFromPeer)
+import Hoard.Component (Component (..), Listener, Trigger)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -41,98 +42,72 @@ import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
 
 
--- * Main
+-- * Component
 
 
-run
-    :: ( BlockRepo :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Metrics :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub PeerRequested :> es
-       , Pub BlockFetchRequest :> es
-       , Pub CullRequested :> es
-       , Pub PeerDisconnected :> es
-       , Reader Config :> es
-       , State Peers :> es
-       , Sub KeepAlivePing :> es
-       , Sub PeersReceived :> es
-       , Sub CullRequested :> es
-       , Sub PeerDisconnected :> es
-       , Sub PeerRequested :> es
-       , Sub ChainSync.HeaderReceived :> es
-       , Tracing :> es
-       )
-    => Eff es ()
-run = withSpan "peer_manager" do
-    addEvent "initializing" []
-    runListeners
-    runTriggers
+data PeerManager = PeerManager
 
 
-runTriggers
-    :: ( Conc :> es
-       , Concurrent :> es
-       , Pub CullRequested :> es
-       , Pub PeerRequested :> es
-       , Reader Config :> es
-       , State Peers :> es
-       )
-    => Eff es ()
-runTriggers = do
-    triggerCull
-    triggerReplenish
+instance Component PeerManager es where
+    type
+        Effects PeerManager es =
+            ( BlockRepo :> es
+            , Clock :> es
+            , Conc :> es
+            , Concurrent :> es
+            , Metrics :> es
+            , NodeToNode :> es
+            , PeerRepo :> es
+            , Pub PeerRequested :> es
+            , Pub BlockFetchRequest :> es
+            , Pub CullRequested :> es
+            , Pub PeerDisconnected :> es
+            , Reader Config :> es
+            , State Peers :> es
+            , Sub KeepAlivePing :> es
+            , Sub PeersReceived :> es
+            , Sub CullRequested :> es
+            , Sub PeerDisconnected :> es
+            , Sub PeerRequested :> es
+            , Sub ChainSync.HeaderReceived :> es
+            , Tracing :> es
+            )
 
 
-runListeners
-    :: ( BlockRepo :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Metrics :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub PeerRequested :> es
-       , Pub BlockFetchRequest :> es
-       , Pub PeerDisconnected :> es
-       , Reader Config :> es
-       , State Peers :> es
-       , Sub KeepAlivePing :> es
-       , Sub PeersReceived :> es
-       , Sub CullRequested :> es
-       , Sub PeerDisconnected :> es
-       , Sub PeerRequested :> es
-       , Sub ChainSync.HeaderReceived :> es
-       , Tracing :> es
-       )
-    => Eff es ()
-runListeners = withSpan "listeners" do
-    Conc.fork_ $ Sub.listen updatePeerConnectionState
-    Conc.fork_ $ Sub.listen persistReceivedPeers
-    Conc.fork_ $ Sub.listen cullOldCollectors
-    Conc.fork_ $ Sub.listen noteDisconnectedPeer
-    Conc.fork_ $ Sub.listen replenishCollectors
+    listeners :: (Effects PeerManager es) => Eff es [Listener es]
+    listeners =
+        pure
+            [ Sub.listen updatePeerConnectionState
+            , Sub.listen persistReceivedPeers
+            , Sub.listen cullOldCollectors
+            , Sub.listen noteDisconnectedPeer
+            , Sub.listen replenishCollectors
+            ]
+
+
+    triggers :: (Effects PeerManager es) => Eff es [Trigger es]
+    triggers =
+        pure
+            [ triggerCull
+            , triggerReplenish
+            ]
 
 
 -- * Triggers
 
 
-triggerCull :: (Concurrent :> es, Conc :> es, Pub CullRequested :> es) => Eff es ()
+triggerCull :: (Concurrent :> es, Pub CullRequested :> es) => Eff es Void
 triggerCull = every 10 do
     publish CullRequested
 
 
 triggerReplenish
-    :: ( Conc :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es
        )
-    => Eff es ()
+    => Eff es Void
 triggerReplenish = do
     replenish
     every 20 replenish

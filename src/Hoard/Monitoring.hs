@@ -1,8 +1,6 @@
 module Hoard.Monitoring
-    ( run
-    , runListeners
+    ( Monitoring (..)
     , listener
-    , runTriggers
     , Poll (..)
     , runConfig
     ) where
@@ -19,16 +17,18 @@ import Effectful.State.Static.Shared (State, gets)
 import Rel8 (isNull)
 import Prelude hiding (Reader, State, ask, asks, gets, runReader)
 
+import Hoard.Component (Component (..), Listener, Trigger)
 import Hoard.DB.Schema (countRows, countRowsWhere)
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
+
 import Hoard.Effects.DBRead (DBRead)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics, gaugeSet)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksBeingClassified, metricBlocksInDB, metricConnectedPeers, metricUnclassifiedBlocks)
+import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
@@ -38,36 +38,34 @@ import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
-run
-    :: ( Concurrent :> es
-       , Pub Poll :> es
-       , Reader Config :> es
-       , State HoardState :> es
-       , State Peers :> es
-       , Conc :> es
-       , Sub Poll :> es
-       , Log :> es
-       , DBRead :> es
-       , Metrics :> es
-       )
-    => Eff es ()
-run = do
-    runListeners
-    runTriggers
+data Monitoring = Monitoring
 
 
-runListeners
-    :: ( Conc :> es
-       , Sub Poll :> es
-       , Log :> es
-       , State HoardState :> es
-       , State Peers :> es
-       , DBRead :> es
-       , Metrics :> es
-       )
-    => Eff es ()
-runListeners = do
-    Conc.fork_ $ Sub.listen listener
+instance Component Monitoring es where
+    type
+        Effects Monitoring es =
+            ( Concurrent :> es
+            , Pub Poll :> es
+            , Reader Config :> es
+            , State HoardState :> es
+            , State Peers :> es
+            , Conc :> es
+            , Sub Poll :> es
+            , Log :> es
+            , DBRead :> es
+            , Metrics :> es
+            , Tracing :> es
+            )
+
+
+    listeners :: (Effects Monitoring es) => Eff es [Listener es]
+    listeners = pure [Sub.listen listener]
+
+
+    triggers :: (Effects Monitoring es) => Eff es [Trigger es]
+    triggers = do
+        pollingInterval <- asks $ (.pollingIntervalSeconds)
+        pure [every pollingInterval $ publish Poll]
 
 
 listener
@@ -98,12 +96,6 @@ listener Poll = do
                 C.ChainPointAtGenesis -> "genesis"
                 C.ChainPoint slot _ -> show slot
         Log.info $ "Currently connected to " <> show connectedPeers <> " peers | " <> show pendingPeers <> " peer connections pending | Immutable tip slot: " <> tipSlot <> " | Blocks in DB: " <> show blockCount <> " | Unclassified: " <> show unclassifiedCount <> " | Being classified: " <> show beingClassifiedCount
-
-
-runTriggers :: (Conc :> es, Concurrent :> es, Pub Poll :> es, Reader Config :> es) => Eff es ()
-runTriggers = do
-    pollingInterval <- asks $ (.pollingIntervalSeconds)
-    every pollingInterval $ publish Poll
 
 
 data Poll = Poll
