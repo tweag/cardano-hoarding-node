@@ -3,7 +3,7 @@ module Hoard.Server
     )
 where
 
-import Effectful (IOE, withEffToIO, (:>))
+import Effectful (IOE, withSeqEffToIO, (:>))
 import Effectful.Exception (try)
 import Effectful.Reader.Static (Reader, ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
@@ -15,7 +15,6 @@ import Hoard.Component (Component (..))
 import Hoard.API (API, server)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics)
@@ -49,7 +48,7 @@ instance Component Server es where
 
         -- Run Warp server (blocking call, but runSystem auto-forks start phases)
         let settings = setPort port $ setHost (fromString host) defaultSettings
-        servantApp <- withEffToIO Conc.concStrat \unlift ->
+        servantApp <- withSeqEffToIO \unlift ->
             pure $
                 hoistServer
                     (Proxy @API)

@@ -25,7 +25,7 @@ import Hoard.Core (Core (..))
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
-import Hoard.Effects.Conc (runConcNewScope)
+import Hoard.Effects.Conc (runConc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.ConfigPath (runConfigPath)
 import Hoard.Effects.DBRead (runDBRead)
@@ -63,7 +63,7 @@ main =
         . runConcurrent
         . runTimeout
         . runChan
-        . runConcNewScope
+        . runConc
         . loadOptions
         . runConfigPath
         . loadEnv

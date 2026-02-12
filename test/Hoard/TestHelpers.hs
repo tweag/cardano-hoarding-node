@@ -19,7 +19,6 @@ import Effectful
     , withEffToIO
     , (:>)
     )
-import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
@@ -43,7 +42,7 @@ import Hoard.Data.Block (Block)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
-import Hoard.Effects.Conc (Conc, runConcNewScope)
+import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
@@ -159,9 +158,8 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     ((a, finalState), _blockState) <-
         runEff
             . runFileSystem
-            . runConcurrent
             . runChan
-            . runConcNewScope
+            . runConc
             . runReader env.config.logging
             . runLog
             . runClockConst testTime
@@ -183,7 +181,6 @@ type TestAppEffs =
     , Reader Log.Config
     , Conc
     , Chan
-    , Concurrent
     , FileSystem
     , IOE
     ]
