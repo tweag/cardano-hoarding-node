@@ -284,13 +284,14 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
 
 runConfigReader
     :: (Reader Env :> es)
-    => Eff (Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
+    => Eff (Reader NodeConfig : Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
     -> Eff es a
 runConfigReader eff = do
     cfg <- asks config
     runReader cfg
         . runReader cfg.logging
         . runReader cfg.peerManager
+        . runReader cfg.nodeConfig
         $ eff
 
 
