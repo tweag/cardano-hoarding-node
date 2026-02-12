@@ -24,7 +24,6 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (runBlockRepoState)
-import Hoard.Effects.Input (runInputConst)
 import Hoard.Effects.Log (runLogNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.Publishing (runPubWriter)
@@ -106,7 +105,6 @@ spec_Collector = do
                     . runTracingNoOp
                     . runWriter
                     . runPubWriter @BlockFetchRequest
-                    . runInputConst headerReceived
                     . evalState db
                     . runBlockRepoState
                     $ pickBlockFetchRequest testPeer.id headerReceived
