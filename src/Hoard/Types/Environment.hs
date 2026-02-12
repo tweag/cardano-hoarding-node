@@ -11,8 +11,7 @@ module Hoard.Types.Environment
       -- * Cardano protocol handles
     , CardanoProtocolHandles (..)
 
-      -- * Monitoring configuration
-    , MonitoringConfig (..)
+      -- * Tracing configuration
     , TracingConfig (..)
 
       -- * Cardano node integration configuration
@@ -71,7 +70,6 @@ data Config = Config
     , peerSnapshot :: PeerSnapshotFile
     , peerManager :: PeerManager.Config
     , cardanoProtocols :: CardanoProtocolsConfig
-    , monitoring :: MonitoringConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , nodeToNode :: NodeToNode.Config
     }
@@ -96,15 +94,6 @@ data TxSubmissionConfig = TxSubmissionConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake TxSubmissionConfig
-
-
--- | Monitoring configuration
-data MonitoringConfig = MonitoringConfig
-    { pollingIntervalSeconds :: Int
-    -- ^ Interval between peer status polling
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake MonitoringConfig
 
 
 -- | Tracing configuration for OpenTelemetry

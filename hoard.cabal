@@ -49,6 +49,7 @@ library
       Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
+      Hoard.Effects.ConfigPath
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
       Hoard.Effects.Environment
