@@ -25,41 +25,42 @@ import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.BlockRepo qualified as BlockRepo
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics)
-import Hoard.Effects.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 
 
 -- | Listener that handles BlockFetch started events
-blockFetchStarted :: (Log :> es) => BlockFetchStarted -> Eff es ()
+blockFetchStarted :: (Tracing :> es) => BlockFetchStarted -> Eff es ()
 blockFetchStarted event = do
-    Log.info $ "🧱  BlockFetch protocol started at " <> show event.timestamp
+    addEvent "block_fetch_started" [("timestamp", show event.timestamp)]
 
 
 -- | Listener that handles block received events
 --
 -- Extracts block data and persists it to the database.
-blockReceived :: (Log :> es, BlockRepo :> es, Metrics :> es) => BlockReceived -> Eff es ()
-blockReceived event = do
+blockReceived :: (Tracing :> es, BlockRepo :> es, Metrics :> es) => BlockReceived -> Eff es ()
+blockReceived event = withSpan "block_received" $ do
     let block = extractBlockData event
-    Log.info $ "📦 Block received at slot " <> show block.slotNumber <> " (hash: " <> show block.hash <> ")"
+    addAttribute "block.hash" (show block.hash)
+    addAttribute "block.slot" (show block.slotNumber)
+    addEvent "block_received" [("slot", show block.slotNumber), ("hash", show block.hash)]
     recordBlockReceived
     BlockRepo.insertBlocks [block]
-    Log.debug $ "Persisted block: " <> show block.hash
+    addEvent "block_persisted" [("hash", show block.hash)]
 
 
 -- | Listener that handles block fetch failed events
-blockFetchFailed :: (Log :> es, Metrics :> es) => BlockFetchFailed -> Eff es ()
+blockFetchFailed :: (Tracing :> es, Metrics :> es) => BlockFetchFailed -> Eff es ()
 blockFetchFailed event = do
     recordBlockFetchFailure
-    Log.warn $ "❗ Failed to fetch block from: " <> event.errorMessage
+    addEvent "block_fetch_failed" [("error", event.errorMessage)]
 
 
 -- | Listener that handles block batch completed events
-blockBatchCompleted :: (Log :> es) => BlockBatchCompleted -> Eff es ()
+blockBatchCompleted :: (Tracing :> es) => BlockBatchCompleted -> Eff es ()
 blockBatchCompleted event = do
-    Log.info $ "✅ Finished fetching " <> show event.blockCount <> " blocks in block batch"
+    addEvent "block_batch_completed" [("count", show event.blockCount)]
 
 
 -- | Extract block data from a BlockReceived event.

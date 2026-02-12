@@ -44,6 +44,7 @@ import Hoard.Types.Environment
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
+    , TracingConfig
     )
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -56,6 +57,7 @@ data ConfigFile = ConfigFile
     , protocolConfigPath :: FilePath
     , nodeSockets :: NodeSocketsConfig
     , logging :: LoggingConfig
+    , tracing :: TracingConfig
     , maxFileDescriptors :: Maybe Word32
     , cardanoProtocols :: CardanoProtocolsConfig
     , monitoring :: MonitoringConfig
@@ -279,6 +281,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , nodeConfig
                 , nodeSockets = configFile.nodeSockets
                 , logging
+                , tracing = configFile.tracing
                 , maxFileDescriptors = configFile.maxFileDescriptors
                 , topology
                 , peerSnapshot

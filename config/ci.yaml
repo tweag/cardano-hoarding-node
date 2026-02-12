@@ -28,6 +28,12 @@ database:
 logging:
   minimum_severity: DEBUG
 
+# Tracing configuration (OpenTelemetry) - disabled in CI
+tracing:
+  enabled: false
+  service_name: "hoard"
+  otlp_endpoint: "http://localhost:4318"
+
 # Maximum number of file descriptors
 max_file_descriptors: 16384
 

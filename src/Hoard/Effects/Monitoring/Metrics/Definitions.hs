@@ -1,13 +1,15 @@
 -- | Application-specific metric definitions.
 --
 -- Defines metric names and provides helper functions for common metric operations.
-module Hoard.Effects.Metrics.Definitions
+module Hoard.Effects.Monitoring.Metrics.Definitions
     ( -- * Metric Names
 
       -- ** Gauges
       metricConnectedPeers
     , metricPendingPeers
     , metricBlocksInDB
+    , metricUnclassifiedBlocks
+    , metricBlocksBeingClassified
 
       -- ** Counters
     , metricBlocksReceived
@@ -17,12 +19,16 @@ module Hoard.Effects.Metrics.Definitions
     , metricChainSyncRollforwards
     , metricDBQueries
     , metricDBQueryErrors
+    , metricBlockExistsCacheHits
+    , metricBlockExistsCacheMisses
+    , metricBlockExistsQueriesDeduplicated
 
       -- ** Histograms
     , metricBlockFetchDuration
     , metricDBQueryDuration
     , metricPeerManagerCullBatches
     , metricPeerManagerReplenishedCollector
+    , metricDBPoolAcquisitionDuration
 
       -- * Helper Functions
     , recordBlockReceived
@@ -36,7 +42,7 @@ module Hoard.Effects.Metrics.Definitions
 
 import Effectful (Eff, (:>))
 
-import Hoard.Effects.Metrics (Metrics, counterInc)
+import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc)
 
 
 -- | Gauges - Point-in-time values
@@ -50,6 +56,14 @@ metricPendingPeers = "hoard_pending_peers"
 
 metricBlocksInDB :: Text
 metricBlocksInDB = "hoard_blocks_in_db"
+
+
+metricUnclassifiedBlocks :: Text
+metricUnclassifiedBlocks = "hoard_unclassified_blocks"
+
+
+metricBlocksBeingClassified :: Text
+metricBlocksBeingClassified = "hoard_blocks_being_classified"
 
 
 -- | Counters - Monotonically increasing values
@@ -81,6 +95,18 @@ metricDBQueryErrors :: Text
 metricDBQueryErrors = "hoard_db_query_errors_total"
 
 
+metricBlockExistsCacheHits :: Text
+metricBlockExistsCacheHits = "hoard_block_exists_cache_hits_total"
+
+
+metricBlockExistsCacheMisses :: Text
+metricBlockExistsCacheMisses = "hoard_block_exists_cache_misses_total"
+
+
+metricBlockExistsQueriesDeduplicated :: Text
+metricBlockExistsQueriesDeduplicated = "hoard_block_exists_queries_deduplicated_total"
+
+
 -- | Histograms - Distributions with buckets
 metricBlockFetchDuration :: Text
 metricBlockFetchDuration = "hoard_block_fetch_duration_seconds"
@@ -88,6 +114,10 @@ metricBlockFetchDuration = "hoard_block_fetch_duration_seconds"
 
 metricDBQueryDuration :: Text
 metricDBQueryDuration = "hoard_db_query_duration_seconds"
+
+
+metricDBPoolAcquisitionDuration :: Text
+metricDBPoolAcquisitionDuration = "hoard_db_pool_acquisition_duration_seconds"
 
 
 metricPeerManagerCullBatches :: Text

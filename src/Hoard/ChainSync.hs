@@ -10,18 +10,19 @@ import Hoard.ChainSync.Listeners qualified as Listeners
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.HeaderRepo (HeaderRepo)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Publishing qualified as Sub
 
 
-run :: (Log :> es, Conc :> es, HeaderRepo :> es, Metrics :> es, Sub :> es) => Eff es ()
-run = runListeners
+run :: (Tracing :> es, Conc :> es, HeaderRepo :> es, Metrics :> es, Sub :> es) => Eff es ()
+run = withSpan "chain_sync" $ do
+    runListeners
 
 
-runListeners :: (Log :> es, Conc :> es, HeaderRepo :> es, Metrics :> es, Sub :> es) => Eff es ()
-runListeners = do
+runListeners :: (Tracing :> es, Conc :> es, HeaderRepo :> es, Metrics :> es, Sub :> es) => Eff es ()
+runListeners = withSpan "listeners" $ do
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncHeaderReceived
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncStarted
     _ <- Conc.fork_ $ Sub.listen Listeners.chainSyncRollBackward

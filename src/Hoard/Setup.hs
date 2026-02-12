@@ -15,8 +15,7 @@ import Prelude hiding (Reader, State, asks, modify)
 
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered))
@@ -44,7 +43,7 @@ defaultMaxFileDescriptors = 8192
 -- or network connections.
 setup
     :: ( IOE :> es
-       , Log :> es
+       , Tracing :> es
        , Reader Config :> es
        , NodeToClient :> es
        , State HoardState :> es
@@ -52,8 +51,8 @@ setup
        , HoardStateRepo :> es
        )
     => Eff es ()
-setup = do
-    Log.info "Running application setup..."
+setup = withSpan "application_setup" $ do
+    addEvent "setup_started" []
 
     setFileDescriptorLimit
     immutableTip <- HoardStateRepo.getImmutableTip
@@ -63,7 +62,7 @@ setup = do
     immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
     immutableTipRefreshedListener ImmutableTipRefreshed
 
-    Log.info "Application setup complete"
+    addEvent "setup_completed" []
 
 
 -- | Set the file descriptor limit (soft limit) to the specified value.
@@ -71,16 +70,14 @@ setup = do
 -- This raises the soft limit for open file descriptors up to the specified limit,
 -- which must not exceed the hard limit. If the requested limit is higher than the
 -- hard limit, it will be capped at the hard limit.
-setFileDescriptorLimit :: (IOE :> es, Log :> es, Reader Config :> es) => Eff es ()
-setFileDescriptorLimit = do
+setFileDescriptorLimit :: (IOE :> es, Tracing :> es, Reader Config :> es) => Eff es ()
+setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
     -- Set file descriptor limit (use default if not configured)
     configLimit <- asks (.maxFileDescriptors)
     let limit = fromMaybe defaultMaxFileDescriptors configLimit
 
     -- Get current limits
     ResourceLimits {softLimit, hardLimit} <- liftIO $ getResourceLimit ResourceOpenFiles
-
-    Log.debug $ "Current file descriptor limits - soft: " <> show softLimit <> ", hard: " <> show hardLimit
 
     -- Convert requested limit to ResourceLimit
     let requested = ResourceLimit (fromIntegral limit)
@@ -96,6 +93,5 @@ setFileDescriptorLimit = do
 
     -- Only update if different from current
     when (newSoftLimit /= softLimit) $ do
-        Log.info $ "Setting file descriptor soft limit to: " <> show newSoftLimit
         liftIO $ setResourceLimit ResourceOpenFiles ResourceLimits {softLimit = newSoftLimit, hardLimit}
-        Log.info "File descriptor limit updated successfully"
+        addEvent "file_descriptor_limit_updated" [("new_soft_limit", show newSoftLimit), ("old_soft_limit", show softLimit)]

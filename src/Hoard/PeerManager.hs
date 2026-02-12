@@ -19,10 +19,9 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics, histogramObserve)
-import Hoard.Effects.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
+import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
+import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
 import Hoard.Effects.PeerRepo qualified as PeerRepo
@@ -43,7 +42,6 @@ run
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -51,9 +49,11 @@ run
        , Reader Config :> es
        , State Peers :> es
        , Sub :> es
+       , Tracing :> es
        )
     => Eff es ()
-run = Log.withNamespace "PeerManager" do
+run = withSpan "peer_manager" do
+    addEvent "initializing" []
     runListeners
     runTriggers
 
@@ -76,7 +76,6 @@ runListeners
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -84,9 +83,10 @@ runListeners
        , Reader Config :> es
        , State Peers :> es
        , Sub :> es
+       , Tracing :> es
        )
     => Eff es ()
-runListeners = do
+runListeners = withSpan "listeners" do
     Conc.fork_ $ Sub.listen updatePeerConnectionState
     Conc.fork_ $ Sub.listen persistReceivedPeers
     Conc.fork_ $ Sub.listen cullOldCollectors
@@ -135,25 +135,28 @@ updatePeerConnectionState event =
 
 -- | Processes PeersReceived events and upserts the peer information into
 -- the database.
-persistReceivedPeers :: (Log :> es, PeerRepo :> es) => PeersReceived -> Eff es ()
-persistReceivedPeers event = Log.withNamespace "PeerPersister" do
-    Log.info $ "📡 Received " <> show (length event.peerAddresses) <> " peer addresses from remote peer:"
+persistReceivedPeers :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
+persistReceivedPeers event = withSpan "persist_received_peers" do
+    addAttribute "peers.count" (show $ length event.peerAddresses)
+    addAttribute "source.peer" (show event.peer.address)
+    addEvent "persisting_peers" [("count", show $ length event.peerAddresses)]
     forM_ event.peerAddresses $ \addr ->
-        Log.debug $ "   - " <> show addr.host <> ":" <> show addr.port
+        addEvent "peer_address" [("host", show addr.host), ("port", show addr.port)]
     void $ upsertPeers event.peerAddresses event.peer.address event.timestamp
+    addEvent "peers_persisted" []
 
 
 cullOldCollectors
     :: ( Clock :> es
        , Concurrent :> es
-       , Log :> es
        , Metrics :> es
        , Reader Config :> es
        , State Peers :> es
+       , Tracing :> es
        )
     => CullRequested
     -> Eff es ()
-cullOldCollectors CullRequested = do
+cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
     now <- Clock.currentTime
     maxLifetime <- asks $ (.maxCollectorLifetimeSeconds)
     let isOldConnection = (> maxLifetime) . diffUTCTime now . (.connectedAt)
@@ -161,11 +164,12 @@ cullOldCollectors CullRequested = do
     oldConnections <- gets $ filter (isOldConnection) . toList . (.peers)
 
     let numOld = length oldConnections
+    addAttribute "old_collectors.count" (show numOld)
     if numOld <= 0
-        then Log.debug "No old collectors to cull"
+        then addEvent "no_collectors_to_cull" []
         else do
             histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
-            Log.debug $ "Culling " <> show (length oldConnections) <> " old collectors"
+            addEvent "culling_collectors" [("count", show numOld)]
     for_ oldConnections signalTermination
 
 
@@ -180,7 +184,6 @@ replenishCollectors
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
@@ -188,17 +191,21 @@ replenishCollectors
        , Reader Config :> es
        , State Peers :> es
        , Sub :> es
+       , Tracing :> es
        )
     => PeerRequested
     -> Eff es ()
-replenishCollectors (PeerRequested n) = do
-    Log.debug "Replenishing collectors"
+replenishCollectors (PeerRequested n) = withSpan "replenish_collectors" do
+    addAttribute "requested.count" (show n)
+    addEvent "replenishing" [("requested", show n)]
     cooldown <- asks (.peerFailureCooldownSeconds)
     connectedIds <- gets $ Map.keysSet . (.peers)
     potentialPeers <- PeerRepo.getEligiblePeers cooldown connectedIds n
-    histogramObserve metricPeerManagerReplenishedCollector $ fromIntegral $ Set.size potentialPeers
+    let actualCount = Set.size potentialPeers
+    addAttribute "eligible.count" (show actualCount)
+    histogramObserve metricPeerManagerReplenishedCollector $ fromIntegral actualCount
     for_ potentialPeers \p -> do
-        Log.debug $ "Starting collector for peer " <> show (p.address)
+        addEvent "starting_collector" [("peer", show p.address)]
         bracketCollector p
 
 
@@ -219,25 +226,25 @@ bracketCollector
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub :> es
        , State Peers :> es
        , Sub :> es
+       , Tracing :> es
        )
     => Peer
     -> Eff es ()
 bracketCollector peer = do
     _ <-
         Conc.forkTry @SomeException
-            . Log.withNamespace "Collector"
+            . withSpan "collector"
             . withExceptionLogging ("Collector " <> show peer.address)
             $ generalBracket setup cleanup (collectFromPeer peer)
     pure ()
   where
     setup = do
-        Log.debug $ "Adding peer to connectedPeers: " <> show peer.address
+        addEvent "adding_peer" [("peer", show peer.address)]
         conn <- mkConnection
         modify $ coerce $ Map.insert peer.id conn
         pure conn
@@ -249,20 +256,20 @@ bracketCollector peer = do
                 unless (isGracefulShutdown e) do
                     timestamp <- Clock.currentTime
                     updatePeerFailure peer timestamp
-                Log.err $ "Collector exited with exception: " <> show e
+                addEvent "collector_exception" [("peer", show peer.address), ("error", show e)]
             ExitCaseAbort -> do
                 timestamp <- Clock.currentTime
                 updatePeerFailure peer timestamp
-                Log.err $ "Collector exited due to an unknown abort"
+                addEvent "collector_aborted" [("peer", show peer.address)]
             ExitCaseSuccess (Just (ConnectToError errorMessage)) -> do
                 timestamp <- Clock.currentTime
                 updatePeerFailure peer timestamp
-                Log.err $ "Collector exited due to a caught exception: " <> errorMessage
+                addEvent "collector_error" [("peer", show peer.address), ("error", errorMessage)]
             ExitCaseSuccess Nothing ->
-                Log.debug $ "Collector terminated while operating normally: " <> show peer.address
+                addEvent "collector_terminated_normally" [("peer", show peer.address)]
 
         signalTermination conn
-        Log.debug $ "Removing peer from peers state: " <> show peer.address
+        addEvent "removing_peer" [("peer", show peer.address)]
         modify $ Peers . Map.delete peer.id . (.peers)
         timestamp <- Clock.currentTime
         publish

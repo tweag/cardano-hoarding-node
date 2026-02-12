@@ -50,7 +50,7 @@ import Hoard.Effects.Conc (Conc, runConcNewScope)
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (Metrics, runMetrics)
+import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Publishing (Pub, runPubWriter)
 import Hoard.KeepAlive.Config ()
 import Hoard.PeerManager.Config ()
@@ -69,6 +69,7 @@ import Hoard.Types.Environment
     , PeerSnapshotFile (..)
     , ServerConfig (..)
     , Topology (..)
+    , TracingConfig (..)
     , TxSubmissionConfig (..)
     )
 import Hoard.Types.HoardState (HoardState)
@@ -146,6 +147,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , protocolInfo
                 , nodeSockets = Local $ MakeLocal {nodeToClientSocket = "preview.socket", tracerSocket = "preview_tracer.socket"}
                 , logging = def
+                , tracing = TracingConfig {enabled = False, serviceName = "hoard-test", otlpEndpoint = "http://localhost:4318"}
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}

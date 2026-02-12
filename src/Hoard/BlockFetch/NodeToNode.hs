@@ -22,6 +22,7 @@ import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Prelude hiding (State, evalState, get, modify)
 
+import Control.Tracer (nullTracer)
 import Hoard.BlockFetch.Config (Config (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
@@ -38,8 +39,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
@@ -50,10 +50,10 @@ miniProtocol
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Pub :> es
        , Sub :> es
        , Timeout :> es
+       , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
@@ -68,15 +68,15 @@ miniProtocol unlift' conf codecs peer =
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
                 blockFetchClient = client unlift conf peer
-                tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
-                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ do
-                    Log.debug "BlockFetch protocol started"
+                tracer = nullTracer
+                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
+                    addEvent "protocol_started" []
                     pure $ blockFetchClientPeer blockFetchClient
             in  (tracer, codec, wrappedPeer)
         }
   where
     unlift :: forall x. Eff es x -> IO x
-    unlift = unlift' . Log.withNamespace "BlockFetch"
+    unlift = unlift'
 
 
 -- | Create a BlockFetch client that fetches blocks on requests over events.
@@ -86,10 +86,10 @@ client
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Pub :> es
        , Sub :> es
        , Timeout :> es
+       , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
@@ -99,8 +99,7 @@ client unlift cfg peer =
     BlockFetch.BlockFetchClient $ unlift do
         timestamp <- Clock.currentTime
         publish $ BlockFetchStarted {peer, timestamp}
-        Log.debug "BlockFetch: Published BlockFetchStarted event"
-        Log.debug "BlockFetch: Starting client, awaiting block download requests"
+        addEvent "awaiting_block_requests" []
 
         (inChan, outChan) <- Chan.newChan
 
@@ -112,10 +111,12 @@ client unlift cfg peer =
     awaitMessage outChan = do
         reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
 
-        Log.info $ "BlockFetch: Received " <> show (length reqs) <> " block fetch requests"
+        addEvent "block_fetch_requests_received" [("count", show $ length reqs)]
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
+        addAttribute "range.start" (show start)
+        addAttribute "range.end" (show end)
         pure
             $ BlockFetch.SendMsgRequestRange
                 (BlockFetch.ChainRange start end)
@@ -127,7 +128,7 @@ client unlift cfg peer =
             { handleStartBatch =
                 pure $ blockReceiver 0
             , handleNoBlocks = unlift $ do
-                Log.info "BlockFetch: No blocks returned by peer"
+                addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
                     publish $
@@ -152,7 +153,7 @@ client unlift cfg peer =
                 publish event
                 pure $ blockReceiver $ blockCount + 1
             , handleBatchDone = unlift $ do
-                Log.info $ "BlockFetch: Batch done (fetched " <> show blockCount <> " blocks)"
+                addEvent "batch_completed" [("blocks_fetched", show blockCount)]
                 timestamp <- Clock.currentTime
                 publish $
                     BlockBatchCompleted

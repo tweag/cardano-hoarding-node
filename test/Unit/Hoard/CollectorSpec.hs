@@ -26,6 +26,7 @@ import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (runBlockRepoState)
 import Hoard.Effects.Input (runInputConst)
 import Hoard.Effects.Log (runLogNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.Publishing (runPubWriter)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
@@ -102,6 +103,7 @@ spec_Collector = do
         let ((), events) =
                 runPureEff
                     . runLogNoOp
+                    . runTracingNoOp
                     . runWriter
                     . runPubWriter
                     . runInputConst headerReceived

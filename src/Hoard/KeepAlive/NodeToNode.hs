@@ -26,8 +26,7 @@ import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.KeepAlive.Config (Config (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
@@ -37,15 +36,15 @@ miniProtocol
     :: forall es
      . ( Clock :> es
        , Concurrent :> es
-       , Log :> es
        , Pub :> es
+       , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift' conf codecs peer =
+miniProtocol unlift conf codecs peer =
     MiniProtocol
         { miniProtocolNum = keepAliveMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -57,15 +56,13 @@ miniProtocol unlift' conf codecs peer =
                         let codec = cKeepAliveCodec codecs
                             wrappedPeer = Peer.Effect $
                                 unlift $
-                                    withExceptionLogging "KeepAlive" $ do
-                                        Log.debug "KeepAlive protocol started"
-                                        pure (keepAliveClientPeer $ client unlift conf peer)
-                            tracer = show >$< Log.asTracer (unlift . Log.withNamespace "Tracer") Log.DEBUG
+                                    withExceptionLogging "KeepAlive" $
+                                        withSpan "keep_alive_protocol" $ do
+                                            addEvent "protocol_started" []
+                                            pure (keepAliveClientPeer $ client unlift conf peer)
+                            tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                         in  (tracer, codec, wrappedPeer)
         }
-  where
-    unlift :: forall x. Eff es x -> IO x
-    unlift = unlift' . Log.withNamespace "KeepAlive"
 
 
 -- | KeepAlive client implementation.
@@ -76,8 +73,8 @@ miniProtocol unlift' conf codecs peer =
 client
     :: ( Clock :> es
        , Concurrent :> es
-       , Log :> es
        , Pub :> es
+       , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Config
@@ -86,15 +83,15 @@ client
 client unlift conf peer = KeepAliveClient sendFirst
   where
     sendFirst = unlift do
-        Log.debug "Sending first keepalive message"
+        addEvent "sending_first_keepalive" []
         timestamp <- Clock.currentTime
         publish KeepAlivePing {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
-        Log.debug $ "Response received, waiting " <> show (conf.intervalMicroseconds `div` 1_000_000) <> "s before next message"
+        addEvent "keepalive_response_received" [("wait_seconds", show (conf.intervalMicroseconds `div` 1_000_000))]
         threadDelay conf.intervalMicroseconds
-        Log.debug "Sending keepalive message"
+        addEvent "sending_keepalive" []
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
 

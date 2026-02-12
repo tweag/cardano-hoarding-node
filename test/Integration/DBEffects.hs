@@ -11,10 +11,12 @@ import Hasql.Transaction qualified as TX
 import Test.Hspec
 import Prelude hiding (runReader)
 
+import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
@@ -27,6 +29,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     $ runQuery "count-metadata" countMetadataStmt
 
@@ -42,6 +46,9 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBWrite
                     $ runTransaction "insert-test"
                     $ do
@@ -53,6 +60,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     $ runQuery "count-after-insert" countMetadataStmt
 
@@ -68,6 +77,9 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBWrite
                     $ runTransaction "insert-test"
                     $ do
@@ -83,6 +95,9 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBWrite
                     $ runTransaction "insert"
                     $ TX.statement () insertTestStmt
@@ -94,6 +109,9 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
                     . runReader config.pools
+                    . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBWrite
                     $ runTransaction "delete"
                     $ TX.statement () deleteTestStmt
@@ -106,6 +124,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     $ runQuery "count-after-delete" countMetadataStmt
 
@@ -121,6 +141,8 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     $ runQuery "illegal-insert" insertAsSelectStmt
 

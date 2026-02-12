@@ -14,10 +14,12 @@ import Prelude hiding (runReader)
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
@@ -30,7 +32,10 @@ spec_PeerPersistence = do
                 . runErrorNoCallStack @Text
                 . runReader config.pools
                 . runMetricsNoOp
+                . runTracingNoOp
+                . runClock
                 . runDBRead
+                . runClock
                 . runDBWrite
                 . runPeerRepo
                 $ action
@@ -40,6 +45,8 @@ spec_PeerPersistence = do
                 . runErrorNoCallStack @Text
                 . runReader config.pools
                 . runMetricsNoOp
+                . runTracingNoOp
+                . runClock
                 . runDBRead
                 $ action
 
@@ -68,6 +75,8 @@ spec_PeerPersistence = do
                     . runErrorNoCallStack @Text
                     . runReader config.pools
                     . runMetricsNoOp
+                    . runTracingNoOp
+                    . runClock
                     . runDBRead
                     $ runQuery "count-peers" countPeersStmt
 

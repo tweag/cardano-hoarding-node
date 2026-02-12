@@ -65,8 +65,7 @@ import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, asTracer, setStatus, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Publishing (Pub, Sub)
@@ -111,38 +110,42 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
-       , Log :> es
        , Pub :> es
        , Reader Env :> es
        , State HoardState :> es
        , Sub :> es
        , Timeout :> es
+       , Tracing :> es
        )
     => Eff (NodeToNode : es) a
     -> Eff es a
 runNodeToNode =
     interpret_ \case
-        ConnectToPeer peer -> do
+        ConnectToPeer peer -> withSpan "node_to_node.connect_to_peer" $ do
             env <- ask
             let protocolInfo = env.config.protocolInfo
                 ioManager = env.handles.ioManager
             let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
-            -- Create connection using ouroboros-network
-            Log.debug $ "Attempting connection to " <> show addr
 
-            Log.debug "Creating snocket..."
+            addAttribute "peer.id" (show peer.id)
+            addAttribute "peer.host" (show peer.address.host)
+            addAttribute "peer.port" (show peer.address.port)
+            addAttribute "peer.address" (show addr)
+            addEvent "connection_attempt" [("address", show addr)]
+
+            addEvent "creating_snocket" []
             let connectionTimeout = env.config.nodeToNode.connectionTimeoutSeconds
             let snocket = withConnectionTimeout connectionTimeout (socketSnocket ioManager)
 
             -- Load protocol info and create codecs
-            Log.debug "Loading protocol configuration..."
+            addEvent "loading_protocol_config" []
             let codecConfig = configCodec (pInfoConfig protocolInfo)
             let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
 
             -- Get all supported versions
             let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
-            Log.debug "Creating version-specific codecs and applications..."
+            addEvent "creating_codecs" []
 
             -- Create version data for handshake
             let versionData =
@@ -167,7 +170,7 @@ runNodeToNode =
                     in  mkApplication unlift env codecs peer
 
             -- Create versions for negotiation - offer all supported versions
-            Log.debug "Creating protocol versions..."
+            addEvent "creating_protocol_versions" []
             let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
                     simpleSingletonVersions
                         version
@@ -181,7 +184,7 @@ runNodeToNode =
                         | (nodeVersion, blockVersion) <- Map.toList supportedVersions
                         ]
 
-            Log.debug "Codecs created successfully"
+            addEvent "codecs_created" []
 
             flip
                 catches
@@ -192,12 +195,13 @@ runNodeToNode =
                 ]
                 do
                     -- Connect to the peer
-                    Log.debug "Calling connectTo..."
-                    result <- withEffToIO strat $ \unlift -> do
-                        let adhocTracers =
-                                nullNetworkConnectTracers
-                                    { nctHandshakeTracer = (("[NodeToNode] " <>) . show) >$< Log.asTracer unlift Log.DEBUG
-                                    }
+                    addEvent "initiating_connection" []
+                    adhocTracers <- withEffToIO strat $ \unlift ->
+                        pure $
+                            nullNetworkConnectTracers
+                                { nctHandshakeTracer = show >$< asTracer unlift "node_to_node.handshake"
+                                }
+                    result <- withEffToIO strat $ \unlift ->
                         connectTo
                             snocket
                             adhocTracers
@@ -205,45 +209,79 @@ runNodeToNode =
                             Nothing -- No local address binding
                             addr
 
-                    Log.debug "connectTo returned!"
+                    addEvent "connection_returned" []
 
                     case result of
                         Left err -> do
-                            pure $ ConnectToError $ "Failed to connect to peer " <> show peer <> ": " <> show err
+                            let errMsg = "Failed to connect to peer " <> show peer <> ": " <> show err
+                            addEvent "connection_failed" [("error", show err)]
+                            setStatus $ Error errMsg
+                            pure $ ConnectToError errMsg
                         Right (Left ()) -> do
-                            pure $ ConnectToError $ "Connection closed unexpectedly"
+                            addEvent "connection_closed" []
+                            setStatus $ Error "Connection closed unexpectedly"
+                            pure $ ConnectToError "Connection closed unexpectedly"
                         Right (Right v) -> do
                             -- This can't happen with InitiatorOnly mode
                             absurd v
   where
     handleIOException :: Peer -> IOException -> Eff es ConnectToError
-    handleIOException peer e =
+    handleIOException peer e = do
+        let errMsg = case e.ioe_type of
+                NoSuchThing ->
+                    "Could not create a socket to connect to peer: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+                ResourceVanished ->
+                    "Connection dropped: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
+                TimeExpired ->
+                    "Connection timed out: peer (" <> show peer.address <> ")"
+                _ ->
+                    "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
         case e.ioe_type of
-            NoSuchThing ->
-                pure $ ConnectToError $ "Could not create a socket to connect to peer: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
-            ResourceVanished ->
-                pure $ ConnectToError $ "Connection dropped: desc (" <> toText e.ioe_description <> "), peer (" <> show peer.address <> ")"
-            TimeExpired ->
-                pure $ ConnectToError $ "Connection timed out: peer (" <> show peer.address <> ")"
-            _ ->
-                throwIO $ userError $ "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
+            NoSuchThing -> do
+                addEvent "io_exception" [("type", "NoSuchThing"), ("error", toText e.ioe_description)]
+                setStatus $ Error errMsg
+                pure $ ConnectToError errMsg
+            ResourceVanished -> do
+                addEvent "io_exception" [("type", "ResourceVanished"), ("error", toText e.ioe_description)]
+                setStatus $ Error errMsg
+                pure $ ConnectToError errMsg
+            TimeExpired -> do
+                addEvent "io_exception" [("type", "TimeExpired")]
+                setStatus $ Error errMsg
+                pure $ ConnectToError errMsg
+            _ -> do
+                addEvent "io_exception" [("type", "Unknown"), ("error", show e)]
+                setStatus $ Error errMsg
+                throwIO $ userError $ toString errMsg
 
     handleMuxError :: Peer -> Mux.Error -> Eff es ConnectToError
     handleMuxError peer = \case
         Mux.IOException e _msg ->
             handleIOException peer e
-        Mux.BearerClosed reason ->
-            pure $ ConnectToError $ "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
-        e ->
-            throwIO $ userError $ "Disconnected due to unknown ouroboros error: " <> show e
+        Mux.BearerClosed reason -> do
+            let errMsg = "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
+            addEvent "mux_error" [("type", "BearerClosed"), ("reason", toText reason)]
+            setStatus $ Error errMsg
+            pure $ ConnectToError errMsg
+        e -> do
+            let errMsg = "Disconnected due to unknown ouroboros error: " <> show e
+            addEvent "mux_error" [("type", "Unknown"), ("error", show e)]
+            setStatus $ Error errMsg
+            throwIO $ userError $ toString errMsg
 
     handleHandshakeProtocolError :: Peer -> HandshakeProtocolError NodeToNodeVersion -> Eff es ConnectToError
-    handleHandshakeProtocolError peer e =
-        pure $ ConnectToError $ "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
+    handleHandshakeProtocolError peer e = do
+        let errMsg = "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
+        addEvent "handshake_error" [("error", show e)]
+        setStatus $ Error errMsg
+        pure $ ConnectToError errMsg
 
     handleProtocolLimitFailure :: Peer -> ProtocolLimitFailure -> Eff es ConnectToError
-    handleProtocolLimitFailure peer e =
-        pure $ ConnectToError $ "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
+    handleProtocolLimitFailure peer e = do
+        let errMsg = "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
+        addEvent "protocol_limit_error" [("error", show e)]
+        setStatus $ Error errMsg
+        pure $ ConnectToError errMsg
 
 
 --------------------------------------------------------------------------------
@@ -259,11 +297,11 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Log :> es
        , Pub :> es
        , State HoardState :> es
        , Sub :> es
        , Timeout :> es
+       , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Env

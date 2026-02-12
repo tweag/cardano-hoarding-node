@@ -2,8 +2,7 @@ module Hoard.Listeners.NetworkEventListener (protocolErrorListener) where
 
 import Effectful (Eff, (:>))
 
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent)
 import Hoard.Network.Events
     ( ProtocolError (..)
     )
@@ -11,8 +10,8 @@ import Hoard.Network.Events
 
 -- | Listener that logs protocol error events
 protocolErrorListener
-    :: (Log :> es)
+    :: (Tracing :> es)
     => ProtocolError
     -> Eff es ()
 protocolErrorListener event = do
-    Log.warn $ "❌ Protocol error: " <> event.errorMessage
+    addEvent "protocol_error_event" [("error", event.errorMessage)]
