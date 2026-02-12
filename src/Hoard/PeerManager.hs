@@ -5,8 +5,6 @@ module Hoard.PeerManager
     , PeerDisconnected (..)
     ) where
 
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Data.Time (UTCTime, diffUTCTime)
 import Effectful (Eff, IOE, (:>))
 import Effectful.Concurrent (Concurrent)
@@ -15,9 +13,11 @@ import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets, modify)
 import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+
 import Hoard.BlockFetch.Events (BlockFetchRequest)
 import Hoard.Bootstrap (bootstrapPeers)
-import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), Listener, Trigger)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
@@ -25,22 +25,24 @@ import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
-import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing (Pub, Sub, publish)
-import Hoard.Effects.Publishing qualified as Sub
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
+
+import Hoard.ChainSync.Events qualified as ChainSync
+import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.PeerRepo qualified as PeerRepo
+import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Types.Environment qualified as Env
 
 
@@ -136,8 +138,8 @@ triggerReplenish = do
 
 updatePeerConnectionState :: (State Peers :> es) => KeepAlivePing -> Eff es ()
 updatePeerConnectionState event =
-    modify $
-        Peers
+    modify
+        $ Peers
             . Map.adjust (\c -> c {state = Connected}) event.peer.id
             . (.peers)
 
@@ -174,11 +176,11 @@ cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
 
     let numOld = length oldConnections
     addAttribute "old_collectors.count" (show numOld)
-    if numOld <= 0
-        then addEvent "no_collectors_to_cull" []
-        else do
-            histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
-            addEvent "culling_collectors" [("count", show numOld)]
+    if numOld <= 0 then
+        addEvent "no_collectors_to_cull" []
+    else do
+        histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
+        addEvent "culling_collectors" [("count", show numOld)]
     for_ oldConnections signalTermination
 
 

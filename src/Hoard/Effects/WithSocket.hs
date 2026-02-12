@@ -18,9 +18,10 @@ import Effectful.Labeled (Labeled, runLabeled)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
-import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..), Local (..), NodeSocketsConfig (..), SshTunnel (..))
 import System.Process.Typed (proc, withProcessTerm)
 import Prelude hiding (Reader, asks)
+
+import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..), Local (..), NodeSocketsConfig (..), SshTunnel (..))
 
 
 data WithSocket :: Effect where
@@ -31,7 +32,7 @@ makeEffect ''WithSocket
 
 
 withNodeSockets
-    :: (Temporary :> es, IOE :> es, Reader Config :> es)
+    :: (IOE :> es, Reader Config :> es, Temporary :> es)
     => Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
     -> Eff es a
 withNodeSockets action = do
@@ -48,7 +49,7 @@ withNodeSockets action = do
 
 
 sshTunnelSocket
-    :: (Temporary :> es, IOE :> es)
+    :: (IOE :> es, Temporary :> es)
     => CardanoNodeIntegrationConfig
     -- ^ Cardano node integration configuration
     -> Text
@@ -64,8 +65,8 @@ sshTunnelSocket
 sshTunnelSocket nodeIntegrationCfg user remoteHost remoteSocket sshKey action =
     withSystemTempFile ".socket" $ \localPath _ ->
         withProcessTerm -- do not wait for `ssh` to exit. it will not.
-            ( proc "ssh" $
-                maybe [] (\k -> ["-i", k]) sshKey
+            ( proc "ssh"
+                $ maybe [] (\k -> ["-i", k]) sshKey
                     <> [ "-N"
                        , "-o"
                        , "ExitOnForwardFailure=yes"

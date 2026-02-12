@@ -45,7 +45,6 @@ module Hoard.Effects.Log
 
 import Control.Tracer (Tracer (..))
 import Data.Aeson (FromJSON (..))
-import Data.ByteString.Char8 qualified as B8
 import Data.Default (Default (..))
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
@@ -54,6 +53,8 @@ import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 import GHC.Stack (SrcLoc (..))
 import Prelude hiding (Reader, ask, local, runReader)
+
+import Data.ByteString.Char8 qualified as B8
 
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
@@ -73,7 +74,7 @@ data Message = Message
 
 
 newtype Namespace = Namespace Text
-    deriving stock (Show, Eq)
+    deriving stock (Eq, Show)
     deriving newtype (IsString)
 
 
@@ -92,7 +93,7 @@ data Severity
     | INFO
     | WARN
     | ERROR
-    deriving stock (Eq, Ord, Enum, Bounded, Show, Read)
+    deriving stock (Bounded, Enum, Eq, Ord, Read, Show)
     deriving (FromJSON) via (JsonReadShow Severity)
 
 
@@ -110,8 +111,8 @@ makeEffect ''Log
 log :: (HasCallStack, Log :> es) => Severity -> Text -> Eff es ()
 log severity text = do
     namespace <- getNamespace
-    withFrozenCallStack $
-        logMsg
+    withFrozenCallStack
+        $ logMsg
             Message
                 { stack = callStack
                 , namespace

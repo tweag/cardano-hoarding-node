@@ -11,16 +11,18 @@ module Hoard.Component
     , defaultComponentName
     ) where
 
-import Data.Text qualified as Text
 import Data.Typeable (typeRep)
 import Effectful (Eff, (:>))
 import Text.Casing (fromHumps, toSnake)
 
+import Data.Text qualified as Text
+
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
+
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
 
 
 -- | Type aliases for semantic clarity
@@ -78,8 +80,8 @@ component = SomeComponent (Proxy @c)
 runComponent
     :: forall c es
      . ( Component c es
-       , Effects c es
        , Conc :> es
+       , Effects c es
        , Tracing :> es
        )
     => Eff es ()
@@ -119,8 +121,8 @@ runSystem components = do
     setupComponent (SomeComponent (p :: Proxy c)) = do
         let name = componentName @c @es p
         Log.debug $ "Setting up component: " <> name
-        withSpan (name <> ":setup") $
-            setup @c @es
+        withSpan (name <> ":setup")
+            $ setup @c @es
 
     startComponent :: SomeComponent es -> Eff es ()
     startComponent (SomeComponent (p :: Proxy c)) = do
@@ -132,9 +134,9 @@ runSystem components = do
     postStartComponent (SomeComponent (p :: Proxy c)) = do
         let name = componentName @c @es p
         Log.debug $ "Forking start phase for component: " <> name
-        void . Conc.fork $
-            withSpan (name <> ":start") $
-                start @c @es
+        void . Conc.fork
+            $ withSpan (name <> ":start")
+            $ start @c @es
 
 
 -- | Auto-derive component name from type name

@@ -13,7 +13,7 @@ data Config = Config
     -- connect within this duration, the connection attempt fails. This does
     -- NOT affect already-established connections.
     }
-    deriving stock (Eq, Show, Generic)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via (QuietSnake Config)
 
 

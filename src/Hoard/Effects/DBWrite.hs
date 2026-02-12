@@ -10,13 +10,15 @@ import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH
-import Hasql.Pool qualified as Pool
-import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write), transaction)
 import Prelude hiding (Reader, asks)
 
+import Hasql.Pool qualified as Pool
+import Hasql.Transaction qualified as Transaction
+
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
+
 import Hoard.Types.DBConfig qualified as DB
 
 
@@ -30,7 +32,7 @@ makeEffect ''DBWrite
 
 -- | Run the DBWrite effect with a connection pool
 runDBWrite
-    :: (Error Text :> es, IOE :> es, Tracing :> es, Reader DBPools :> es)
+    :: (Error Text :> es, IOE :> es, Reader DBPools :> es, Tracing :> es)
     => Eff (DBWrite : es) a
     -> Eff es a
 runDBWrite eff = do

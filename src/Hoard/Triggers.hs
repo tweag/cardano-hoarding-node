@@ -6,14 +6,15 @@ import Effectful.Reader.Static (Reader, asks)
 import Prelude hiding (Reader, asks)
 
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
 import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..))
 
+import Hoard.Effects.Conc qualified as Conc
+
 
 -- | Starts all periodic triggers.
-runTriggers :: (Concurrent :> es, Conc :> es, Pub ImmutableTipRefreshTriggered :> es, Reader Config :> es) => Eff es ()
+runTriggers :: (Conc :> es, Concurrent :> es, Pub ImmutableTipRefreshTriggered :> es, Reader Config :> es) => Eff es ()
 runTriggers = do
     refreshInterval <- asks $ (.cardanoNodeIntegration.immutableTipRefreshSeconds)
     Conc.fork_ $ every refreshInterval $ publish ImmutableTipRefreshTriggered

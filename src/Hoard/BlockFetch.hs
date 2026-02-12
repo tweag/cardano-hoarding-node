@@ -3,13 +3,14 @@ module Hoard.BlockFetch (BlockFetch (..)) where
 import Effectful (Eff, (:>))
 
 import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchStarted, BlockReceived)
-import Hoard.BlockFetch.Listeners qualified as Listeners
 import Hoard.Component (Component (..), Listener)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Sub)
+
+import Hoard.BlockFetch.Listeners qualified as Listeners
 import Hoard.Effects.Publishing qualified as Sub
 
 

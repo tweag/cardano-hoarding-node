@@ -32,7 +32,7 @@ data BlockViolation = BlockViolation
     , classifiedAt :: Maybe UTCTime
     , receipts :: [ReceiptInfo] -- List of peers that sent us this block
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic, Show)
     deriving (FromJSON, ToJSON)
 
 
@@ -41,7 +41,7 @@ data ReceiptInfo = ReceiptInfo
     { peerId :: ID Peer
     , receivedAt :: UTCTime
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic, Show)
     deriving (FromJSON, ToJSON)
 
 

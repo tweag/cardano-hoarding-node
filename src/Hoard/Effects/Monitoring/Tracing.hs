@@ -45,20 +45,22 @@ module Hoard.Effects.Monitoring.Tracing
     ) where
 
 import Control.Tracer (Tracer (..))
-import Data.HashMap.Strict qualified as HashMap
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Exception (onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
+import Prelude hiding (Reader, ask)
+
+import Data.HashMap.Strict qualified as HashMap
 import OpenTelemetry.Context qualified as Context
 import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace qualified as OT
 import OpenTelemetry.Trace.Core qualified as OT
-import Prelude hiding (Reader, ask)
+
+import Hoard.Types.Environment (Config (..), TracingConfig (..))
 
 import Hoard.Effects.Monitoring.Tracing.Provider qualified as Provider
-import Hoard.Types.Environment (Config (..), TracingConfig (..))
 
 
 -- | Span status for indicating success or failure

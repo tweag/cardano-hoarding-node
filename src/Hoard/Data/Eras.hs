@@ -32,6 +32,6 @@ data BlockEra
     | Babbage
     | Conway
     | Dijkstra
-    deriving (Eq, Show, Enum, Bounded, Read, Generic)
-    deriving (DBType, DBEq) via (ReadShow BlockEra)
+    deriving (Bounded, Enum, Eq, Generic, Read, Show)
     deriving (FromJSON, ToJSON) via (JsonReadShow BlockEra)
+    deriving (DBEq, DBType) via (ReadShow BlockEra)

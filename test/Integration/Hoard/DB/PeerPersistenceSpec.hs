@@ -1,27 +1,29 @@
 module Integration.Hoard.DB.PeerPersistenceSpec (spec_PeerPersistence) where
 
 import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
-import Data.UUID.V4 qualified as UUID
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
-import Rel8 qualified
 import Test.Hspec
 import Text.Read (read)
 import Prelude hiding (runReader)
 
-import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Data.UUID.V4 qualified as UUID
+import Rel8 qualified
+
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+
+import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.Effects.Log qualified as Log
 
 
 spec_PeerPersistence :: Spec
@@ -90,8 +92,8 @@ spec_PeerPersistence = do
 
             -- Insert peer first time
             _ <-
-                runWrite config $
-                    upsertPeers
+                runWrite config
+                    $ upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
                         now
@@ -99,8 +101,8 @@ spec_PeerPersistence = do
             -- Wait a bit and insert same peer again with different timestamp
             let laterTime = addUTCTime 60 now -- 60 seconds later
             _ <-
-                runWrite config $
-                    upsertPeers
+                runWrite config
+                    $ upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
                         laterTime
@@ -135,8 +137,8 @@ spec_PeerPersistence = do
 
             -- Insert multiple peers at once
             result <-
-                runWrite config $
-                    upsertPeers
+                runWrite config
+                    $ upsertPeers
                         ( fromList
                             [ PeerAddress (read "192.168.1.1") 3001
                             , PeerAddress (read "192.168.1.2") 3002
@@ -163,8 +165,8 @@ spec_PeerPersistence = do
 
             -- Insert a peer
             insertResult <-
-                runWrite config $
-                    upsertPeers (fromList [testAddr]) sourcePeer.address now
+                runWrite config
+                    $ upsertPeers (fromList [testAddr]) sourcePeer.address now
 
             insertResult `shouldSatisfy` isRight
 
@@ -207,12 +209,13 @@ countPeersStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each PeersSchema.sc
 
 getPeerByAddressStmt :: Statement () Peer
 getPeerByAddressStmt =
-    fmap extractSinglePeer $
-        Rel8.run $
-            Rel8.select $ do
-                peer <- Rel8.each PeersSchema.schema
-                Rel8.where_ $ peer.address Rel8.==. Rel8.lit (read "192.168.1.1")
-                pure peer
+    fmap extractSinglePeer
+        $ Rel8.run
+        $ Rel8.select
+        $ do
+            peer <- Rel8.each PeersSchema.schema
+            Rel8.where_ $ peer.address Rel8.==. Rel8.lit (read "192.168.1.1")
+            pure peer
   where
     extractSinglePeer rows = case rows of
         [row] -> PeersSchema.peerFromRow row

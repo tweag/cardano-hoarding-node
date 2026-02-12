@@ -6,16 +6,18 @@ module Hoard.Listeners.ImmutableTipRefreshTriggeredListener
 
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, gets, modifyM)
+import Prelude hiding (State, gets, modify)
+
 import Hoard.Effects.HoardStateRepo (HoardStateRepo, persistImmutableTip)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.NodeToClient qualified as NodeToClient
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered
     ( ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
     )
 import Hoard.Types.HoardState (HoardState (immutableTip))
-import Prelude hiding (State, gets, modify)
+
+import Hoard.Effects.NodeToClient qualified as NodeToClient
 
 
 -- | Fetch the immutable tip from the cardano-node and store it in HoardState.
@@ -23,7 +25,7 @@ import Prelude hiding (State, gets, modify)
 -- This is called regularly and during application setup to initialize the immutable tip
 -- before we start connecting to peers.
 -- If fetching the tip fails due to a connection error, it retries once to reconnect and fetch.
-immutableTipRefreshTriggeredListener :: (NodeToClient :> es, State HoardState :> es, Tracing :> es, Pub ImmutableTipRefreshed :> es) => ImmutableTipRefreshTriggered -> Eff es ()
+immutableTipRefreshTriggeredListener :: (NodeToClient :> es, Pub ImmutableTipRefreshed :> es, State HoardState :> es, Tracing :> es) => ImmutableTipRefreshTriggered -> Eff es ()
 immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "immutable_tip.refresh" $ do
     addEvent "fetching_immutable_tip" []
     NodeToClient.immutableTip >>= \case
@@ -32,9 +34,10 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "im
             addAttribute "immutable_tip" (show tip)
             addEvent "immutable_tip_updated" [("tip", show tip)]
             modifyM $ \hoardState ->
-                if hoardState.immutableTip < tip
-                    then publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
-                    else pure hoardState
+                if hoardState.immutableTip < tip then
+                    publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
+                else
+                    pure hoardState
 
 
 data ImmutableTipRefreshed = ImmutableTipRefreshed

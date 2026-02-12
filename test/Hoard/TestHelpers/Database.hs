@@ -184,14 +184,14 @@ runSqitchMigrations config dbName = do
     case exitCode of
         ExitSuccess -> pure ()
         ExitFailure code ->
-            error $
-                cs $
-                    "Failed to run sqitch migrations: "
-                        <> show code
-                        <> "\nstdout: "
-                        <> stdoutput
-                        <> "\nstderr: "
-                        <> stderroutput
+            error
+                $ cs
+                $ "Failed to run sqitch migrations: "
+                    <> show code
+                    <> "\nstdout: "
+                    <> stdoutput
+                    <> "\nstderr: "
+                    <> stderroutput
 
 
 -- | Grant TRUNCATE privileges to hoard_writer for test cleanup
@@ -224,8 +224,8 @@ cleanDatabase config = do
 
     truncateTables :: Text -> Session ()
     truncateTables tableNames =
-        statement () $
-            Statement
+        statement ()
+            $ Statement
                 (cs $ "TRUNCATE TABLE " <> tableNames <> " CASCADE")
                 mempty
                 Decoders.noResult

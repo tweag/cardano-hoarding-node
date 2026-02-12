@@ -15,9 +15,6 @@ module Hoard.Effects.NodeToNode
     ) where
 
 import Cardano.Api ()
-import Data.ByteString.Lazy qualified as LBS
-import Data.IP qualified as IP
-import Data.Map.Strict qualified as Map
 import Data.Time (NominalDiffTime)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
@@ -29,7 +26,6 @@ import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
 import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError, userError)
 import Network.Mux (Mode (..))
-import Network.Mux.Trace qualified as Mux
 import Network.Socket (SockAddr, Socket)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
@@ -56,14 +52,16 @@ import Ouroboros.Network.NodeToNode
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
 import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..))
 import Ouroboros.Network.Snocket (Snocket (..), socketSnocket)
-import System.Timeout qualified as Timeout
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import Data.ByteString.Lazy qualified as LBS
+import Data.IP qualified as IP
+import Data.Map.Strict qualified as Map
+import Network.Mux.Trace qualified as Mux
+import System.Timeout qualified as Timeout
+
 import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchRequest, BlockFetchStarted, BlockReceived)
-import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
-import Hoard.ChainSync.Events qualified as ChainSync
-import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
@@ -73,14 +71,18 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
-import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
 import Hoard.PeerSharing.Events (PeerSharingStarted, PeersReceived)
-import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
-import Hoard.Types.Environment qualified as Env
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
+
+import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
+import Hoard.ChainSync.Events qualified as ChainSync
+import Hoard.ChainSync.NodeToNode qualified as ChainSync
+import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
+import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
+import Hoard.Types.Environment qualified as Env
 
 
 --------------------------------------------------------------------------------
@@ -115,20 +117,20 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
-       , Pub ChainSyncStarted :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSync.HeaderReceived :> es
-       , Pub RollBackward :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockReceived :> es
        , Pub BlockBatchCompleted :> es
-       , Sub BlockFetchRequest :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockReceived :> es
+       , Pub ChainSync.HeaderReceived :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub ChainSyncStarted :> es
        , Pub KeepAlivePing :> es
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
+       , Pub RollBackward :> es
        , Reader Env :> es
        , State HoardState :> es
+       , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -175,8 +177,8 @@ runNodeToNode =
             let strat = ConcUnlift Persistent Unlimited
                 mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
                     let codecs =
-                            hoistCodecs liftIO $
-                                defaultCodecs
+                            hoistCodecs liftIO
+                                $ defaultCodecs
                                     codecConfig
                                     blockVersion
                                     encodeRemoteAddress
@@ -212,8 +214,8 @@ runNodeToNode =
                     -- Connect to the peer
                     addEvent "initiating_connection" []
                     adhocTracers <- withEffToIO strat $ \unlift ->
-                        pure $
-                            nullNetworkConnectTracers
+                        pure
+                            $ nullNetworkConnectTracers
                                 { nctHandshakeTracer = show >$< asTracer unlift "node_to_node.handshake"
                                 }
                     result <- withEffToIO strat $ \unlift ->
@@ -312,19 +314,19 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub ChainSyncStarted :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSync.HeaderReceived :> es
-       , Pub RollBackward :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockReceived :> es
        , Pub BlockBatchCompleted :> es
-       , Sub BlockFetchRequest :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockReceived :> es
+       , Pub ChainSync.HeaderReceived :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub ChainSyncStarted :> es
        , Pub KeepAlivePing :> es
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
+       , Pub RollBackward :> es
        , State HoardState :> es
+       , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -364,8 +366,8 @@ withConnectionTimeout timeoutDurationSeconds snocket =
         result <- Timeout.timeout timeoutMicros (connect snocket socket addr)
         case result of
             Nothing ->
-                ioError $
-                    IOError
+                ioError
+                    $ IOError
                         { ioe_handle = Nothing
                         , ioe_type = TimeExpired
                         , ioe_location = "connect"

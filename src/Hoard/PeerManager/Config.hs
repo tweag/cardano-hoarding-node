@@ -13,7 +13,7 @@ data Config = Config
     , peerFailureCooldownSeconds :: NominalDiffTime
     , maxConcurrentCollectors :: Word
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
 
 

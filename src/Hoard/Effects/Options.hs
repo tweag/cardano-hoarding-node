@@ -1,10 +1,11 @@
 module Hoard.Effects.Options (Options (..), loadOptions) where
 
-import Options.Applicative qualified as Opt
-import Prelude hiding (Reader, runReader)
-
 import Effectful (Eff, IOE, (:>))
 import Effectful.Reader.Static (Reader, runReader)
+import Prelude hiding (Reader, runReader)
+
+import Options.Applicative qualified as Opt
+
 import Hoard.Types.Deployment (Deployment, parseDeployment)
 
 

@@ -24,7 +24,7 @@ peerSharingStarted event = do
 
 -- | Processes PeersReceived events and upserts the peer information into
 -- the database.
-peersReceived :: (Tracing :> es, PeerRepo :> es) => PeersReceived -> Eff es ()
+peersReceived :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
 peersReceived event = withSpan "peers_received" $ do
     addAttribute "peers.count" (show $ length event.peerAddresses)
     addEvent "peers_received" [("count", show $ length event.peerAddresses)]

@@ -22,12 +22,13 @@ module Hoard.Effects.Chan
     ) where
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
-import Control.Concurrent.Chan.Unagi qualified as Unagi
 import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Static (SideEffects (..), StaticRep, evalStaticRep, unsafeEff_)
 import Effectful.State.Static.Shared (evalState, get, modify)
 import Effectful.Timeout (Timeout, timeout)
 import Prelude hiding (evalState, get, modify)
+
+import Control.Concurrent.Chan.Unagi qualified as Unagi
 
 
 -- | Effect for creating and operating on bidirectional channels.
@@ -83,8 +84,9 @@ readChanBatched
 readChanBatched timeoutMicroseconds batchSize outChan = do
     evalState @[a] [] $ do
         h <- readChan outChan -- blocking, get first item
-        _ <- timeout timeoutMicroseconds $
-            replicateM_ (batchSize - 1) $ do
+        _ <- timeout timeoutMicroseconds
+            $ replicateM_ (batchSize - 1)
+            $ do
                 x <- readChan outChan
                 modify (x :)
         rest <- get

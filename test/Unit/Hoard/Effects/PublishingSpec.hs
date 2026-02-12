@@ -1,9 +1,9 @@
 module Unit.Hoard.Effects.PublishingSpec (spec_Pub) where
 
 import Effectful (runPureEff)
+import Effectful.Writer.Static.Shared (runWriter)
 import Test.Hspec (Spec, context, describe, expectationFailure, it, shouldBe)
 
-import Effectful.Writer.Static.Shared (runWriter)
 import Hoard.Effects.Publishing (publish, runPubWriter)
 
 

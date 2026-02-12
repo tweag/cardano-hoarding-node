@@ -6,6 +6,7 @@ module Hoard.DB.Schema
     )
 where
 
+import Effectful
 import Rel8
     ( Expr
     , Name
@@ -17,9 +18,9 @@ import Rel8
 import Text.Casing (quietSnake)
 
 import Data.List.NonEmpty qualified as NonEmpty
-import Effectful
-import Hoard.Effects.DBRead (DBRead, runQuery)
 import Rel8 qualified
+
+import Hoard.Effects.DBRead (DBRead, runQuery)
 
 
 -- | Default schema name for the application
@@ -48,28 +49,29 @@ mkSchema tableName =
         }
 
 
-countRows :: (Rel8able row, DBRead :> es) => TableSchema (row Name) -> Eff es Int
+countRows :: (DBRead :> es, Rel8able row) => TableSchema (row Name) -> Eff es Int
 countRows schema =
-    runQuery ("countRows[" <> toText schema.name.name <> "]") $
-        fmap fromIntegral $
-            Rel8.run1 $
-                Rel8.select $
-                    Rel8.aggregate Rel8.countStar $
-                        Rel8.each schema
+    runQuery ("countRows[" <> toText schema.name.name <> "]")
+        $ fmap fromIntegral
+        $ Rel8.run1
+        $ Rel8.select
+        $ Rel8.aggregate Rel8.countStar
+        $ Rel8.each schema
 
 
 -- | Count rows in a table that satisfy a predicate
 countRowsWhere
-    :: (Rel8able row, DBRead :> es)
+    :: (DBRead :> es, Rel8able row)
     => TableSchema (row Name)
     -> (row Expr -> Expr Bool)
     -> Eff es Int
 countRowsWhere schema predicate =
-    runQuery ("countRowsWhere[" <> toText schema.name.name <> "]") $
-        fmap fromIntegral $
-            Rel8.run1 $
-                Rel8.select $
-                    Rel8.aggregate Rel8.countStar $ do
-                        row <- Rel8.each schema
-                        where_ $ predicate row
-                        pure row
+    runQuery ("countRowsWhere[" <> toText schema.name.name <> "]")
+        $ fmap fromIntegral
+        $ Rel8.run1
+        $ Rel8.select
+        $ Rel8.aggregate Rel8.countStar
+        $ do
+            row <- Rel8.each schema
+            where_ $ predicate row
+            pure row

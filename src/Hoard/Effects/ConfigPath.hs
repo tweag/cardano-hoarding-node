@@ -6,7 +6,6 @@ module Hoard.Effects.ConfigPath
 
 import Data.Aeson (FromJSON (..))
 import Data.String.Conversions (cs)
-import Data.Yaml qualified as Yaml
 import Effectful (Eff, IOE, (:>))
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
@@ -14,13 +13,16 @@ import System.FilePath ((</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, asks, runReader)
 
+import Data.Yaml qualified as Yaml
+
 import Hoard.Effects.Options (Options)
-import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
+
+import Hoard.Effects.Options qualified as Options
 
 
 newtype ConfigPath = ConfigPath FilePath
-    deriving (Eq, Read, Show, FromJSON) via (FilePath)
+    deriving (Eq, FromJSON, Read, Show) via (FilePath)
 
 
 runConfigPath :: (Reader Options :> es) => Eff (Reader ConfigPath : es) a -> Eff es a

@@ -9,15 +9,16 @@ module Hoard.Effects.Output
     )
 where
 
-import Prelude hiding (modify, runState)
-
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)
 import Effectful.State.Static.Local (modify, runState)
 import Effectful.TH (makeEffect)
+import Prelude hiding (modify, runState)
+
 import Hoard.Effects.Chan (Chan, InChan)
-import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Publishing (Pub, publish)
+
+import Hoard.Effects.Chan qualified as Chan
 
 
 -- | Output something to whomever cares in a manner that is of no concern for

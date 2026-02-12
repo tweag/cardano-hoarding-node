@@ -51,8 +51,8 @@ schema = mkSchema "blocks"
 blockFromRow :: Row Result -> Either Text Block
 blockFromRow row = do
     bd <- decodeCardanoBlock row.blockEra row.blockData
-    pure $
-        Block
+    pure
+        $ Block
             { hash = row.hash
             , slotNumber = row.slotNumber
             , poolId = row.poolId

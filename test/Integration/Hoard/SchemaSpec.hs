@@ -4,20 +4,22 @@ import Data.Time (UTCTime (..))
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
-import Rel8 qualified
 import Test.Hspec
 import Prelude hiding (runReader)
+
+import Rel8 qualified
+
+import Hoard.Effects.Clock (runClockConst)
+import Hoard.Effects.DBRead (runDBRead, runQuery)
+import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
+import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.HoardState qualified as HoadStateSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
-import Hoard.Effects.Clock (runClockConst)
-import Hoard.Effects.DBRead (runDBRead, runQuery)
-import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 
 spec_Schema :: Spec

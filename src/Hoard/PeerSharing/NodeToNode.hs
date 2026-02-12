@@ -1,11 +1,9 @@
 module Hoard.PeerSharing.NodeToNode (miniProtocol, client) where
 
-import Data.Set qualified as S
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
-import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
@@ -20,15 +18,19 @@ import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient (..), pe
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Prelude hiding (Reader, State, asks, evalState)
 
+import Data.Set qualified as S
+import Network.TypedProtocol.Peer.Client qualified as Peer
+
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.PeerSharing.Config (Config (..))
 import Hoard.PeerSharing.Events (PeerSharingStarted (..), PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
+
+import Hoard.Effects.Clock qualified as Clock
 
 
 miniProtocol
@@ -50,18 +52,18 @@ miniProtocol unlift' conf codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly $
-                mkMiniProtocolCbFromPeer $
-                    \_ ->
-                        let peerSharingClient = client unlift conf peer
-                            codec = cPeerSharingCodec codecs
-                            wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
-                                timestamp <- Clock.currentTime
-                                publish $ PeerSharingStarted {peer, timestamp}
-                                addEvent "protocol_started" []
-                                pure (peerSharingClientPeer peerSharingClient)
-                            tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
-                        in  (tracer, codec, wrappedPeer)
+            InitiatorProtocolOnly
+                $ mkMiniProtocolCbFromPeer
+                $ \_ ->
+                    let peerSharingClient = client unlift conf peer
+                        codec = cPeerSharingCodec codecs
+                        wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
+                            timestamp <- Clock.currentTime
+                            publish $ PeerSharingStarted {peer, timestamp}
+                            addEvent "protocol_started" []
+                            pure (peerSharingClientPeer peerSharingClient)
+                        tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
+                    in  (tracer, codec, wrappedPeer)
         }
   where
     unlift :: forall x. Eff es x -> IO x
@@ -80,7 +82,7 @@ miniProtocol unlift' conf codecs peer =
 -- 3. Waits for the configured interval
 -- 4. Loops
 client
-    :: (Concurrent :> es, Clock :> es, Tracing :> es, Pub PeersReceived :> es)
+    :: (Clock :> es, Concurrent :> es, Pub PeersReceived :> es, Tracing :> es)
     => (forall x. Eff es x -> IO x)
     -> Config
     -> Peer
@@ -91,8 +93,8 @@ client unlift conf peer = requestPeers withPeers
     withPeers peerAddrs = unlift do
         addEvent "peer_sharing_response_received" [("peer_count", show $ length peerAddrs)]
         timestamp <- Clock.currentTime
-        publish $
-            PeersReceived
+        publish
+            $ PeersReceived
                 { peer
                 , timestamp
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs

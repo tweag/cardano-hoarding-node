@@ -5,7 +5,6 @@ import Effectful.State.Static.Shared (State)
 import Prelude hiding (Reader, State)
 
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
@@ -16,17 +15,19 @@ import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
 import Hoard.Network.Events (ProtocolError)
 import Hoard.Types.HoardState (HoardState)
 
+import Hoard.Effects.Conc qualified as Conc
+
 
 runListeners
     :: ( Conc :> es
-       , Tracing :> es
+       , HoardStateRepo :> es
        , NodeToClient :> es
+       , Pub ImmutableTipRefreshed :> es
        , State HoardState :> es
-       , Sub ProtocolError :> es
        , Sub ImmutableTipRefreshTriggered :> es
        , Sub ImmutableTipRefreshed :> es
-       , Pub ImmutableTipRefreshed :> es
-       , HoardStateRepo :> es
+       , Sub ProtocolError :> es
+       , Tracing :> es
        )
     => Eff es ()
 runListeners = do

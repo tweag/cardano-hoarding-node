@@ -2,6 +2,7 @@ module Hoard.ChainSync.Config (Config (..)) where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
+
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 

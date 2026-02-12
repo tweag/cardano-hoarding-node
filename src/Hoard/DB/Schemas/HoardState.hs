@@ -16,6 +16,7 @@ import Rel8
     , TypeInformation (typeName)
     , TypeName (name)
     )
+
 import Rel8 qualified
 
 import Hoard.DB.Schema (mkSchema)

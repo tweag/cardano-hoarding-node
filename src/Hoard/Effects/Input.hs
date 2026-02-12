@@ -14,6 +14,7 @@ import Effectful.TH (makeEffect)
 import Prelude hiding (State, atomically, evalState, get, modify, state)
 
 import Hoard.Effects.Chan (Chan, OutChan)
+
 import Hoard.Effects.Chan qualified as Chan
 
 

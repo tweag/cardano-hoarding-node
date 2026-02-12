@@ -9,18 +9,19 @@ module Hoard.Types.Cardano
     , ChainPoint (..)
     ) where
 
-import Cardano.Api qualified as C
 import Codec.CBOR.Read (DeserialiseFailure)
 import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString.Lazy qualified as LBS
 import Network.Mux (Mode (..))
 import Network.Socket (SockAddr)
-import Ouroboros.Consensus.Cardano.Block qualified as Consensus
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
-import Ouroboros.Network.Block qualified as Network
 import Ouroboros.Network.Context (MinimalInitiatorContext, ResponderContext)
 import Ouroboros.Network.Mux (MiniProtocol)
 import Rel8 (DBType, JSONBEncoded (JSONBEncoded))
+
+import Cardano.Api qualified as C
+import Data.ByteString.Lazy qualified as LBS
+import Ouroboros.Consensus.Cardano.Block qualified as Consensus
+import Ouroboros.Network.Block qualified as Network
 
 
 -- We use StandardCrypto which is the standard cryptographic primitives used in
@@ -72,5 +73,5 @@ type CardanoMiniProtocol =
 
 newtype ChainPoint = ChainPoint C.ChainPoint
     deriving (Show)
-    deriving (FromJSON, ToJSON, Eq, Ord) via C.ChainPoint
+    deriving (Eq, FromJSON, Ord, ToJSON) via C.ChainPoint
     deriving (DBType) via JSONBEncoded ChainPoint

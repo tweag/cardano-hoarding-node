@@ -9,8 +9,9 @@ import Servant (Get, JSON, QueryParam, type (:-), type (:>))
 import Hoard.Data.BlockViolation (BlockViolation)
 import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.OrphanDetection.Data (BlockClassification)
+
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 
 
 -- | Violations API type

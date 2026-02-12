@@ -6,8 +6,6 @@ module Hoard.Data.Block
 
 import Cardano.Api (EpochSlots (..))
 import Codec.CBOR.Read (DeserialiseFailure)
-import Codec.CBOR.Read qualified as CBOR
-import Codec.CBOR.Write qualified as CBOR
 import Data.Time (UTCTime)
 import Ouroboros.Consensus.Byron.Ledger
     ( ByronBlock
@@ -32,6 +30,9 @@ import Ouroboros.Consensus.Shelley.Ledger
     , decodeShelleyBlock
     , encodeShelleyBlock
     )
+
+import Codec.CBOR.Read qualified as CBOR
+import Codec.CBOR.Write qualified as CBOR
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..))

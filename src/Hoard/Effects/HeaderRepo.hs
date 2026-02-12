@@ -9,16 +9,18 @@ import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-
 import Hasql.Transaction (Transaction)
+import Rel8 (lit)
+
 import Hasql.Transaction qualified as TX
-import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
-import Hoard.DB.Schemas.Headers qualified as HeadersSchema
+import Rel8 qualified
+
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Rel8 (lit)
-import Rel8 qualified
+
+import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
+import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 
 
 -- | Effect for header repository operations
@@ -50,8 +52,8 @@ runHeaderRepo
     -> Eff es a
 runHeaderRepo = interpret_ \case
     UpsertHeader header peer receivedAt ->
-        runTransaction "upsert-header" $
-            upsertHeaderImpl header peer receivedAt
+        runTransaction "upsert-header"
+            $ upsertHeaderImpl header peer receivedAt
 
 
 -- | Upsert a header and record receipt from a peer

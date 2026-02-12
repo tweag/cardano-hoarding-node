@@ -26,7 +26,6 @@ import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc (runConc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.ConfigPath (runConfigPath)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
@@ -46,7 +45,6 @@ import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.Monitoring (Monitoring (..), Poll)
-import Hoard.Monitoring qualified as Monitoring
 import Hoard.Network.Events (ProtocolError)
 import Hoard.OrphanDetection (OrphanDetection (..))
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerManager (..), PeerRequested)
@@ -55,6 +53,9 @@ import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Server (Server (..))
 import Hoard.Types.HoardState (HoardState)
+
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Monitoring qualified as Monitoring
 
 
 main :: IO ()

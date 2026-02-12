@@ -4,11 +4,12 @@ module Hoard.Control.Exception
     , runErrorThrowing
     ) where
 
-import Control.Exception qualified as IOE
 import Effectful (Eff, IOE, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
 import System.IO.Error (userError)
+
+import Control.Exception qualified as IOE
 
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addEvent, setStatus)
 
@@ -20,11 +21,11 @@ withExceptionLogging :: (Tracing :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         let exceptionType = toText (displayException e)
-        if isGracefulShutdown e
-            then addEvent "graceful_shutdown" [("protocol", protocolName)]
-            else do
-                addEvent "protocol_error" [("protocol", protocolName), ("exception", exceptionType)]
-                setStatus $ Error (protocolName <> ": " <> exceptionType)
+        if isGracefulShutdown e then
+            addEvent "graceful_shutdown" [("protocol", protocolName)]
+        else do
+            addEvent "protocol_error" [("protocol", protocolName), ("exception", exceptionType)]
+            setStatus $ Error (protocolName <> ": " <> exceptionType)
         throwIO e
 
 
