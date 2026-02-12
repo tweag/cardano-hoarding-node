@@ -53,7 +53,7 @@ import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerManager (..), Pee
 import Hoard.PeerManager.Peers (Peers)
 import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
-import Hoard.Server (runServer)
+import Hoard.Server (Server (..))
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -111,10 +111,9 @@ main =
         . runBlockRepo
         . runHoardStateRepo
         $ do
-            runServer
-
             runSystem
                 [ component @Core
+                , component @Server
                 , component @PeerSharing
                 , component @ChainSync
                 , component @BlockFetch
