@@ -10,8 +10,17 @@ import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
 import Hoard.BlockFetch qualified as BlockFetch
+import Hoard.BlockFetch.Events
+    ( BlockBatchCompleted
+    , BlockFetchFailed
+    , BlockFetchRequest
+    , BlockFetchStarted
+    , BlockReceived
+    )
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync qualified as ChainSync
+import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward, RollForward)
+import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
@@ -32,12 +41,20 @@ import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
+import Hoard.Events.HeaderReceived qualified as API
+import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
+import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.Listeners (runListeners)
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
+import Hoard.Monitoring (Poll)
 import Hoard.Monitoring qualified as Monitoring
+import Hoard.Network.Events (ProtocolError)
 import Hoard.OrphanDetection qualified as OrphanDetection
+import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager qualified as PeerManager
 import Hoard.PeerManager.Peers (Peers)
 import Hoard.PeerSharing qualified as PeerSharing
+import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Server (runServer)
 import Hoard.Setup (setup)
 import Hoard.Triggers (runTriggers)
@@ -61,11 +78,33 @@ main =
         . runTemporary
         . runMetrics
         . withNodeSockets
-        . runPubSub
         . runErrorThrowing
         . evalState @HoardState def
         . evalState @Peers def
         . runTracingFromConfig
+        -- Pub/Sub handlers for all event types
+        . runPubSub @ChainSyncStarted
+        . runPubSub @ChainSyncIntersectionFound
+        . runPubSub @RollBackward
+        . runPubSub @RollForward
+        . runPubSub @ChainSync.HeaderReceived
+        . runPubSub @BlockFetchStarted
+        . runPubSub @BlockFetchRequest
+        . runPubSub @BlockReceived
+        . runPubSub @BlockBatchCompleted
+        . runPubSub @BlockFetchFailed
+        . runPubSub @PeerSharingStarted
+        . runPubSub @PeersReceived
+        . runPubSub @PeerSharingFailed
+        . runPubSub @CullRequested
+        . runPubSub @PeerRequested
+        . runPubSub @PeerDisconnected
+        . runPubSub @Poll
+        . runPubSub @ImmutableTipRefreshTriggered
+        . runPubSub @ImmutableTipRefreshed
+        . runPubSub @ProtocolError
+        . runPubSub @KeepAlivePing
+        . runPubSub @API.HeaderReceived
         . runNodeToClient
         . runNodeToNode
         . runDBRead

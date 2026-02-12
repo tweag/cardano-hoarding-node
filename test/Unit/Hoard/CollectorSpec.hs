@@ -1,6 +1,5 @@
 module Unit.Hoard.CollectorSpec (spec_Collector) where
 
-import Data.Dynamic (fromDynamic)
 import Data.Time (UTCTime (..))
 import Data.UUID qualified as UUID
 import Effectful (runPureEff)
@@ -105,9 +104,9 @@ spec_Collector = do
                     . runLogNoOp
                     . runTracingNoOp
                     . runWriter
-                    . runPubWriter
+                    . runPubWriter @BlockFetchRequest
                     . runInputConst headerReceived
                     . evalState db
                     . runBlockRepoState
                     $ pickBlockFetchRequest testPeer.id headerReceived
-        in  mapMaybe fromDynamic events
+        in  events

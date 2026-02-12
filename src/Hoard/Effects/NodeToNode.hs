@@ -59,7 +59,10 @@ import Ouroboros.Network.Snocket (Snocket (..), socketSnocket)
 import System.Timeout qualified as Timeout
 import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
+import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchRequest, BlockFetchStarted, BlockReceived)
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
+import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
+import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
@@ -69,7 +72,9 @@ import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute,
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..))
 import Hoard.Effects.Publishing (Pub, Sub)
+import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
+import Hoard.PeerSharing.Events (PeerSharingStarted, PeersReceived)
 import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
@@ -110,10 +115,20 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
-       , Pub :> es
+       , Pub ChainSyncStarted :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub ChainSync.HeaderReceived :> es
+       , Pub RollBackward :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockReceived :> es
+       , Pub BlockBatchCompleted :> es
+       , Sub BlockFetchRequest :> es
+       , Pub KeepAlivePing :> es
+       , Pub PeerSharingStarted :> es
+       , Pub PeersReceived :> es
        , Reader Env :> es
        , State HoardState :> es
-       , Sub :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -297,9 +312,19 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub ChainSyncStarted :> es
+       , Pub ChainSyncIntersectionFound :> es
+       , Pub ChainSync.HeaderReceived :> es
+       , Pub RollBackward :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockReceived :> es
+       , Pub BlockBatchCompleted :> es
+       , Sub BlockFetchRequest :> es
+       , Pub KeepAlivePing :> es
+       , Pub PeerSharingStarted :> es
+       , Pub PeersReceived :> es
        , State HoardState :> es
-       , Sub :> es
        , Timeout :> es
        , Tracing :> es
        )

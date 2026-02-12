@@ -35,7 +35,8 @@ miniProtocol
     :: forall es
      . ( Clock :> es
        , Concurrent :> es
-       , Pub :> es
+       , Pub PeerSharingStarted :> es
+       , Pub PeersReceived :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -79,7 +80,7 @@ miniProtocol unlift' conf codecs peer =
 -- 3. Waits for the configured interval
 -- 4. Loops
 client
-    :: (Concurrent :> es, Clock :> es, Tracing :> es, Pub :> es)
+    :: (Concurrent :> es, Clock :> es, Tracing :> es, Pub PeersReceived :> es)
     => (forall x. Eff es x -> IO x)
     -> Config
     -> Peer

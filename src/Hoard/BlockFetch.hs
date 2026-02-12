@@ -2,6 +2,7 @@ module Hoard.BlockFetch (run, runListeners) where
 
 import Effectful (Eff, (:>))
 
+import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchStarted, BlockReceived)
 import Hoard.BlockFetch.Listeners qualified as Listeners
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
@@ -17,7 +18,10 @@ run
        , Conc :> es
        , Tracing :> es
        , Metrics :> es
-       , Sub :> es
+       , Sub BlockFetchStarted :> es
+       , Sub BlockReceived :> es
+       , Sub BlockFetchFailed :> es
+       , Sub BlockBatchCompleted :> es
        )
     => Eff es ()
 run = withSpan "block_fetch" $ do
@@ -29,7 +33,10 @@ runListeners
        , Conc :> es
        , Tracing :> es
        , Metrics :> es
-       , Sub :> es
+       , Sub BlockFetchStarted :> es
+       , Sub BlockReceived :> es
+       , Sub BlockFetchFailed :> es
+       , Sub BlockBatchCompleted :> es
        )
     => Eff es ()
 runListeners = withSpan "listeners" $ do

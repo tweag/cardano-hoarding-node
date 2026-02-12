@@ -13,7 +13,7 @@ import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..))
 
 
 -- | Starts all periodic triggers.
-runTriggers :: (Concurrent :> es, Conc :> es, Pub :> es, Reader Config :> es) => Eff es ()
+runTriggers :: (Concurrent :> es, Conc :> es, Pub ImmutableTipRefreshTriggered :> es, Reader Config :> es) => Eff es ()
 runTriggers = do
     refreshInterval <- asks $ (.cardanoNodeIntegration.immutableTipRefreshSeconds)
     every refreshInterval $ publish ImmutableTipRefreshTriggered
