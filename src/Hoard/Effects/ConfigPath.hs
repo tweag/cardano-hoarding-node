@@ -17,12 +17,10 @@ import Prelude hiding (Reader, asks, runReader)
 import Hoard.Effects.Options (Options)
 import Hoard.Effects.Options qualified as Options
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
 newtype ConfigPath = ConfigPath FilePath
-    deriving (Eq, Read, Show) via (FilePath)
-    deriving (FromJSON) via (JsonReadShow ConfigPath)
+    deriving (Eq, Read, Show, FromJSON) via (FilePath)
 
 
 runConfigPath :: (Reader Options :> es) => Eff (Reader ConfigPath : es) a -> Eff es a
