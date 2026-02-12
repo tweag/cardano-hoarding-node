@@ -58,7 +58,6 @@ library
       Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
       Hoard.Effects.HoardStateRepo
-      Hoard.Effects.Input
       Hoard.Effects.Log
       Hoard.Effects.Monitoring.Metrics
       Hoard.Effects.Monitoring.Metrics.Definitions
@@ -70,7 +69,6 @@ library
       Hoard.Effects.NodeToNode.Codecs
       Hoard.Effects.NodeToNode.Config
       Hoard.Effects.Options
-      Hoard.Effects.Output
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
       Hoard.Effects.WithSocket
