@@ -48,6 +48,7 @@ library
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.BlockRepo
+      Hoard.Effects.Cache.Singleflight
       Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
@@ -310,6 +311,7 @@ test-suite hoard-test
       Unit.Hoard.CollectorSpec
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
+      Unit.Hoard.Effects.Cache.SingleflightSpec
       Unit.Hoard.Effects.LogSpec
       Unit.Hoard.Effects.PublishingSpec
       Unit.Hoard.MonitoringSpec
