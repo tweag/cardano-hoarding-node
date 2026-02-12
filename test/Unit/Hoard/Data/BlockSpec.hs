@@ -1,8 +1,6 @@
 module Unit.Hoard.Data.BlockSpec (spec_Block) where
 
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..))
-import Relude.Unsafe qualified
-import Test.Consensus.Byron.Examples qualified as Byron
 import Test.Consensus.Shelley.Examples
     ( examplesAllegra
     , examplesAlonzo
@@ -14,6 +12,9 @@ import Test.Consensus.Shelley.Examples
     )
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
+
+import Relude.Unsafe qualified
+import Test.Consensus.Byron.Examples qualified as Byron
 
 import Hoard.Data.Block (decodeCardanoBlock, encodeCardanoBlock)
 import Hoard.Data.Eras (BlockEra (..))

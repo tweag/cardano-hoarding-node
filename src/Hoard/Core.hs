@@ -9,7 +9,6 @@ import Prelude hiding (Reader, State, asks, modify)
 import Hoard.Component (Component (..))
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
-import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
@@ -21,6 +20,8 @@ import Hoard.Setup (setFileDescriptorLimit)
 import Hoard.Triggers (every)
 import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..))
 import Hoard.Types.HoardState (HoardState (immutableTip))
+
+import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 
 
 data Core = Core

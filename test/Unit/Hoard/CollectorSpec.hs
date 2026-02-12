@@ -1,7 +1,6 @@
 module Unit.Hoard.CollectorSpec (spec_Collector) where
 
 import Data.Time (UTCTime (..))
-import Data.UUID qualified as UUID
 import Effectful (runPureEff)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (runWriter)
@@ -13,6 +12,8 @@ import Test.Consensus.Shelley.Examples (examplesShelley)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Util.Serialisation.Examples (Examples (..))
 import Prelude hiding (evalState, execState)
+
+import Data.UUID qualified as UUID
 
 import Hoard.BlockFetch.Events (BlockFetchRequest (..))
 import Hoard.ChainSync.Events (HeaderReceived (..))

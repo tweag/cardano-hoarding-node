@@ -5,18 +5,20 @@ module Hoard.Effects.HoardStateRepo
     , runHoardStateRepo
     ) where
 
+import Data.Default (Default (def))
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-import Hasql.Transaction qualified as TX
 import Rel8 (lit)
+
+import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
-import Data.Default (Default (def))
-import Hoard.DB.Schemas.HoardState qualified as HoardState
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Types.Cardano (ChainPoint)
+
+import Hoard.DB.Schemas.HoardState qualified as HoardState
 import Hoard.Types.HoardState qualified as TS
 
 
@@ -28,7 +30,7 @@ data HoardStateRepo :: Effect where
 makeEffect ''HoardStateRepo
 
 
-runHoardStateRepo :: (DBWrite :> es, DBRead :> es) => Eff (HoardStateRepo : es) a -> Eff es a
+runHoardStateRepo :: (DBRead :> es, DBWrite :> es) => Eff (HoardStateRepo : es) a -> Eff es a
 runHoardStateRepo = interpret_ $ \case
     GetImmutableTip ->
         runQuery "get_immutable_tip"
@@ -51,8 +53,8 @@ runHoardStateRepo = interpret_ $ \case
                             }
                         ]
                 , onConflict =
-                    Rel8.DoUpdate $
-                        Rel8.Upsert
+                    Rel8.DoUpdate
+                        $ Rel8.Upsert
                             { index = HoardState.unit
                             , predicate = Nothing
                             , set = \new _old -> new

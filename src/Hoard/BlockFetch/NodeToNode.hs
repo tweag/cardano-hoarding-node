@@ -1,11 +1,11 @@
 module Hoard.BlockFetch.NodeToNode (miniProtocol, client) where
 
+import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
-import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
@@ -18,11 +18,12 @@ import Ouroboros.Network.NodeToNode
     ( blockFetchMiniProtocolNum
     )
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
-import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
-import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import Prelude hiding (State, evalState, get, modify)
 
-import Control.Tracer (nullTracer)
+import Network.TypedProtocol.Peer.Client qualified as Peer
+import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
+import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
+
 import Hoard.BlockFetch.Config (Config (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
@@ -34,14 +35,15 @@ import Hoard.BlockFetch.Events
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
-import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
+
+import Hoard.Effects.Chan qualified as Chan
+import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Conc qualified as Conc
 
 
 miniProtocol
@@ -50,10 +52,10 @@ miniProtocol
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockReceived :> es
        , Pub BlockBatchCompleted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockReceived :> es
        , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
@@ -89,10 +91,10 @@ client
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockReceived :> es
        , Pub BlockBatchCompleted :> es
+       , Pub BlockFetchFailed :> es
+       , Pub BlockFetchStarted :> es
+       , Pub BlockReceived :> es
        , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
@@ -137,8 +139,8 @@ client unlift cfg peer =
                 addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
-                    publish $
-                        BlockFetchFailed
+                    publish
+                        $ BlockFetchFailed
                             { peer
                             , timestamp
                             , header = req.header
@@ -161,8 +163,8 @@ client unlift cfg peer =
             , handleBatchDone = unlift $ do
                 addEvent "batch_completed" [("blocks_fetched", show blockCount)]
                 timestamp <- Clock.currentTime
-                publish $
-                    BlockBatchCompleted
+                publish
+                    $ BlockBatchCompleted
                         { peer
                         , timestamp
                         , blockCount

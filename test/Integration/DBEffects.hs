@@ -4,20 +4,22 @@ import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
+import Test.Hspec
+import Prelude hiding (runReader)
+
 import Hasql.Decoders qualified as D
 import Hasql.Encoders qualified as E
 import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
-import Test.Hspec
-import Prelude hiding (runReader)
 
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+
+import Hoard.Effects.Log qualified as Log
 
 
 spec_DBEffects :: Spec

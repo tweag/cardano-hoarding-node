@@ -9,12 +9,13 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
 import Network.Socket (SockAddr)
-import Text.Show qualified as Show
+import Prelude hiding (id)
 
 import Data.IP qualified as IP
+import Text.Show qualified as Show
+
 import Hoard.Data.ID (ID)
 import Hoard.Types.NodeIP (NodeIP (..))
-import Prelude hiding (id)
 
 
 -- | Represents a peer in the P2P network
@@ -27,8 +28,8 @@ data Peer = Peer
     , lastFailureTime :: Maybe UTCTime
     , discoveredVia :: Text
     }
-    deriving stock (Eq, Generic, Ord, Show)
     deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Ord, Show)
 
 
 -- | Represents a peer address (host:port)
@@ -36,8 +37,8 @@ data PeerAddress = PeerAddress
     { host :: NodeIP
     , port :: Int
     }
-    deriving stock (Eq, Ord, Generic)
     deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Ord)
 
 
 instance Show PeerAddress where

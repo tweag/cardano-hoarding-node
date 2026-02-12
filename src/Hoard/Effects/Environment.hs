@@ -21,11 +21,7 @@ import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 import Prelude hiding (Reader, ask, asks, runReader)
 
-import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
-import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
@@ -42,6 +38,11 @@ import Hoard.Types.Environment
     , TracingConfig
     )
 import Hoard.Types.QuietSnake (QuietSnake (..))
+
+import Hoard.BlockFetch.Config qualified as BlockFetch
+import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
+import Hoard.PeerManager.Config qualified as PeerManager
 
 
 -- | Top-level config file structure (YAML)
@@ -204,7 +205,7 @@ loadCardanoProtocolHandles configFile = do
 
 
 -- | Acquire runtime handles
-acquireHandles :: (IOE :> es, Concurrent :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
+acquireHandles :: (Concurrent :> es, IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"

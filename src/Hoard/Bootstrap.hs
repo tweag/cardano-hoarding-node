@@ -2,17 +2,17 @@ module Hoard.Bootstrap (bootstrapPeers) where
 
 import Control.Exception (try)
 import Data.IP (IP)
-import Data.IP qualified as IP
-import Data.Set qualified as S
 import Effectful (Eff, IOE, (:>))
 import Effectful.Reader.Static (Reader, asks)
 import Network.Socket (HostName, PortNumber)
-import Network.Socket qualified as Socket
 import Prelude hiding (Reader, asks)
+
+import Data.IP qualified as IP
+import Data.Set qualified as S
+import Network.Socket qualified as Socket
 
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Types.Environment
     ( BootstrapPeerDomain (..)
@@ -23,11 +23,13 @@ import Hoard.Types.Environment
     )
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Hoard.Effects.Clock qualified as Clock
+
 
 -- | Bootstrap peers from the peer snapshot configuration.
 -- Extracts all relays from bigLedgerPools, resolves their addresses,
 -- and upserts them to the database.
-bootstrapPeers :: (PeerRepo :> es, Clock :> es, IOE :> es, Reader Config :> es) => Eff es (Set Peer)
+bootstrapPeers :: (Clock :> es, IOE :> es, PeerRepo :> es, Reader Config :> es) => Eff es (Set Peer)
 bootstrapPeers = do
     -- Get peer snapshot from config
     peerSnapshot <- asks (.peerSnapshot)

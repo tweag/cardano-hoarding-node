@@ -36,6 +36,10 @@ import Data.Aeson (FromJSON (..), withObject, (.:))
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager)
 
+import Hoard.Types.Cardano (CardanoBlock)
+import Hoard.Types.DBConfig (DBPools (..))
+import Hoard.Types.QuietSnake (QuietSnake (..))
+
 import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
 import Hoard.Effects.Log qualified as Log
@@ -43,9 +47,6 @@ import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.KeepAlive.Config qualified as KeepAlive
 import Hoard.PeerManager.Config qualified as PeerManager
 import Hoard.PeerSharing.Config qualified as PeerSharing
-import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.DBConfig (DBPools (..))
-import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 -- | HTTP server configuration

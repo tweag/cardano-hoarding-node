@@ -4,12 +4,13 @@ module Hoard.Types.NodeIP
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.IP (IP)
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
 import Rel8 (DBEq, DBType (..), ReadShow (..))
+
+import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
 newtype NodeIP = NodeIP {getNodeIP :: IP}
-    deriving stock (Eq, Ord, Generic)
-    deriving (Show, Read) via (IP)
-    deriving (DBType, DBEq) via ReadShow NodeIP
+    deriving stock (Eq, Generic, Ord)
+    deriving (Read, Show) via (IP)
     deriving (FromJSON, ToJSON) via JsonReadShow NodeIP
+    deriving (DBEq, DBType) via ReadShow NodeIP

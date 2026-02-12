@@ -15,9 +15,9 @@ data BlockClassification
       Canonical
     | -- | Block is permanently orphaned (not on chain, before immutable tip)
       Orphaned
-    deriving (Eq, Show, Read)
-    deriving (DBType, DBEq) via (ReadShow BlockClassification)
+    deriving (Eq, Read, Show)
     deriving (FromJSON, ToJSON) via (JsonReadShow BlockClassification)
+    deriving (DBEq, DBType) via (ReadShow BlockClassification)
 
 
 -- | HTTP API instances for Servant

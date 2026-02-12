@@ -10,32 +10,34 @@ module Hoard.Effects.BlockRepo
     , runBlockRepoState
     ) where
 
-import Data.Set qualified as Set
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith)
+import Effectful.State.Static.Shared (State, gets, modify)
 import Effectful.TH (makeEffect)
+import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
-import Hasql.Transaction qualified as TX
 import Rel8 (isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
-import Rel8 qualified
 import Prelude hiding (Reader, State, ask, atomically, gets, modify, newTVarIO, runReader)
 
-import Effectful.State.Static.Shared (State, gets, modify)
-import Hasql.Statement (Statement)
+import Data.Set qualified as Set
+import Hasql.Transaction qualified as TX
+import Rel8 qualified
+
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
-import Hoard.DB.Schemas.Blocks qualified as Blocks
-import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.BlockViolation (BlockViolation, blockToViolation)
-import Hoard.Effects.Cache.Singleflight qualified as Singleflight
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.OrphanDetection.Data (BlockClassification)
 import Hoard.Types.Cardano (CardanoHeader)
+
+import Hoard.DB.Schemas.Blocks qualified as Blocks
+import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
+import Hoard.Effects.Cache.Singleflight qualified as Singleflight
 
 
 data BlockRepo :: Effect where
@@ -68,14 +70,14 @@ runBlockRepo action = do
         ClassifyBlock blockHash classification timestamp -> withSpan "block_repo.classify_block" $ do
             addAttribute "block.hash" (show blockHash)
             addAttribute "block.classification" (show classification)
-            runTransaction "classify-block" $
-                classifyBlockTrans blockHash classification timestamp
+            runTransaction "classify-block"
+                $ classifyBlockTrans blockHash classification timestamp
         GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> withSpan "block_repo.get_unclassified_blocks" $ do
             addAttribute "slot" (show slot)
             addAttribute "limit" (show limit)
             addAttribute "exclude.count" (show $ Set.size excludeHashes)
-            runQuery "get-unclassified-blocks" $
-                getUnclassifiedBlocksQuery slot limit excludeHashes
+            runQuery "get-unclassified-blocks"
+                $ getUnclassifiedBlocksQuery slot limit excludeHashes
         GetViolations mbClassification mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" $ do
             addAttribute "filter.classification" (show mbClassification)
             addAttribute "filter.min_slot" (show mbMinSlot)
@@ -109,8 +111,8 @@ getBlockQuery header =
         . Rel8.select
         $ do
             block <- Rel8.each Blocks.schema
-            where_ $
-                block.hash ==. (lit $ blockHashFromHeader header)
+            where_
+                $ block.hash ==. (lit $ blockHashFromHeader header)
             pure block
   where
     -- The unique constraint over the `hash` column ensures we get either 1 or
@@ -158,8 +160,8 @@ getUnclassifiedBlocksQuery slot limit excludeHashes =
         $ Rel8.limit (fromIntegral limit)
         $ do
             block <- Rel8.each Blocks.schema
-            where_ $
-                Rel8.isNull block.classification
+            where_
+                $ Rel8.isNull block.classification
                     &&. block.slotNumber <. lit slot
                     &&. excludeHashesCondition block.hash
             pure block
@@ -187,8 +189,8 @@ getViolationsQuery mbClassification mbMinSlot mbMaxSlot =
         block <- Rel8.each Blocks.schema
 
         -- Apply block filters
-        where_ $
-            optionalFilter mbClassification (\cls -> block.classification ==. lit (Just cls))
+        where_
+            $ optionalFilter mbClassification (\cls -> block.classification ==. lit (Just cls))
                 &&. optionalFilter mbMinSlot (\minSlot -> block.slotNumber >=. lit minSlot)
                 &&. optionalFilter mbMaxSlot (\maxSlot -> block.slotNumber <=. lit maxSlot)
 
@@ -214,12 +216,13 @@ runBlockRepoState = interpret_ \case
     BlockExists blockHash -> gets $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp ->
         modify $ fmap $ \block ->
-            if block.hash == blockHash
-                then block {classification = Just classification, classifiedAt = Just timestamp}
-                else block
+            if block.hash == blockHash then
+                block {classification = Just classification, classifiedAt = Just timestamp}
+            else
+                block
     GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes ->
-        gets $
-            take limit
+        gets
+            $ take limit
                 . filter
                     ( \block ->
                         isNothing block.classification

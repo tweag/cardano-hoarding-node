@@ -30,7 +30,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSp
 --
 -- Extracts header data and persists it to the database.
 chainSyncHeaderReceived
-    :: (Tracing :> es, HeaderRepo :> es, Metrics :> es)
+    :: (HeaderRepo :> es, Metrics :> es, Tracing :> es)
     => HeaderReceived
     -> Eff es ()
 chainSyncHeaderReceived event = withSpan "header_received" $ do
@@ -57,7 +57,7 @@ chainSyncStarted event = do
 
 -- | Listener that handles ChainSync rollback events
 chainSyncRollBackward
-    :: (Tracing :> es, Metrics :> es)
+    :: (Metrics :> es, Tracing :> es)
     => RollBackward
     -> Eff es ()
 chainSyncRollBackward _event = do
@@ -67,7 +67,7 @@ chainSyncRollBackward _event = do
 
 -- | Listener that handles ChainSync roll forward events
 chainSyncRollForward
-    :: (Tracing :> es, Metrics :> es)
+    :: (Metrics :> es, Tracing :> es)
     => RollForward
     -> Eff es ()
 chainSyncRollForward _event = do

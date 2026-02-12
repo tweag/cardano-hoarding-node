@@ -19,8 +19,8 @@ import Hoard.Types.Cardano (CardanoBlock)
 
 
 newtype PoolID = PoolID Text
-    deriving stock (Eq, Ord, Show, Generic)
-    deriving newtype (FromJSON, ToJSON, DBEq, DBOrd, DBType)
+    deriving stock (Eq, Generic, Ord, Show)
+    deriving newtype (DBEq, DBOrd, DBType, FromJSON, ToJSON)
 
 
 mkPoolID :: CardanoBlock -> PoolID

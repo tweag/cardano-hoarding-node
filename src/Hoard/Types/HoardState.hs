@@ -1,7 +1,8 @@
 module Hoard.Types.HoardState (HoardState (..)) where
 
-import Cardano.Api qualified as C
 import Data.Default (Default (..))
+
+import Cardano.Api qualified as C
 import Data.Set qualified as S
 
 import Hoard.Data.BlockHash (BlockHash)

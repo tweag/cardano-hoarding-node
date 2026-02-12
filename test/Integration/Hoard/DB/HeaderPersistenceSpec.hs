@@ -1,18 +1,17 @@
 module Integration.Hoard.DB.HeaderPersistenceSpec (spec_HeaderPersistence) where
 
 import Data.Time (UTCTime, getCurrentTime)
-import Data.UUID.V4 qualified as UUID
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
-import Rel8 qualified
 import Test.Hspec
 import Text.Read (read)
 import Prelude hiding (runReader)
 
-import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
-import Hoard.DB.Schemas.Headers qualified as HeadersSchema
+import Data.UUID.V4 qualified as UUID
+import Rel8 qualified
+
 import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID (..))
@@ -21,11 +20,14 @@ import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+
+import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
+import Hoard.DB.Schemas.Headers qualified as HeadersSchema
+import Hoard.Effects.Log qualified as Log
 
 
 spec_HeaderPersistence :: Spec

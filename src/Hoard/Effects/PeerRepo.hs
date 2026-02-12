@@ -14,18 +14,20 @@ import Data.Time (NominalDiffTime, UTCTime, calendarTimeTime)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
+import Hasql.Statement (Statement)
+import Hasql.Transaction (Transaction)
 import Rel8 (in_, lit, select, (&&.), (>.))
+
+import Hasql.Transaction qualified as TX
 import Rel8 qualified
 import Rel8.Expr.Time qualified as Rel8
 
-import Hasql.Statement (Statement)
-import Hasql.Transaction (Transaction)
-import Hasql.Transaction qualified as TX
-import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+
+import Hoard.DB.Schemas.Peers qualified as PeersSchema
 
 
 -- | Effect for peer repository operations
@@ -89,22 +91,22 @@ runPeerRepo
     -> Eff es a
 runPeerRepo = interpret $ \_ -> \case
     UpsertPeers peerAddrs sourcePeer timestamp ->
-        runTransaction "upsert-peers" $
-            upsertPeersImpl peerAddrs sourcePeer timestamp
+        runTransaction "upsert-peers"
+            $ upsertPeersImpl peerAddrs sourcePeer timestamp
     GetPeerByAddress peerAddr ->
-        runQuery "get-peer-by-address" $
-            getPeerByAddressImpl peerAddr
+        runQuery "get-peer-by-address"
+            $ getPeerByAddressImpl peerAddr
     GetAllPeers ->
         runQuery "get-all-peers" getAllPeersImpl
     UpdatePeerFailure peer timestamp ->
-        runTransaction "update-peer-failure" $
-            updatePeerFailureImpl peer timestamp
+        runTransaction "update-peer-failure"
+            $ updatePeerFailureImpl peer timestamp
     UpdateLastConnected peerId timestamp ->
-        runTransaction "update-last-connected" $
-            updateLastConnectedImpl peerId timestamp
+        runTransaction "update-last-connected"
+            $ updateLastConnectedImpl peerId timestamp
     GetEligiblePeers failureTimeout alreadyConnectedPeers limit ->
-        runQuery "get-eligible-peers" $
-            getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
+        runQuery "get-eligible-peers"
+            $ getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
 
 
 upsertPeersImpl
@@ -126,8 +128,8 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                 Rel8.Insert
                     { into = PeersSchema.schema
                     , rows =
-                        Rel8.values $
-                            toList peerAddresses <&> \peerAddr ->
+                        Rel8.values
+                            $ toList peerAddresses <&> \peerAddr ->
                                 PeersSchema.Row
                                     { PeersSchema.id = Rel8.unsafeDefault
                                     , PeersSchema.address = lit peerAddr.host
@@ -159,10 +161,10 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
 -- | Get a peer from the database by its address and port
 getPeerByAddressImpl :: PeerAddress -> Statement () (Maybe Peer)
 getPeerByAddressImpl peerAddr =
-    fmap extractMaybePeer $
-        Rel8.run $
-            select $
-                PeersSchema.selectPeerByAddress peerAddr
+    fmap extractMaybePeer
+        $ Rel8.run
+        $ select
+        $ PeersSchema.selectPeerByAddress peerAddr
   where
     extractMaybePeer :: [PeersSchema.Row Rel8.Result] -> Maybe Peer
     extractMaybePeer [] = Nothing
@@ -173,10 +175,10 @@ getPeerByAddressImpl peerAddr =
 -- | Get all peers from the database
 getAllPeersImpl :: Statement () (Set Peer)
 getAllPeersImpl =
-    fmap (fromList . map PeersSchema.peerFromRow) $
-        Rel8.run $
-            select $
-                Rel8.each PeersSchema.schema
+    fmap (fromList . map PeersSchema.peerFromRow)
+        $ Rel8.run
+        $ select
+        $ Rel8.each PeersSchema.schema
 
 
 -- | Update a peer's last failure time
@@ -217,17 +219,18 @@ updateLastConnectedImpl peerId timestamp = do
 
 getEligiblePeersImpl :: NominalDiffTime -> Set (ID Peer) -> Word -> Statement () (Set Peer)
 getEligiblePeersImpl failureTimeout currentPeers limit =
-    fmap (fromList . fmap PeersSchema.peerFromRow) $
-        Rel8.run $
-            select $ Rel8.limit limit do
-                peer <- Rel8.each PeersSchema.schema
+    fmap (fromList . fmap PeersSchema.peerFromRow)
+        $ Rel8.run
+        $ select
+        $ Rel8.limit limit do
+            peer <- Rel8.each PeersSchema.schema
 
-                let didNotFailRecently =
-                        Rel8.nullable
-                            Rel8.true
-                            (\ft -> Rel8.diffTime Rel8.now ft >. lit (calendarTimeTime failureTimeout))
-                            peer.lastFailureTime
-                    isNotACurrentPeer = Rel8.not_ $ peer.id `in_` (lit <$> toList currentPeers)
+            let didNotFailRecently =
+                    Rel8.nullable
+                        Rel8.true
+                        (\ft -> Rel8.diffTime Rel8.now ft >. lit (calendarTimeTime failureTimeout))
+                        peer.lastFailureTime
+                isNotACurrentPeer = Rel8.not_ $ peer.id `in_` (lit <$> toList currentPeers)
 
-                Rel8.where_ $ isNotACurrentPeer &&. didNotFailRecently
-                pure peer
+            Rel8.where_ $ isNotACurrentPeer &&. didNotFailRecently
+            pure peer

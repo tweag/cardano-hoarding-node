@@ -89,7 +89,7 @@ rowFromPeer peer =
 selectPeerByAddress :: PeerAddress -> Query (Row Expr)
 selectPeerByAddress peerAddr = do
     peer <- each schema
-    where_ $
-        peer.address ==. lit peerAddr.host
+    where_
+        $ peer.address ==. lit peerAddr.host
             &&. peer.port ==. lit (fromIntegral peerAddr.port)
     pure peer

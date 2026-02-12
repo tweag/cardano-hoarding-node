@@ -24,10 +24,11 @@ import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+
+import Hoard.Effects.BlockRepo qualified as BlockRepo
 
 
 -- | Listener that handles BlockFetch started events
@@ -39,7 +40,7 @@ blockFetchStarted event = do
 -- | Listener that handles block received events
 --
 -- Extracts block data and persists it to the database.
-blockReceived :: (Tracing :> es, BlockRepo :> es, Metrics :> es) => BlockReceived -> Eff es ()
+blockReceived :: (BlockRepo :> es, Metrics :> es, Tracing :> es) => BlockReceived -> Eff es ()
 blockReceived event = withSpan "block_received" $ do
     let block = extractBlockData event
     addAttribute "block.hash" (show block.hash)
@@ -51,7 +52,7 @@ blockReceived event = withSpan "block_received" $ do
 
 
 -- | Listener that handles block fetch failed events
-blockFetchFailed :: (Tracing :> es, Metrics :> es) => BlockFetchFailed -> Eff es ()
+blockFetchFailed :: (Metrics :> es, Tracing :> es) => BlockFetchFailed -> Eff es ()
 blockFetchFailed event = do
     recordBlockFetchFailure
     addEvent "block_fetch_failed" [("error", event.errorMessage)]

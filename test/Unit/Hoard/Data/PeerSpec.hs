@@ -2,11 +2,11 @@ module Unit.Hoard.Data.PeerSpec (spec_Peer) where
 
 import Network.Socket (SockAddr (..))
 import Test.Hspec
+import Text.Read (read)
 
 import Network.Socket qualified as Socket
 
 import Hoard.Data.Peer (PeerAddress (..), sockAddrToPeerAddress)
-import Text.Read (read)
 
 
 spec_Peer :: Spec

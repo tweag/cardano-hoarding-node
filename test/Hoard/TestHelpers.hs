@@ -23,8 +23,6 @@ import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, runState)
-import Hasql.Pool qualified as Pool
-import Hasql.Pool.Config qualified as Pool
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Ouroboros.Network.IOManager (withIOManager)
@@ -35,8 +33,10 @@ import Servant.Client.Generic (genericClient)
 import Servant.Server (Handler (..))
 import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, runReader, runState)
 
+import Hasql.Pool qualified as Pool
+import Hasql.Pool.Config qualified as Pool
+
 import Hoard.API (API, Routes, server)
-import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config ()
 import Hoard.Data.Block (Block)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
@@ -45,7 +45,6 @@ import Hoard.Effects.Clock (Clock, runClockConst)
 import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
 import Hoard.KeepAlive.Config ()
 import Hoard.PeerManager.Config ()
@@ -67,6 +66,9 @@ import Hoard.Types.Environment
     , TxSubmissionConfig (..)
     )
 import Hoard.Types.HoardState (HoardState)
+
+import Hoard.BlockFetch.Config qualified as BlockFetch
+import Hoard.Effects.Log qualified as Log
 
 
 withEffectStackServer

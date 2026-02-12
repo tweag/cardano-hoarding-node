@@ -17,7 +17,6 @@ import Ouroboros.Consensus.Cardano.Block
         , BlockShelley
         )
     )
-import Rel8 qualified
 import Relude.Unsafe (head, read, (!!))
 import Test.Consensus.Shelley.Examples
     ( examplesAllegra
@@ -31,7 +30,8 @@ import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
 import Prelude hiding (head, runReader)
 
-import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
+import Rel8 qualified
+
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.PoolID (PoolID (..))
@@ -39,11 +39,13 @@ import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
+
+import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
+import Hoard.Effects.Log qualified as Log
 
 
 spec_BlockPersistence :: Spec

@@ -7,9 +7,10 @@ module Hoard.Effects.Monitoring.Tracing.Provider
     , shutdownTracingState
     ) where
 
+import System.Environment (setEnv)
+
 import OpenTelemetry.Attributes qualified as OT
 import OpenTelemetry.Trace qualified as OT
-import System.Environment (setEnv)
 
 
 data TracingState = TracingState

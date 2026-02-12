@@ -13,10 +13,11 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
-import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
-import Hoard.OrphanDetection.Listeners qualified as Listeners
 import Hoard.Types.HoardState (HoardState)
+
+import Hoard.Effects.Publishing qualified as Sub
+import Hoard.OrphanDetection.Listeners qualified as Listeners
 
 
 data OrphanDetection = OrphanDetection
@@ -44,7 +45,7 @@ instance Component OrphanDetection es where
             ]
       where
         withErrorHandling listenerName listener event =
-            withSpan listenerName $
-                runErrorNoCallStack (listener event) >>= \case
+            withSpan listenerName
+                $ runErrorNoCallStack (listener event) >>= \case
                     Left err -> addEvent "listener_error" [("error", err)]
                     Right () -> pure ()

@@ -24,7 +24,6 @@ import Cardano.Api
     , connectToLocalNode
     , readShelleyGenesisConfig
     )
-import Cardano.Api qualified as C
 import Control.Concurrent.Chan.Unagi
     ( InChan
     , OutChan
@@ -52,20 +51,24 @@ import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
+import Ouroboros.Consensus.Config (configBlock)
+import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
+import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
+import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
+
+import Cardano.Api qualified as C
+import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
+import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
+import Prelude qualified as P
+
 import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.Environment (Config (..))
-import Ouroboros.Consensus.Config (configBlock)
-import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
-import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
-import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
-import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
-import Prelude qualified as P
+
+import Hoard.Effects.Log qualified as Log
 
 
 data NodeToClient :: Effect where
@@ -88,12 +91,12 @@ data Connection
 
 -- to do. use `Hoard.Effects.Chan`,...
 runNodeToClient
-    :: ( Labeled "nodeToClient" WithSocket :> es
-       , Conc :> es
-       , Log :> es
-       , IOE :> es
-       , Reader Config :> es
+    :: ( Conc :> es
        , Concurrent :> es
+       , IOE :> es
+       , Labeled "nodeToClient" WithSocket :> es
+       , Log :> es
+       , Reader Config :> es
        , Tracing :> es
        )
     => Eff (NodeToClient : es) a
@@ -118,7 +121,7 @@ runNodeToClient nodeToClient = do
             )
 
 
-newConnection :: (IOE :> es, Concurrent :> es) => Eff es (Connection, (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
+newConnection :: (Concurrent :> es, IOE :> es) => Eff es (Connection, (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
 newConnection =
     do
         (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
@@ -127,7 +130,7 @@ newConnection =
         pure (Connection immutableTipQueriesIn isOnChainQueriesIn dead, (immutableTipQueriesOut, isOnChainQueriesOut, dead))
 
 
-initializeConnection :: (Reader Config :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Conc :> es, State (Either SomeException Connection) :> es, Concurrent :> es, Log :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
+initializeConnection :: (Conc :> es, Concurrent :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Log :> es, Reader Config :> es, State (Either SomeException Connection) :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
 initializeConnection =
     ( \(immutableTipQueriesOut, isOnChainQueriesOut, dead) -> do
         config <- ask
@@ -156,13 +159,13 @@ initializeConnection =
 
 
 ensureConnection
-    :: ( State (Either SomeException Connection) :> es
-       , IOE :> es
+    :: ( Conc :> es
        , Concurrent :> es
-       , Reader Config :> es
+       , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
-       , Conc :> es
        , Log :> es
+       , Reader Config :> es
+       , State (Either SomeException Connection) :> es
        )
     => Eff es Connection
 ensureConnection = do
@@ -205,12 +208,12 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
     queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
     queryIsOnChain = do
         (point, resultVar) <- readChan isOnChainQueries
-        pure $
-            S.SendMsgFindIntersect [coerce point] $
-                S.ClientStIntersect
-                    { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
-                    , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain
-                    }
+        pure
+            $ S.SendMsgFindIntersect [coerce point]
+            $ S.ClientStIntersect
+                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
+                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain
+                }
 
 
 loadEpochSize :: (IOE :> es) => Config -> Eff es EpochSize

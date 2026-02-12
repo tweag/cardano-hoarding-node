@@ -33,6 +33,7 @@ import Effectful.Dispatch.Static
     )
 import Effectful.Dispatch.Static.Primitive (getEnv)
 import Ki (Scope, Thread)
+
 import Ki qualified
 
 

@@ -1,13 +1,15 @@
 module Hoard.PeerSharing (PeerSharing (..)) where
 
 import Effectful (Eff, (:>))
+
 import Hoard.Component (Component (..), Listener)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
-import Hoard.Effects.Publishing qualified as Sub
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
+
+import Hoard.Effects.Publishing qualified as Sub
 import Hoard.PeerSharing.Listeners qualified as Listeners
 
 

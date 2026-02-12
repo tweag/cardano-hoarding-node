@@ -41,15 +41,17 @@ module Hoard.Effects.Monitoring.Metrics
     , runMetricsNoOp
     ) where
 
+import Data.Time.Clock (diffUTCTime)
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.TH (makeEffect)
-import Prometheus qualified as Prom
-import Prometheus.Metric.GHC qualified as GHC
 import Prelude hiding (Reader, ask)
 
-import Data.Time.Clock (diffUTCTime)
+import Prometheus qualified as Prom
+import Prometheus.Metric.GHC qualified as GHC
+
 import Hoard.Effects.Clock (Clock, currentTime)
+
 import Hoard.Effects.Monitoring.Metrics.Registry qualified as Registry
 
 

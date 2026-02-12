@@ -15,7 +15,6 @@ import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits 
 import Prelude hiding (Reader, State, asks, modify)
 
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
-import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub)
@@ -23,6 +22,8 @@ import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (ImmutableTipRefreshed), immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
 import Hoard.Types.Environment (Config (..))
 import Hoard.Types.HoardState (HoardState (..))
+
+import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 
 
 -- | Default file descriptor limit (8192)
@@ -43,13 +44,13 @@ defaultMaxFileDescriptors = 8192
 -- Should be called early in the application startup, before opening many files
 -- or network connections.
 setup
-    :: ( IOE :> es
-       , Tracing :> es
-       , Reader Config :> es
+    :: ( HoardStateRepo :> es
+       , IOE :> es
        , NodeToClient :> es
-       , State HoardState :> es
        , Pub ImmutableTipRefreshed :> es
-       , HoardStateRepo :> es
+       , Reader Config :> es
+       , State HoardState :> es
+       , Tracing :> es
        )
     => Eff es ()
 setup = withSpan "application_setup" $ do
@@ -71,7 +72,7 @@ setup = withSpan "application_setup" $ do
 -- This raises the soft limit for open file descriptors up to the specified limit,
 -- which must not exceed the hard limit. If the requested limit is higher than the
 -- hard limit, it will be capped at the hard limit.
-setFileDescriptorLimit :: (IOE :> es, Tracing :> es, Reader Config :> es) => Eff es ()
+setFileDescriptorLimit :: (IOE :> es, Reader Config :> es, Tracing :> es) => Eff es ()
 setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
     -- Set file descriptor limit (use default if not configured)
     configLimit <- asks (.maxFileDescriptors)
@@ -88,9 +89,10 @@ setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
             ResourceLimitInfinity -> requested
             ResourceLimitUnknown -> requested
             ResourceLimit hard ->
-                if fromIntegral limit > hard
-                    then ResourceLimit hard
-                    else requested
+                if fromIntegral limit > hard then
+                    ResourceLimit hard
+                else
+                    requested
 
     -- Only update if different from current
     when (newSoftLimit /= softLimit) $ do

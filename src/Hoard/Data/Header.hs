@@ -6,11 +6,11 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
+import Prelude hiding (id)
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
-import Prelude hiding (id)
 
 
 -- | Represents a block header from the Cardano blockchain
@@ -23,8 +23,8 @@ data Header = Header
     , blockNumber :: Word64
     , firstSeenAt :: UTCTime
     }
-    deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Show)
 
 
 -- | Represents a receipt of a header from a specific peer
@@ -37,5 +37,5 @@ data HeaderReceipt = HeaderReceipt
     , peerId :: ID Peer
     , receivedAt :: UTCTime
     }
-    deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Show)

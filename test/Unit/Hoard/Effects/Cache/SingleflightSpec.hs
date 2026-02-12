@@ -1,7 +1,6 @@
 module Unit.Hoard.Effects.Cache.SingleflightSpec (spec_Singleflight) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async qualified as Async
 import Effectful (Eff, IOE, Limit (..), Persistence (..), UnliftStrategy (..), runEff, withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (catch, throwIO)
@@ -9,13 +8,15 @@ import Effectful.State.Static.Shared (State, modify, runState)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow)
 import Prelude hiding (State, modify, runState)
 
+import Control.Concurrent.Async qualified as Async
+
 import Hoard.Effects.Cache.Singleflight (Singleflight, runSingleflight, updateCache, withCache)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 
 
 -- | Test exception type
 data TestException = TestException Text
-    deriving stock (Show, Eq)
+    deriving stock (Eq, Show)
     deriving anyclass (Exception)
 
 
@@ -40,7 +41,7 @@ compute value = do
 
 
 -- | A slow computation that increments the counter
-slowCompute :: (State Int :> es, IOE :> es) => Int -> Eff es Int
+slowCompute :: (IOE :> es, State Int :> es) => Int -> Eff es Int
 slowCompute value = do
     liftIO $ threadDelay 10000 -- 10ms
     modify @Int (+ 1)

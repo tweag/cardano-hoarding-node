@@ -29,7 +29,7 @@ type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
-server :: (Metrics ::> es, BlockRepo ::> es) => Routes (AsServerT (Eff es))
+server :: (BlockRepo ::> es, Metrics ::> es) => Routes (AsServerT (Eff es))
 server =
     Routes
         { metrics = exportMetrics

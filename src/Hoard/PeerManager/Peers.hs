@@ -16,6 +16,7 @@ import Prelude hiding (newEmptyMVar, takeMVar, tryPutMVar)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
 import Hoard.Effects.Clock (Clock)
+
 import Hoard.Effects.Clock qualified as Clock
 
 

@@ -5,7 +5,6 @@ module Hoard.OrphanDetection.Listeners
 
 import Cardano.Api (BlockHeader, ChainPoint (..), Hash, asType)
 import Cardano.Api.Serialise.Raw (deserialiseFromRawBytes)
-import Data.Set qualified as Set
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Effectful.State.Static.Shared (State, gets, modify)
@@ -13,20 +12,23 @@ import Ouroboros.Consensus.Block (SlotNo (..), blockSlot, getHeader, toRawHash)
 import Ouroboros.Network.Block (blockHash)
 import Prelude hiding (State, gets, modify)
 
+import Data.Set qualified as Set
+
 import Hoard.BlockFetch.Events (BlockReceived (..))
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.NodeToClient qualified as NodeToClient
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.Cardano qualified as Hoard
 import Hoard.Types.HoardState (HoardState (..))
+
+import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.NodeToClient qualified as NodeToClient
+import Hoard.Types.Cardano qualified as Hoard
 
 
 -- | Classify a block by querying isOnChain and updating the database
@@ -35,9 +37,9 @@ classifyBlockByChainStatus
     :: ( BlockRepo :> es
        , Clock :> es
        , Error Text :> es
-       , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
+       , Tracing :> es
        )
     => CardanoBlock
     -> Eff es ()
@@ -84,9 +86,9 @@ blockReceivedClassifier
     :: ( BlockRepo :> es
        , Clock :> es
        , Error Text :> es
-       , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
+       , Tracing :> es
        )
     => BlockReceived
     -> Eff es ()
@@ -99,14 +101,13 @@ blockReceivedClassifier event = do
     addAttribute "immutable.slot" (show immutableSlot)
 
     -- Check if block is after immutable tip
-    if blockSlotNumber >= immutableSlot
-        then do
-            -- Defer classification for blocks after immutable tip
-            addEvent "classification_deferred" [("block.slot", show blockSlotNumber), ("reason", "after immutable tip")]
-        else do
-            -- Classify blocks before immutable tip immediately
-            addEvent "classifying_block" [("block.slot", show blockSlotNumber)]
-            classifyBlockByChainStatus event.block
+    if blockSlotNumber >= immutableSlot then do
+        -- Defer classification for blocks after immutable tip
+        addEvent "classification_deferred" [("block.slot", show blockSlotNumber), ("reason", "after immutable tip")]
+    else do
+        -- Classify blocks before immutable tip immediately
+        addEvent "classifying_block" [("block.slot", show blockSlotNumber)]
+        classifyBlockByChainStatus event.block
 
 
 -- | Listener that ages unclassified blocks when immutable tip advances
@@ -126,9 +127,9 @@ immutableTipUpdatedAger
     :: ( BlockRepo :> es
        , Clock :> es
        , Error Text :> es
-       , Tracing :> es
        , NodeToClient :> es
        , State HoardState :> es
+       , Tracing :> es
        )
     => ImmutableTipRefreshed
     -> Eff es ()

@@ -8,8 +8,8 @@ module Hoard.ChainSync.Events
 
 import Cardano.Api.LedgerState ()
 import Data.Time (UTCTime)
-import Hoard.Data.Peer (Peer)
 
+import Hoard.Data.Peer (Peer)
 import Hoard.Types.Cardano (CardanoHeader, CardanoPoint, CardanoTip)
 
 

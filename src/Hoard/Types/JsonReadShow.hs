@@ -7,13 +7,13 @@ import Data.Typeable (typeRep)
 newtype JsonReadShow a = JsonReadShow {getJsonReadShow :: a}
 
 
-instance forall a. (Typeable a, Read a) => FromJSON (JsonReadShow a) where
+instance forall a. (Read a, Typeable a) => FromJSON (JsonReadShow a) where
     parseJSON =
         let
             typeName = show $ typeRep $ Proxy @a
         in
-            withText typeName $
-                maybe
+            withText typeName
+                $ maybe
                     (fail $ "Failed to read " <> typeName)
                     (pure . JsonReadShow)
                     . readMaybe

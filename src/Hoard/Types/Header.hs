@@ -3,8 +3,9 @@ module Hoard.Types.Header
     )
 where
 
-import Hoard.Types.Cardano (Crypto)
 import Ouroboros.Consensus.Cardano.Block qualified as Block
+
+import Hoard.Types.Cardano (Crypto)
 
 
 type Header = Block.Header Crypto

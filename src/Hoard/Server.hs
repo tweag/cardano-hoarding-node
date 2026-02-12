@@ -10,16 +10,16 @@ import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Servant (Handler (..), hoistServer, serve)
 import Prelude hiding (Reader, ask)
 
-import Hoard.Component (Component (..))
-
 import Hoard.API (API, server)
+import Hoard.Component (Component (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
+
+import Hoard.Effects.Log qualified as Log
 
 
 data Server = Server
@@ -49,8 +49,8 @@ instance Component Server es where
         -- Run Warp server (blocking call, but runSystem auto-forks start phases)
         let settings = setPort port $ setHost (fromString host) defaultSettings
         servantApp <- withSeqEffToIO \unlift ->
-            pure $
-                hoistServer
+            pure
+                $ hoistServer
                     (Proxy @API)
                     (Handler . ExceptT . unlift . try)
                     Hoard.API.server

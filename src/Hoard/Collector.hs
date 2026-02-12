@@ -15,13 +15,14 @@ import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.PeerManager.Peers (Connection (..), awaitTermination, signalTermination)
+
+import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.Conc qualified as Conc
 
 
 collectFromPeer

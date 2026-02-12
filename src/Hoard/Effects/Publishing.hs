@@ -10,11 +10,12 @@ where
 
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, localSeqUnlift)
-import Prelude hiding (Reader, State, ask, modify, runState)
-
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
+import Prelude hiding (Reader, State, ask, modify, runState)
+
 import Hoard.Effects.Chan (Chan)
+
 import Hoard.Effects.Chan qualified as Chan
 
 

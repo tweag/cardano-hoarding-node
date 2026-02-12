@@ -8,7 +8,6 @@ import Data.Time (UTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
-import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
@@ -22,14 +21,17 @@ import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAl
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 import Prelude hiding (Reader, State, asks, evalState, gets)
 
+import Network.TypedProtocol.Peer.Client qualified as Peer
+
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer)
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.KeepAlive.Config (Config (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
+
+import Hoard.Effects.Clock qualified as Clock
 
 
 miniProtocol
@@ -50,18 +52,19 @@ miniProtocol unlift conf codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly $
-                mkMiniProtocolCbFromPeer $
-                    \_ ->
-                        let codec = cKeepAliveCodec codecs
-                            wrappedPeer = Peer.Effect $
-                                unlift $
-                                    withExceptionLogging "KeepAlive" $
-                                        withSpan "keep_alive_protocol" $ do
-                                            addEvent "protocol_started" []
-                                            pure (keepAliveClientPeer $ client unlift conf peer)
-                            tracer = show >$< asTracer unlift "keep_alive.protocol_message"
-                        in  (tracer, codec, wrappedPeer)
+            InitiatorProtocolOnly
+                $ mkMiniProtocolCbFromPeer
+                $ \_ ->
+                    let codec = cKeepAliveCodec codecs
+                        wrappedPeer = Peer.Effect
+                            $ unlift
+                            $ withExceptionLogging "KeepAlive"
+                            $ withSpan "keep_alive_protocol"
+                            $ do
+                                addEvent "protocol_started" []
+                                pure (keepAliveClientPeer $ client unlift conf peer)
+                        tracer = show >$< asTracer unlift "keep_alive.protocol_message"
+                    in  (tracer, codec, wrappedPeer)
         }
 
 
@@ -99,4 +102,4 @@ data KeepAlivePing = KeepAlivePing
     { timestamp :: UTCTime
     , peer :: Peer
     }
-    deriving (Typeable, Show)
+    deriving (Show, Typeable)
