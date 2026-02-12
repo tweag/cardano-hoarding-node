@@ -9,7 +9,7 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
-import Hoard.BlockFetch qualified as BlockFetch
+import Hoard.BlockFetch (BlockFetch (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted
     , BlockFetchFailed
@@ -17,10 +17,11 @@ import Hoard.BlockFetch.Events
     , BlockFetchStarted
     , BlockReceived
     )
-import Hoard.Bootstrap (bootstrapPeers)
-import Hoard.ChainSync qualified as ChainSync
+import Hoard.ChainSync (ChainSync (..))
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
+import Hoard.Component (component, runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
+import Hoard.Core (Core (..))
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
@@ -43,20 +44,16 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
-import Hoard.Listeners (runListeners)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
-import Hoard.Monitoring (Poll)
+import Hoard.Monitoring (Monitoring (..), Poll)
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.Network.Events (ProtocolError)
-import Hoard.OrphanDetection qualified as OrphanDetection
-import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
-import Hoard.PeerManager qualified as PeerManager
+import Hoard.OrphanDetection (OrphanDetection (..))
+import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerManager (..), PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
-import Hoard.PeerSharing qualified as PeerSharing
+import Hoard.PeerSharing (PeerSharing (..))
 import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
-import Hoard.Server (runServer)
-import Hoard.Setup (setup)
-import Hoard.Triggers (runTriggers)
+import Hoard.Server (Server (..))
 import Hoard.Types.HoardState (HoardState)
 
 
@@ -114,15 +111,15 @@ main =
         . runBlockRepo
         . runHoardStateRepo
         $ do
-            setup
-            void bootstrapPeers
-            runServer
-            runListeners
-            runTriggers
-            PeerSharing.run
-            ChainSync.run
-            BlockFetch.run
-            OrphanDetection.run
-            Monitoring.run
-            PeerManager.run
+            runSystem
+                [ component @Core
+                , component @Server
+                , component @PeerSharing
+                , component @ChainSync
+                , component @BlockFetch
+                , component @OrphanDetection
+                , component @Monitoring
+                , component @PeerManager
+                ]
+
             Conc.awaitAll

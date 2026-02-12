@@ -16,13 +16,12 @@ import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..))
 runTriggers :: (Concurrent :> es, Conc :> es, Pub ImmutableTipRefreshTriggered :> es, Reader Config :> es) => Eff es ()
 runTriggers = do
     refreshInterval <- asks $ (.cardanoNodeIntegration.immutableTipRefreshSeconds)
-    every refreshInterval $ publish ImmutableTipRefreshTriggered
+    Conc.fork_ $ every refreshInterval $ publish ImmutableTipRefreshTriggered
 
 
--- | Runs an action repeatedly every @delay@ seconds in a background thread, starting
--- immediately.
-every :: (Concurrent :> es, Conc :> es) => Int -> Eff es () -> Eff es ()
-every delay action = do
-    Conc.fork_ $ forever $ do
-        threadDelay (delay * 1000000)
-        action
+-- | Runs an action repeatedly every @delay@ seconds, starting immediately.
+-- Returns Void since it runs forever. Caller is responsible for forking.
+every :: (Concurrent :> es) => Int -> Eff es () -> Eff es Void
+every delay action = forever $ do
+    threadDelay (delay * 1000000)
+    action

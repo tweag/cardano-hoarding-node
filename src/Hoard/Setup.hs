@@ -5,6 +5,7 @@
 -- This module handles early application setup tasks like setting resource limits.
 module Hoard.Setup
     ( setup
+    , setFileDescriptorLimit
     ) where
 
 import Effectful (Eff, IOE, (:>))

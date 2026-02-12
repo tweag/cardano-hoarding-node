@@ -1,5 +1,5 @@
 module Hoard.PeerManager
-    ( run
+    ( PeerManager (..)
     , PeerRequested (..)
     , CullRequested (..)
     , PeerDisconnected (..)
@@ -8,7 +8,7 @@ module Hoard.PeerManager
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Time (UTCTime, diffUTCTime)
-import Effectful (Eff, (:>))
+import Effectful (Eff, IOE, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
@@ -16,8 +16,10 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
 import Hoard.BlockFetch.Events (BlockFetchRequest)
+import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Collector (collectFromPeer)
+import Hoard.Component (Component (..), Listener, Trigger)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -39,100 +41,84 @@ import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
+import Hoard.Types.Environment qualified as Env
 
 
--- * Main
+-- * Component
 
 
-run
-    :: ( BlockRepo :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Metrics :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub PeerRequested :> es
-       , Pub BlockFetchRequest :> es
-       , Pub CullRequested :> es
-       , Pub PeerDisconnected :> es
-       , Reader Config :> es
-       , State Peers :> es
-       , Sub KeepAlivePing :> es
-       , Sub PeersReceived :> es
-       , Sub CullRequested :> es
-       , Sub PeerDisconnected :> es
-       , Sub PeerRequested :> es
-       , Sub ChainSync.HeaderReceived :> es
-       , Tracing :> es
-       )
-    => Eff es ()
-run = withSpan "peer_manager" do
-    addEvent "initializing" []
-    runListeners
-    runTriggers
+data PeerManager = PeerManager
 
 
-runTriggers
-    :: ( Conc :> es
-       , Concurrent :> es
-       , Pub CullRequested :> es
-       , Pub PeerRequested :> es
-       , Reader Config :> es
-       , State Peers :> es
-       )
-    => Eff es ()
-runTriggers = do
-    triggerCull
-    triggerReplenish
+instance Component PeerManager es where
+    type
+        Effects PeerManager es =
+            ( BlockRepo :> es
+            , Clock :> es
+            , Conc :> es
+            , Concurrent :> es
+            , Metrics :> es
+            , NodeToNode :> es
+            , PeerRepo :> es
+            , Pub PeerRequested :> es
+            , Pub BlockFetchRequest :> es
+            , Pub CullRequested :> es
+            , Pub PeerDisconnected :> es
+            , Reader Config :> es
+            , Reader Env.Config :> es
+            , State Peers :> es
+            , Sub KeepAlivePing :> es
+            , Sub PeersReceived :> es
+            , Sub CullRequested :> es
+            , Sub PeerDisconnected :> es
+            , Sub PeerRequested :> es
+            , Sub ChainSync.HeaderReceived :> es
+            , Tracing :> es
+            , IOE :> es
+            )
 
 
-runListeners
-    :: ( BlockRepo :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Metrics :> es
-       , NodeToNode :> es
-       , PeerRepo :> es
-       , Pub PeerRequested :> es
-       , Pub BlockFetchRequest :> es
-       , Pub PeerDisconnected :> es
-       , Reader Config :> es
-       , State Peers :> es
-       , Sub KeepAlivePing :> es
-       , Sub PeersReceived :> es
-       , Sub CullRequested :> es
-       , Sub PeerDisconnected :> es
-       , Sub PeerRequested :> es
-       , Sub ChainSync.HeaderReceived :> es
-       , Tracing :> es
-       )
-    => Eff es ()
-runListeners = withSpan "listeners" do
-    Conc.fork_ $ Sub.listen updatePeerConnectionState
-    Conc.fork_ $ Sub.listen persistReceivedPeers
-    Conc.fork_ $ Sub.listen cullOldCollectors
-    Conc.fork_ $ Sub.listen noteDisconnectedPeer
-    Conc.fork_ $ Sub.listen replenishCollectors
+    setup :: (Effects PeerManager es) => Eff es ()
+    setup = withSpan "peer_manager:setup" $ do
+        addEvent "bootstrapping_peers" []
+        void bootstrapPeers
+        addEvent "peers_bootstrapped" []
+
+
+    listeners :: (Effects PeerManager es) => Eff es [Listener es]
+    listeners =
+        pure
+            [ Sub.listen updatePeerConnectionState
+            , Sub.listen persistReceivedPeers
+            , Sub.listen cullOldCollectors
+            , Sub.listen noteDisconnectedPeer
+            , Sub.listen replenishCollectors
+            ]
+
+
+    triggers :: (Effects PeerManager es) => Eff es [Trigger es]
+    triggers =
+        pure
+            [ triggerCull
+            , triggerReplenish
+            ]
 
 
 -- * Triggers
 
 
-triggerCull :: (Concurrent :> es, Conc :> es, Pub CullRequested :> es) => Eff es ()
+triggerCull :: (Concurrent :> es, Pub CullRequested :> es) => Eff es Void
 triggerCull = every 10 do
     publish CullRequested
 
 
 triggerReplenish
-    :: ( Conc :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es
        )
-    => Eff es ()
+    => Eff es Void
 triggerReplenish = do
     replenish
     every 20 replenish
@@ -265,10 +251,10 @@ bracketCollector peer = do
         Conc.forkTry @SomeException
             . withSpan "collector"
             . withExceptionLogging ("Collector " <> show peer.address)
-            $ generalBracket setup cleanup (collectFromPeer peer)
+            $ generalBracket connect cleanup (collectFromPeer peer)
     pure ()
   where
-    setup = do
+    connect = do
         addEvent "adding_peer" [("peer", show peer.address)]
         conn <- mkConnection
         modify $ coerce $ Map.insert peer.id conn
