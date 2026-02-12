@@ -41,22 +41,19 @@ instance Component Server es where
 
     start = do
         env <- ask
-        _ <- Conc.fork $ do
-            -- Log startup messages
-            let host = toString env.config.server.host
-                port = fromIntegral env.config.server.port
+        -- Log startup messages
+        let host = toString env.config.server.host
+            port = fromIntegral env.config.server.port
 
-            Log.debug $ "Starting Hoard server on " <> toText host <> ":" <> show port
+        Log.debug $ "Starting Hoard server on " <> toText host <> ":" <> show port
 
-            -- Run Warp server (needs liftIO since Warp's runSettings is in IO)
-            let settings = setPort port $ setHost (fromString host) defaultSettings
-            servantApp <- withEffToIO Conc.concStrat \unlift ->
-                pure $
-                    hoistServer
-                        (Proxy @API)
-                        (Handler . ExceptT . unlift . try)
-                        Hoard.API.server
+        -- Run Warp server (blocking call, but runSystem auto-forks start phases)
+        let settings = setPort port $ setHost (fromString host) defaultSettings
+        servantApp <- withEffToIO Conc.concStrat \unlift ->
+            pure $
+                hoistServer
+                    (Proxy @API)
+                    (Handler . ExceptT . unlift . try)
+                    Hoard.API.server
 
-            liftIO $ runSettings settings (serve (Proxy @API) servantApp)
-
-        pure ()
+        liftIO $ runSettings settings (serve (Proxy @API) servantApp)

@@ -18,6 +18,8 @@ import Text.Casing (fromHumps, toSnake)
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log (Log)
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 
@@ -93,13 +95,14 @@ runComponent = withSpan (componentName @c @es Proxy) $ do
 -- Executes components in three sequential phases:
 --   1. Run @setup for all components (initialization before activation)
 --   2. Fork all listeners and triggers (components become active)
---   3. Run @start for all components (actions that require active components)
+--   3. Fork @start for all components (background startup actions)
 --
 -- This separation allows components to prepare resources during setup, then perform
 -- work during start that depends on listeners already running (e.g., publishing events).
+-- The start phase is forked to allow parallel execution across components.
 runSystem
     :: forall es
-     . (Conc :> es, Tracing :> es)
+     . (Conc :> es, Log :> es, Tracing :> es)
     => [SomeComponent es]
     -> Eff es ()
 runSystem components = do
@@ -109,22 +112,29 @@ runSystem components = do
     -- Phase 2: Start all components (fork listeners/triggers)
     traverse_ startComponent components
 
-    -- Phase 3: Post-start actions
+    -- Phase 3: Fork post-start actions
     traverse_ postStartComponent components
   where
     setupComponent :: SomeComponent es -> Eff es ()
-    setupComponent (SomeComponent (p :: Proxy c)) =
-        withSpan (componentName @c @es p <> ":setup") $
+    setupComponent (SomeComponent (p :: Proxy c)) = do
+        let name = componentName @c @es p
+        Log.debug $ "Setting up component: " <> name
+        withSpan (name <> ":setup") $
             setup @c @es
 
     startComponent :: SomeComponent es -> Eff es ()
-    startComponent (SomeComponent (_ :: Proxy c)) =
+    startComponent (SomeComponent (p :: Proxy c)) = do
+        let name = componentName @c @es p
+        Log.debug $ "Starting listeners/triggers for component: " <> name
         runComponent @c
 
     postStartComponent :: SomeComponent es -> Eff es ()
-    postStartComponent (SomeComponent (p :: Proxy c)) =
-        withSpan (componentName @c @es p <> ":start") $
-            start @c @es
+    postStartComponent (SomeComponent (p :: Proxy c)) = do
+        let name = componentName @c @es p
+        Log.debug $ "Forking start phase for component: " <> name
+        void . Conc.fork $
+            withSpan (name <> ":start") $
+                start @c @es
 
 
 -- | Auto-derive component name from type name
