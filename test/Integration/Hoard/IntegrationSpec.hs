@@ -1,48 +1,41 @@
-module Integration.Hoard.IntegrationSpec (spec_HeaderIntegration) where
+module Integration.Hoard.IntegrationSpec (spec_ViolationsIntegration) where
 
 import Test.Hspec
 
 import Hoard.API (Routes (..))
-import Hoard.Events.HeaderReceived (Header (..), HeaderReceived (..))
+import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.TestHelpers (client, withEffectStackServer)
 
 
-spec_HeaderIntegration :: Spec
-spec_HeaderIntegration = describe "Header Integration Tests" $ do
-    describe "POST /header" $ do
-        it "receives header data" $ do
-            -- Setup: Create test header
-            let testHeader = Header {info = "test header info"}
+spec_ViolationsIntegration :: Spec
+spec_ViolationsIntegration = describe "Violations API Integration Tests" $ do
+    describe "GET /violations" $ do
+        it "returns violations list" $
+            void @IO $
+                withEffectStackServer $ \_ runClient -> do
+                    result <- runClient (client.violations Nothing Nothing Nothing)
+                    liftIO $ result `shouldSatisfy` isRight
 
-            (_, _, events) <- withEffectStackServer $ \_ runClient -> do
-                result <- runClient (client.receiveHeader testHeader)
-                liftIO $ result `shouldSatisfy` isRight
+        it "accepts classification query parameter" $
+            void @IO $
+                withEffectStackServer $ \_ runClient -> do
+                    result <- runClient (client.violations (Just Canonical) Nothing Nothing)
+                    liftIO $ result `shouldSatisfy` isRight
 
-            case events of
-                [HeaderReceived header] ->
-                    header `shouldBe` testHeader
-                xs ->
-                    expectationFailure $ "Expected 1 HeaderReceived event, got: " <> show (length xs)
+        it "accepts minSlot query parameter" $
+            void @IO $
+                withEffectStackServer $ \_ runClient -> do
+                    result <- runClient (client.violations Nothing (Just 1000) Nothing)
+                    liftIO $ result `shouldSatisfy` isRight
 
-        it "handles multiple sequential requests" $ do
-            -- Setup: Create multiple test headers
-            let testHeader1 = Header {info = "first header"}
-            let testHeader2 = Header {info = "second header"}
+        it "accepts maxSlot query parameter" $
+            void @IO $
+                withEffectStackServer $ \_ runClient -> do
+                    result <- runClient (client.violations Nothing Nothing (Just 2000))
+                    liftIO $ result `shouldSatisfy` isRight
 
-            -- Setup: Start test app
-            (_, _, events) <- withEffectStackServer $ \_ runClient -> do
-                -- Send first request
-                result1 <- runClient (client.receiveHeader testHeader1)
-                liftIO $ result1 `shouldSatisfy` isRight
-
-                -- Send second request
-                result2 <- runClient (client.receiveHeader testHeader2)
-                liftIO $ result2 `shouldSatisfy` isRight
-
-            -- Assert events contain correct data (in order)
-            case events of
-                [HeaderReceived h1, HeaderReceived h2] -> do
-                    h1 `shouldBe` testHeader1
-                    h2 `shouldBe` testHeader2
-                _ ->
-                    expectationFailure $ "Expected 2 HeaderReceived events, got: " <> show (length events)
+        it "accepts all query parameters together" $
+            void @IO $
+                withEffectStackServer $ \_ runClient -> do
+                    result <- runClient (client.violations (Just Canonical) (Just 1000) (Just 2000))
+                    liftIO $ result `shouldSatisfy` isRight

@@ -71,13 +71,11 @@ library
       Hoard.Effects.Publishing
       Hoard.Effects.WithSocket
       Hoard.Events
-      Hoard.Events.HeaderReceived
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
       Hoard.KeepAlive.Config
       Hoard.KeepAlive.NodeToNode
       Hoard.Listeners
-      Hoard.Listeners.HeaderReceivedListener
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
@@ -311,7 +309,6 @@ test-suite hoard-test
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.LogSpec
       Unit.Hoard.Effects.PublishingSpec
-      Unit.Hoard.Listeners.HeaderReceivedListenerSpec
       Unit.Hoard.MonitoringSpec
       Paths_hoard
   autogen-modules:

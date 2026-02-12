@@ -24,7 +24,6 @@ import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, runState)
-import Effectful.Writer.Static.Shared (Writer, runWriter)
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 import Network.HTTP.Client (defaultManagerSettings, newManager)
@@ -49,8 +48,6 @@ import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
-import Hoard.Effects.Publishing (Pub, runPubWriter)
-import Hoard.Events.HeaderReceived (HeaderReceived)
 import Hoard.KeepAlive.Config ()
 import Hoard.PeerManager.Config ()
 import Hoard.PeerSharing.Config ()
@@ -77,7 +74,7 @@ import Hoard.Types.HoardState (HoardState)
 withEffectStackServer
     :: (MonadIO m, es ~ TestAppEffs)
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
-    -> m (b, HoardState, [HeaderReceived])
+    -> m (b, HoardState)
 withEffectStackServer action = runEffectStackTest $ \_env -> withServer action
 
 
@@ -85,7 +82,6 @@ withServer
     :: forall b es
      . ( BlockRepo :> es
        , IOE :> es
-       , Pub HeaderReceived :> es
        , Metrics :> es
        )
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
@@ -111,7 +107,7 @@ withServer action = do
 runEffectStackTest
     :: (MonadIO m)
     => (Env -> Eff TestAppEffs a)
-    -> m (a, HoardState, [HeaderReceived])
+    -> m (a, HoardState)
 runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     pool <- Pool.acquire $ Pool.settings []
     nodeConfig <- runEff $ loadNodeConfig "config/preview/config.json"
@@ -163,7 +159,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , cardanoProtocols = cardanoProtocolHandles
                 }
     let env = Env {config, handles}
-    (((a, finalState), _blockState), events) <-
+    ((a, finalState), _blockState) <-
         runEff
             . runFileSystem
             . runConcurrent
@@ -173,21 +169,17 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             . runLog
             . runClockConst testTime
             . runMetrics
-            . runWriter
-            . runPubWriter @HeaderReceived
             . runState @[Block] []
             . runBlockRepoState
             . runState @HoardState def
             $ mkEff env
-    pure (a, finalState, events)
+    pure (a, finalState)
 
 
 type TestAppEffs =
     [ State HoardState
     , BlockRepo
     , State [Block]
-    , Pub HeaderReceived
-    , Writer [HeaderReceived]
     , Metrics
     , Clock
     , Log
