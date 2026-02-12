@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- | Module: Hoard.Effects.Chan
 -- Description: Effect for creating and operating on bidirectional channels
 module Hoard.Effects.Chan
@@ -21,46 +23,43 @@ module Hoard.Effects.Chan
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import Control.Concurrent.Chan.Unagi qualified as Unagi
-import Effectful (Eff, Effect, IOE, (:>))
-import Effectful.Dispatch.Dynamic (interpret)
+import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
+import Effectful.Dispatch.Static (SideEffects (..), StaticRep, evalStaticRep, unsafeEff_)
 import Effectful.State.Static.Shared (evalState, get, modify)
-import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout, timeout)
 import Prelude hiding (evalState, get, modify)
 
 
 -- | Effect for creating and operating on bidirectional channels.
-data Chan :: Effect where
-    NewChan :: Chan m (Unagi.InChan a, Unagi.OutChan a)
-    ReadChan :: Unagi.OutChan a -> Chan m a
-    WriteChan :: Unagi.InChan a -> a -> Chan m ()
-    DupChan :: Unagi.InChan a -> Chan m (Unagi.OutChan a)
+data Chan :: Effect
 
 
-makeEffect ''Chan
+type instance DispatchOf Chan = Static WithSideEffects
+data instance StaticRep Chan = Chan
 
 
--- | Run the Chan effect using real Unagi channels.
---
--- This is an interpreter that performs actual channel operations via IO.
---
--- = Usage
---
--- @
--- runChan $ do
---     (inChan, outChan) <- newChan
---     outChan2 <- dupChan inChan  -- Create another reader
---     writeChan inChan value
---     value1 <- readChan outChan
---     value2 <- readChan outChan2  -- Both readers get the same value
---     ...
--- @
-runChan :: (IOE :> es) => Eff (Chan : es) a -> Eff es a
-runChan = interpret $ \_ -> \case
-    NewChan -> liftIO Unagi.newChan
-    ReadChan outChan -> liftIO $ Unagi.readChan outChan
-    WriteChan inChan val -> liftIO $ Unagi.writeChan inChan val
-    DupChan inChan -> liftIO $ Unagi.dupChan inChan
+runChan :: forall a es. (IOE :> es) => Eff (Chan : es) a -> Eff es a
+runChan = evalStaticRep Chan
+
+
+newChan :: forall a es. (Chan :> es) => Eff es (InChan a, OutChan a)
+newChan =
+    unsafeEff_ Unagi.newChan
+
+
+readChan :: forall a es. (Chan :> es) => OutChan a -> Eff es a
+readChan outChan =
+    unsafeEff_ $ Unagi.readChan outChan
+
+
+writeChan :: forall a es. (Chan :> es) => InChan a -> a -> Eff es ()
+writeChan inChan val =
+    unsafeEff_ $ Unagi.writeChan inChan val
+
+
+dupChan :: forall a es. (Chan :> es) => InChan a -> Eff es (OutChan a)
+dupChan inChan =
+    unsafeEff_ $ Unagi.dupChan inChan
 
 
 -- | Read a batch of items from a channel.
