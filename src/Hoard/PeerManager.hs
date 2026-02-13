@@ -1,5 +1,5 @@
 module Hoard.PeerManager
-    ( PeerManager (..)
+    ( component
     , PeerRequested (..)
     , CullRequested (..)
     , PeerDisconnected (..)
@@ -19,7 +19,7 @@ import Data.Set qualified as Set
 import Hoard.BlockFetch.Events (BlockFetchRequest)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collector (collectFromPeer)
-import Hoard.Component (Component (..), Listener, Trigger)
+import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -49,61 +49,52 @@ import Hoard.Types.Environment qualified as Env
 -- * Component
 
 
-data PeerManager = PeerManager
-
-
-instance Component PeerManager es where
-    type
-        Effects PeerManager es =
-            ( BlockRepo :> es
-            , Clock :> es
-            , Conc :> es
-            , Concurrent :> es
-            , Metrics :> es
-            , NodeToNode :> es
-            , PeerRepo :> es
-            , Pub PeerRequested :> es
-            , Pub BlockFetchRequest :> es
-            , Pub CullRequested :> es
-            , Pub PeerDisconnected :> es
-            , Reader Config :> es
-            , Reader Env.Config :> es
-            , State Peers :> es
-            , Sub KeepAlivePing :> es
-            , Sub PeersReceived :> es
-            , Sub CullRequested :> es
-            , Sub PeerDisconnected :> es
-            , Sub PeerRequested :> es
-            , Sub ChainSync.HeaderReceived :> es
-            , Tracing :> es
-            , IOE :> es
-            )
-
-
-    setup :: (Effects PeerManager es) => Eff es ()
-    setup = withSpan "peer_manager:setup" $ do
-        addEvent "bootstrapping_peers" []
-        void bootstrapPeers
-        addEvent "peers_bootstrapped" []
-
-
-    listeners :: (Effects PeerManager es) => Eff es [Listener es]
-    listeners =
-        pure
-            [ Sub.listen updatePeerConnectionState
-            , Sub.listen persistReceivedPeers
-            , Sub.listen cullOldCollectors
-            , Sub.listen noteDisconnectedPeer
-            , Sub.listen replenishCollectors
-            ]
-
-
-    triggers :: (Effects PeerManager es) => Eff es [Trigger es]
-    triggers =
-        pure
-            [ triggerCull
-            , triggerReplenish
-            ]
+component
+    :: ( BlockRepo :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , IOE :> es
+       , Metrics :> es
+       , NodeToNode :> es
+       , PeerRepo :> es
+       , Pub BlockFetchRequest :> es
+       , Pub CullRequested :> es
+       , Pub PeerDisconnected :> es
+       , Pub PeerRequested :> es
+       , Reader Config :> es
+       , Reader Env.Config :> es
+       , State Peers :> es
+       , Sub ChainSync.HeaderReceived :> es
+       , Sub CullRequested :> es
+       , Sub KeepAlivePing :> es
+       , Sub PeerDisconnected :> es
+       , Sub PeerRequested :> es
+       , Sub PeersReceived :> es
+       , Tracing :> es
+       )
+    => Component es
+component =
+    defaultComponent
+        { name = "PeerManager"
+        , setup = withSpan "peer_manager:setup" $ do
+            addEvent "bootstrapping_peers" []
+            void bootstrapPeers
+            addEvent "peers_bootstrapped" []
+        , listeners =
+            pure
+                [ Sub.listen updatePeerConnectionState
+                , Sub.listen persistReceivedPeers
+                , Sub.listen cullOldCollectors
+                , Sub.listen noteDisconnectedPeer
+                , Sub.listen replenishCollectors
+                ]
+        , triggers =
+            pure
+                [ triggerCull
+                , triggerReplenish
+                ]
+        }
 
 
 -- * Triggers

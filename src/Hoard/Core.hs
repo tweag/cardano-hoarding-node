@@ -1,13 +1,12 @@
-module Hoard.Core (Core (..)) where
+module Hoard.Core (component) where
 
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify)
 import Prelude hiding (Reader, State, asks, modify)
 
-import Hoard.Component (Component (..))
-import Hoard.Effects.Conc (Conc)
+import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
@@ -24,60 +23,49 @@ import Hoard.Types.HoardState (HoardState (immutableTip))
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 
 
-data Core = Core
+component
+    :: ( Concurrent :> es
+       , HoardStateRepo :> es
+       , IOE :> es
+       , NodeToClient :> es
+       , Pub ImmutableTipRefreshTriggered :> es
+       , Pub ImmutableTipRefreshed :> es
+       , Reader Config :> es
+       , State HoardState :> es
+       , Sub ImmutableTipRefreshTriggered :> es
+       , Sub ImmutableTipRefreshed :> es
+       , Sub ProtocolError :> es
+       , Tracing :> es
+       )
+    => Component es
+component =
+    defaultComponent
+        { name = "Core"
+        , listeners =
+            pure
+                [ listen protocolErrorListener
+                , listen immutableTipRefreshTriggeredListener
+                , listen immutableTipRefreshedListener
+                ]
+        , triggers = do
+            refreshInterval <- asks $ (.cardanoNodeIntegration.immutableTipRefreshSeconds)
+            pure
+                [ every refreshInterval $ publish ImmutableTipRefreshTriggered
+                ]
+        , setup = withSpan "core:setup" $ do
+            addEvent "setup_started" []
 
+            -- Set file descriptor limits
+            setFileDescriptorLimit
 
-instance Component Core es where
-    type
-        Effects Core es =
-            ( Conc :> es
-            , Concurrent :> es
-            , Tracing :> es
-            , NodeToClient :> es
-            , State HoardState :> es
-            , Sub ProtocolError :> es
-            , Sub ImmutableTipRefreshTriggered :> es
-            , Sub ImmutableTipRefreshed :> es
-            , Pub ImmutableTipRefreshed :> es
-            , Pub ImmutableTipRefreshTriggered :> es
-            , HoardStateRepo :> es
-            , Reader Config :> es
-            , IOE :> es
-            )
+            -- Load immutable tip from DB and set in state
+            immutableTip <- HoardStateRepo.getImmutableTip
+            modify (\hoardState -> hoardState {immutableTip = immutableTip})
 
-
-    listeners =
-        pure
-            [ listen protocolErrorListener
-            , listen immutableTipRefreshTriggeredListener
-            , listen immutableTipRefreshedListener
-            ]
-
-
-    triggers = do
-        refreshInterval <- asks $ (.cardanoNodeIntegration.immutableTipRefreshSeconds)
-        pure
-            [ every refreshInterval $ publish ImmutableTipRefreshTriggered
-            ]
-
-
-    setup :: (Effects Core es) => Eff es ()
-    setup = withSpan "core:setup" $ do
-        addEvent "setup_started" []
-
-        -- Set file descriptor limits
-        setFileDescriptorLimit
-
-        -- Load immutable tip from DB and set in state
-        immutableTip <- HoardStateRepo.getImmutableTip
-        modify (\hoardState -> hoardState {immutableTip = immutableTip})
-
-        addEvent "setup_completed" []
-
-
-    start :: (Effects Core es) => Eff es ()
-    start = withSpan "core:start" $ do
-        addEvent "start_phase" []
-        -- Trigger initial immutable tip refresh now that listeners are registered
-        publish ImmutableTipRefreshTriggered
-        addEvent "initial_tip_refresh_triggered" []
+            addEvent "setup_completed" []
+        , start = withSpan "core:start" $ do
+            addEvent "start_phase" []
+            -- Trigger initial immutable tip refresh now that listeners are registered
+            publish ImmutableTipRefreshTriggered
+            addEvent "initial_tip_refresh_triggered" []
+        }
