@@ -3,7 +3,7 @@ module Hoard.Server
     )
 where
 
-import Effectful (IOE, withSeqEffToIO, (:>))
+import Effectful (IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Exception (try)
 import Effectful.Reader.Static (Reader, ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
@@ -41,7 +41,7 @@ component =
 
             -- Run Warp server (blocking call, but runSystem auto-forks start phases)
             let settings = setPort port $ setHost (fromString host) defaultSettings
-            servantApp <- withSeqEffToIO \unlift ->
+            servantApp <- withEffToIO (ConcUnlift Persistent Unlimited) \unlift ->
                 pure
                     $ hoistServer
                         (Proxy @API)
