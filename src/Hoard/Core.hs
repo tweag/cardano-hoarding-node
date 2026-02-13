@@ -8,7 +8,7 @@ import Prelude hiding (Reader, State, asks, modify)
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
@@ -52,19 +52,14 @@ component =
             pure
                 [ every refreshInterval $ publish ImmutableTipRefreshTriggered
                 ]
-        , setup = withSpan "core:setup" $ do
-            addEvent "setup_started" []
-
+        , setup = do
             -- Set file descriptor limits
             setFileDescriptorLimit
 
             -- Load immutable tip from DB and set in state
             immutableTip <- HoardStateRepo.getImmutableTip
             modify (\hoardState -> hoardState {immutableTip = immutableTip})
-
-            addEvent "setup_completed" []
-        , start = withSpan "core:start" $ do
-            addEvent "start_phase" []
+        , start = do
             -- Trigger initial immutable tip refresh now that listeners are registered
             publish ImmutableTipRefreshTriggered
             addEvent "initial_tip_refresh_triggered" []
