@@ -15,6 +15,8 @@ import Data.Text.Encoding qualified as Text
 
 import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
+import Ouroboros.Consensus.Cardano.Block hiding (CardanoBlock, CardanoHeader)
+import Ouroboros.Consensus.HardFork.Combinator
 
 
 -- | Newtype wrapper for block hash
@@ -32,3 +34,20 @@ blockHashFromHeader = BlockHash . renderHash (Proxy @CardanoBlock) . blockHash
 -- This is done similarly inside the cardano-node codebase.
 renderHash :: (ConvertRawHash blk) => proxy blk -> HeaderHash blk -> Text
 renderHash p = Text.decodeLatin1 . B16.encode . toRawHash p
+
+
+t :: CardanoHeader -> ()
+t h =
+    let
+        a =
+            case h of
+                HeaderShelley _h -> undefined
+                HeaderAllegra _h -> undefined
+                HeaderMary _h -> undefined
+                HeaderAlonzo _h -> undefined
+                HeaderBabbage _h -> undefined
+                HeaderConway h -> h
+                HeaderDijkstra _h -> undefined
+                HeaderByron _h -> undefined
+    in
+        ()
