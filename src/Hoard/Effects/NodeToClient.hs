@@ -5,6 +5,7 @@ module Hoard.Effects.NodeToClient
     , runNodeToClient
     , immutableTip
     , isOnChain
+    , validateVrfSignature
     ) where
 
 import Cardano.Api
@@ -25,7 +26,7 @@ import Cardano.Api
     , ShelleyGenesis (ShelleyGenesis)
     , Target
     , connectToLocalNode
-    , readShelleyGenesisConfig
+    , readShelleyGenesisConfig, executeLocalStateQueryExpr, queryPoolDistribution, Hash (StakePoolKeyHash), queryCurrentEra, forEraMaybeEon, AnyCardanoEra (AnyCardanoEra), Convert (convert)
     )
 import Control.Concurrent.Chan.Unagi
     ( InChan
@@ -69,15 +70,26 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
-import Hoard.Types.Cardano (ChainPoint (ChainPoint))
+import Hoard.Types.Cardano (ChainPoint (ChainPoint), CardanoHeader)
 import Hoard.Types.Environment (Config (..))
 
 import Hoard.Effects.Log qualified as Log
+import Ouroboros.Consensus.Cardano.Block (Header(HeaderBabbage, HeaderConway, HeaderDijkstra))
+import Ouroboros.Consensus.Shelley.Ledger (Header(ShelleyHeader, shelleyHeaderRaw))
+import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol(protocolHeaderView))
+import Ouroboros.Consensus.Protocol.Praos (doValidateVRFSignature)
+import Control.Monad.Trans.Except (runExcept)
+import qualified Data.Map.Strict as M
+import Cardano.Ledger.Keys (HasKeyRole(coerceKeyRole), hashKey)
+import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView(hvVK))
+import qualified Data.Set as S
+import Cardano.Api.Experimental (Era)
 
 
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Maybe ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Maybe Bool)
+    ValidateVrfSignature :: CardanoHeader -> NodeToClient m Bool
 
 
 makeEffect ''NodeToClient
@@ -132,6 +144,33 @@ runNodeToClient nodeToClient = do
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
+                ValidateVrfSignature header -> withSpan "node_query.validate_vrf_signature" $ do
+                    let headerView = case header of
+                                HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                                HeaderConway (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                                HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                                _ -> error "to do"
+                        blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
+                    d :: Serialised (PoolDistribution era) <- liftIO . executeLocalStateQueryExpr undefined undefined $ do
+                        AnyCardanoEra era <- fromRight (error "to do") <$> queryCurrentEra
+                        let bb = fromMaybe (error "to do") $ forEraMaybeEon @Era era
+                        -- beo <- (fmap . fmap) (\(AnyCardanoEra a) -> forEraMaybeEon @Era a) $ queryCurrentEra
+                        queryPoolDistribution (convert bb) . Just . S.singleton . StakePoolKeyHash $ blockIssuer
+                    -- copied from https://cardano-api.cardano.intersectmbo.org/cardano-api/src/Cardano.Api.LedgerState.html#currentEpochEligibleLeadershipSlots
+                    -- FUCKED UP HERE:
+                    setSnapshotPoolDistr <-
+                        first LeaderErrDecodePoolDistributionFailure
+                            . fmap (SL.unPoolDistr . unPoolDistr)
+                            $ decodePoolDistribution sbe serPoolDistr
+                    let activeSlotsCoeff = undefined 0.05 -- to do. get from config
+                        a =
+                            runExcept $
+                                doValidateVRFSignature
+                                    undefined -- to do. maybe `slotToNonce` or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                                    (M.singleton blockIssuer setSnapshotPoolDistr)
+                                    activeSlotsCoeff
+                                    headerView
+                    pure False
             )
 
 
