@@ -1,5 +1,5 @@
 module Hoard.Monitoring
-    ( Monitoring (..)
+    ( component
     , listener
     , Poll (..)
     , runConfig
@@ -18,15 +18,13 @@ import Prelude hiding (Reader, State, ask, asks, gets, runReader)
 import Cardano.Api qualified as C
 import Data.Set qualified as S
 
-import Hoard.Component (Component (..), Listener, Trigger)
+import Hoard.Component (Component (..), defaultComponent)
 import Hoard.DB.Schema (countRows, countRowsWhere)
-import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Effects.DBRead (DBRead)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Monitoring.Metrics (Metrics, gaugeSet)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksBeingClassified, metricBlocksInDB, metricConnectedPeers, metricUnclassifiedBlocks)
-import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.Triggers (every)
@@ -39,34 +37,26 @@ import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing qualified as Sub
 
 
-data Monitoring = Monitoring
-
-
-instance Component Monitoring es where
-    type
-        Effects Monitoring es =
-            ( Concurrent :> es
-            , Pub Poll :> es
-            , Reader Config :> es
-            , State HoardState :> es
-            , State Peers :> es
-            , Conc :> es
-            , Sub Poll :> es
-            , Log :> es
-            , DBRead :> es
-            , Metrics :> es
-            , Tracing :> es
-            )
-
-
-    listeners :: (Effects Monitoring es) => Eff es [Listener es]
-    listeners = pure [Sub.listen listener]
-
-
-    triggers :: (Effects Monitoring es) => Eff es [Trigger es]
-    triggers = do
-        pollingInterval <- asks $ (.pollingIntervalSeconds)
-        pure [every pollingInterval $ publish Poll]
+component
+    :: ( Concurrent :> es
+       , DBRead :> es
+       , Log :> es
+       , Metrics :> es
+       , Pub Poll :> es
+       , Reader Config :> es
+       , State HoardState :> es
+       , State Peers :> es
+       , Sub Poll :> es
+       )
+    => Component es
+component =
+    defaultComponent
+        { name = "Monitoring"
+        , listeners = pure [Sub.listen listener]
+        , triggers = do
+            pollingInterval <- asks $ (.pollingIntervalSeconds)
+            pure [every pollingInterval $ publish Poll]
+        }
 
 
 listener

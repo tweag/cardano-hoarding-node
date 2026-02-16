@@ -1,9 +1,8 @@
-module Hoard.PeerSharing (PeerSharing (..)) where
+module Hoard.PeerSharing (component) where
 
-import Effectful (Eff, (:>))
+import Effectful ((:>))
 
-import Hoard.Component (Component (..), Listener)
-import Hoard.Effects.Conc (Conc)
+import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
@@ -13,25 +12,21 @@ import Hoard.Effects.Publishing qualified as Sub
 import Hoard.PeerSharing.Listeners qualified as Listeners
 
 
-data PeerSharing = PeerSharing
-
-
-instance Component PeerSharing es where
-    type
-        Effects PeerSharing es =
-            ( Conc :> es
-            , Sub PeerSharingStarted :> es
-            , Sub PeersReceived :> es
-            , Sub PeerSharingFailed :> es
-            , PeerRepo :> es
-            , Tracing :> es
-            )
-
-
-    listeners :: (Effects PeerSharing es) => Eff es [Listener es]
-    listeners =
-        pure
-            [ Sub.listen Listeners.peerSharingStarted
-            , Sub.listen Listeners.peersReceived
-            , Sub.listen Listeners.peerSharingFailed
-            ]
+component
+    :: ( PeerRepo :> es
+       , Sub PeerSharingFailed :> es
+       , Sub PeerSharingStarted :> es
+       , Sub PeersReceived :> es
+       , Tracing :> es
+       )
+    => Component es
+component =
+    defaultComponent
+        { name = "PeerSharing"
+        , listeners =
+            pure
+                [ Sub.listen Listeners.peerSharingStarted
+                , Sub.listen Listeners.peersReceived
+                , Sub.listen Listeners.peerSharingFailed
+                ]
+        }

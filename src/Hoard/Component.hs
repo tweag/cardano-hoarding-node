@@ -1,21 +1,15 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module Hoard.Component
     ( Component (..)
+    , defaultComponent
     , Listener
     , Trigger
     , runComponent
-    , SomeComponent (..)
-    , component
     , runSystem
-    , defaultComponentName
     ) where
 
-import Data.Typeable (typeRep)
+import Data.Char (toLower)
 import Effectful (Eff, (:>))
 import Text.Casing (fromHumps, toSnake)
-
-import Data.Text qualified as Text
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
@@ -33,61 +27,36 @@ type Trigger es = Eff es Void
 
 
 -- | Component interface for modular application structure
-class (Typeable c) => Component c es where
-    -- | Additional effect constraints this component needs
-    type Effects c es :: Constraint
+data Component es = Component
+    { name :: ~Text
+    -- ^ Component name for tracing
+    , setup :: Eff es ()
+    -- ^ Setup component (runs before listeners/triggers start)
+    , listeners :: Eff es [Listener es]
+    -- ^ Event listeners (react to events)
+    , triggers :: Eff es [Trigger es]
+    -- ^ Triggers (initiate periodic/scheduled work)
+    , start :: Eff es ()
+    -- ^ Post-start actions (runs after all components have started)
+    }
 
 
-    type Effects c es = ()
-
-
-    -- | Component name for tracing (auto-derived from type name)
-    componentName :: Proxy c -> Text
-    componentName = defaultComponentName
-
-
-    -- | Setup component (runs before listeners/triggers start)
-    setup :: (Effects c es) => Eff es ()
-    setup = pure ()
-
-
-    -- | Event listeners (react to events)
-    listeners :: (Effects c es) => Eff es [Listener es]
-    listeners = pure []
-
-
-    -- | Triggers (initiate periodic/scheduled work)
-    triggers :: (Effects c es) => Eff es [Trigger es]
-    triggers = pure []
-
-
-    -- | Post-start actions (runs after all components have started)
-    start :: (Effects c es) => Eff es ()
-    start = pure ()
-
-
--- | Existential wrapper for components to allow heterogeneous lists
-data SomeComponent es where
-    SomeComponent :: forall c es. (Component c es, Effects c es) => Proxy c -> SomeComponent es
-
-
--- | Helper to create a component with type application syntax
-component :: forall c es. (Component c es, Effects c es) => SomeComponent es
-component = SomeComponent (Proxy @c)
+defaultComponent :: (HasCallStack) => Component es
+defaultComponent =
+    Component
+        { name = error "Missing component name"
+        , setup = pure ()
+        , listeners = pure []
+        , triggers = pure []
+        , start = pure ()
+        }
 
 
 -- | Run a component by forking its listeners and triggers
-runComponent
-    :: forall c es
-     . ( Component c es
-       , Conc :> es
-       , Effects c es
-       , Tracing :> es
-       )
-    => Eff es ()
-runComponent = withSpan (componentName @c @es Proxy) $ do
-    ls <- listeners @c
-    ts <- triggers @c
+runComponent :: (Conc :> es, Tracing :> es) => Component es -> Eff es ()
+runComponent c = withSpan c.name $ do
+    ls <- c.listeners
+    ts <- c.triggers
     traverse_ Conc.fork_ ls
     traverse_ Conc.fork_ ts
 
@@ -105,7 +74,7 @@ runComponent = withSpan (componentName @c @es Proxy) $ do
 runSystem
     :: forall es
      . (Conc :> es, Log :> es, Tracing :> es)
-    => [SomeComponent es]
+    => [Component es]
     -> Eff es ()
 runSystem components = do
     -- Phase 1: Setup all components
@@ -117,31 +86,27 @@ runSystem components = do
     -- Phase 3: Fork post-start actions
     traverse_ postStartComponent components
   where
-    setupComponent :: SomeComponent es -> Eff es ()
-    setupComponent (SomeComponent (p :: Proxy c)) = do
-        let name = componentName @c @es p
+    setupComponent :: Component es -> Eff es ()
+    setupComponent c = do
+        let name = formatName c.name
         Log.debug $ "Setting up component: " <> name
         withSpan (name <> ":setup")
-            $ setup @c @es
+            $ c.setup
 
-    startComponent :: SomeComponent es -> Eff es ()
-    startComponent (SomeComponent (p :: Proxy c)) = do
-        let name = componentName @c @es p
+    startComponent :: Component es -> Eff es ()
+    startComponent c = do
+        let name = formatName c.name
         Log.debug $ "Starting listeners/triggers for component: " <> name
-        runComponent @c
+        runComponent c
 
-    postStartComponent :: SomeComponent es -> Eff es ()
-    postStartComponent (SomeComponent (p :: Proxy c)) = do
-        let name = componentName @c @es p
+    postStartComponent :: Component es -> Eff es ()
+    postStartComponent c = do
+        let name = formatName c.name
         Log.debug $ "Forking start phase for component: " <> name
         void . Conc.fork
             $ withSpan (name <> ":start")
-            $ start @c @es
+            $ c.start
 
 
--- | Auto-derive component name from type name
--- Examples: PeerManager -> "peer_manager", ChainSync -> "chain_sync"
-defaultComponentName :: forall c. (Typeable c) => Proxy c -> Text
-defaultComponentName _ =
-    let typeName = show $ typeRep (Proxy @c)
-    in  Text.pack $ toSnake $ fromHumps typeName
+formatName :: Text -> Text
+formatName = toText . toSnake . fromHumps . fmap toLower . toString
