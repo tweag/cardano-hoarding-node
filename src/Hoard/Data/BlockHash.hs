@@ -5,8 +5,18 @@ module Hoard.Data.BlockHash
     ) where
 
 import Cardano.Api.LedgerState ()
+import Cardano.Ledger.Keys (CertifiedVRF)
+import Cardano.Protocol.Crypto (Crypto (VRF))
+import Cardano.Protocol.TPraos.BHeader (BHBody (BHBody, bheaderEta, bheaderL), BHeader (BHeader))
 import Data.Aeson (FromJSON, ToJSON)
 import Ouroboros.Consensus.Block.Abstract (ConvertRawHash, toRawHash)
+import Ouroboros.Consensus.Cardano (Nonce)
+import Ouroboros.Consensus.Cardano.Block hiding (CardanoBlock, CardanoHeader)
+import Ouroboros.Consensus.Protocol.Praos.Header (Header (Header), HeaderBody (HeaderBody, hbVrfRes))
+import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (HeaderView, hvVrfRes))
+import Ouroboros.Consensus.Protocol.TPraos (TPraos)
+import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw), ShelleyBlock)
+import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Ouroboros.Network.Block (HeaderHash, blockHash)
 import Rel8 (DBEq, DBOrd, DBType)
 
@@ -15,8 +25,6 @@ import Data.Text.Encoding qualified as Text
 
 import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
-import Ouroboros.Consensus.Cardano.Block hiding (CardanoBlock, CardanoHeader)
-import Ouroboros.Consensus.HardFork.Combinator
 
 
 -- | Newtype wrapper for block hash
@@ -37,17 +45,31 @@ renderHash p = Text.decodeLatin1 . B16.encode . toRawHash p
 
 
 t :: CardanoHeader -> ()
-t h =
+t header =
     let
         a =
-            case h of
-                HeaderShelley _h -> undefined
-                HeaderAllegra _h -> undefined
-                HeaderMary _h -> undefined
-                HeaderAlonzo _h -> undefined
-                HeaderBabbage _h -> undefined
-                HeaderConway h -> h
-                HeaderDijkstra _h -> undefined
-                HeaderByron _h -> undefined
+            case header of
+                HeaderShelley h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of BHeader (BHBody {bheaderEta}) _signed -> Left bheaderEta
+                HeaderAllegra h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of BHeader (BHBody {bheaderEta}) _signed -> Left bheaderEta
+                HeaderMary h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of BHeader (BHBody {bheaderEta}) _signed -> Left bheaderEta
+                HeaderAlonzo h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of BHeader (BHBody {bheaderEta}) _signed -> Left bheaderEta
+                HeaderBabbage h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of Header (HeaderBody {hbVrfRes}) _signed -> Right hbVrfRes
+                HeaderConway h ->
+                    if False then
+                        case h of ShelleyHeader {shelleyHeaderRaw} -> case protocolHeaderView shelleyHeaderRaw of HeaderView {hvVrfRes} -> Right hvVrfRes
+                    else
+                        case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of Header (HeaderBody {hbVrfRes}) _signed -> Right hbVrfRes
+                HeaderDijkstra h ->
+                    case h of ShelleyHeader {shelleyHeaderRaw} -> case shelleyHeaderRaw of Header (HeaderBody {hbVrfRes}) _signed -> Right hbVrfRes
+                HeaderByron _h -> error "to do"
     in
         ()
+
+
+headerEta :: (Crypto c) => Ouroboros.Consensus.Shelley.Ledger.Header (ShelleyBlock (TPraos c) era) -> CertifiedVRF (VRF c) Nonce
+headerEta (ShelleyHeader {shelleyHeaderRaw}) = case shelleyHeaderRaw of BHeader (BHBody {bheaderEta, bheaderL}) _signed -> undefined
