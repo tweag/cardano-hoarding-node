@@ -19,6 +19,8 @@ import Hoard.BlockFetch.Events
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (Peer)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
@@ -38,6 +40,7 @@ import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
+import Hoard.Effects.Quota (runQuota)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
@@ -86,7 +89,7 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . runTracingFromConfig
-        -- Pub/Sub handlers for all event types
+        . runQuota @(ID Peer, Int64)
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound
         . runPubSub @RollBackward
@@ -127,5 +130,4 @@ main =
                 , Monitoring.component
                 , PeerManager.component
                 ]
-
             Conc.awaitAll

@@ -39,6 +39,7 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
+import Hoard.Effects.Quota.Config qualified as Quota
 import Hoard.PeerManager.Config qualified as PeerManager
 
 
@@ -56,6 +57,7 @@ data ConfigFile = ConfigFile
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , peerManager :: PeerManager.Config
     , nodeToNode :: NodeToNode.Config
+    , quota :: Quota.Config
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -253,6 +255,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , cardanoProtocols = configFile.cardanoProtocols
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
                 , nodeToNode = configFile.nodeToNode
+                , quota = configFile.quota
                 }
         env = Env {config, handles}
 
@@ -261,7 +264,7 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
 
 runConfigReader
     :: (Reader Env :> es)
-    => Eff (Reader NodeConfig : Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
+    => Eff (Reader Quota.Config : Reader NodeConfig : Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
     -> Eff es a
 runConfigReader eff = do
     cfg <- asks config
@@ -269,6 +272,7 @@ runConfigReader eff = do
         . runReader cfg.logging
         . runReader cfg.peerManager
         . runReader cfg.nodeConfig
+        . runReader cfg.quota
         $ eff
 
 

@@ -12,4 +12,4 @@ import Rel8 (DBEq, DBOrd, DBType)
 -- E.g. @ID Peer@ vs @ID Block@.
 newtype ID a = ID UUID
     deriving stock (Generic)
-    deriving newtype (DBEq, DBOrd, DBType, Eq, FromJSON, Ord, Show, ToJSON)
+    deriving newtype (DBEq, DBOrd, DBType, Eq, FromJSON, Hashable, Ord, Show, ToJSON)

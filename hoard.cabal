@@ -71,6 +71,8 @@ library
       Hoard.Effects.Options
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
+      Hoard.Effects.Quota
+      Hoard.Effects.Quota.Config
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events
@@ -313,6 +315,7 @@ test-suite hoard-test
       Unit.Hoard.Effects.Cache.SingleflightSpec
       Unit.Hoard.Effects.LogSpec
       Unit.Hoard.Effects.PublishingSpec
+      Unit.Hoard.Effects.QuotaSpec
       Unit.Hoard.MonitoringSpec
       Paths_hoard
   autogen-modules:
