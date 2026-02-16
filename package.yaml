@@ -35,6 +35,7 @@ dependencies:
 - base16-bytestring
 - bytestring
 - cardano-api
+- cardano-protocol-tpraos
 - cborg
 - contra-tracer
 - ouroboros-network
