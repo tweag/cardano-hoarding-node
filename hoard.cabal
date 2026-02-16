@@ -143,6 +143,7 @@ library
     , cardano-api
     , cardano-ledger-core
     , cardano-ledger-shelley
+    , cardano-protocol-tpraos
     , casing
     , cborg
     , containers
@@ -333,6 +334,7 @@ executable hoard-exe
     , cardano-api
     , cardano-ledger-core
     , cardano-ledger-shelley
+    , cardano-protocol-tpraos
     , casing
     , cborg
     , containers
@@ -452,6 +454,7 @@ test-suite hoard-test
     , cardano-api
     , cardano-ledger-core
     , cardano-ledger-shelley
+    , cardano-protocol-tpraos
     , casing
     , cborg
     , containers
