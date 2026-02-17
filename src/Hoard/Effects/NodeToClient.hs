@@ -74,7 +74,7 @@ import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
-import Ouroboros.Consensus.Protocol.Praos (doValidateVRFSignature)
+import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr, doValidateVRFSignature)
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK, hvVrfRes))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
@@ -91,7 +91,7 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
-import Hoard.Types.Cardano (CardanoHeader, ChainPoint (ChainPoint))
+import Hoard.Types.Cardano (CardanoHeader, ChainPoint (ChainPoint), Crypto)
 import Hoard.Types.Environment (Config (..))
 
 import Hoard.Effects.Log qualified as Log
@@ -100,7 +100,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Maybe ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Maybe Bool)
-    ValidateVrfSignature :: CardanoHeader -> NodeToClient m Bool
+    ValidateVrfSignature :: CardanoHeader -> NodeToClient m (Either (PraosValidationErr Crypto) ())
 
 
 makeEffect ''NodeToClient
@@ -180,7 +180,6 @@ runNodeToClient nodeToClient = do
                             $ blockIssuer
                     let activeSlotsCoeff = undefined 0.05 -- to do. get from config
                     pure
-                        $ isRight
                         $ runExcept
                         $ doValidateVRFSignature
                             (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
