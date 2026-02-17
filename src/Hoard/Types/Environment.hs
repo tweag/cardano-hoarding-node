@@ -8,9 +8,6 @@ module Hoard.Types.Environment
     , CardanoProtocolsConfig (..)
     , TxSubmissionConfig (..)
 
-      -- * Cardano protocol handles
-    , CardanoProtocolHandles (..)
-
       -- * Tracing configuration
     , TracingConfig (..)
 
@@ -172,12 +169,6 @@ data BootstrapPeerDomain = BootstrapPeerDomain
 data Handles = Handles
     { ioManager :: IOManager
     , dbPools :: DBPools
-    , cardanoProtocols :: CardanoProtocolHandles
-    }
-
-
-newtype CardanoProtocolHandles = CardanoProtocolHandles
-    { blockFetch :: BlockFetch.Handles
     }
 
 
