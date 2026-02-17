@@ -6,7 +6,6 @@ module Hoard.TestHelpers
     )
 where
 
-import Control.Concurrent.QSem (newQSem)
 import Data.Default (def)
 import Data.Time (UTCTime (..))
 import Effectful
@@ -52,7 +51,6 @@ import Hoard.PeerSharing.Config ()
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig (..)
-    , CardanoProtocolHandles (..)
     , CardanoProtocolsConfig (..)
     , Config (..)
     , Env (..)
@@ -67,7 +65,6 @@ import Hoard.Types.Environment
     )
 import Hoard.Types.HoardState (HoardState)
 
-import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.Log qualified as Log
 
 
@@ -128,12 +125,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 { sshServerAliveIntervalSeconds = 60
                 , immutableTipRefreshSeconds = 20
                 }
-    cardanoProtocolHandles <- do
-        qSem <- newQSem 10
-        pure
-            CardanoProtocolHandles
-                { blockFetch = BlockFetch.Handles {qSem}
-                }
     let config =
             Config
                 { server = serverConfig
@@ -154,7 +145,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             Handles
                 { ioManager
                 , dbPools
-                , cardanoProtocols = cardanoProtocolHandles
                 }
     let env = Env {config, handles}
     ((a, finalState), _blockState) <-

@@ -11,7 +11,6 @@ import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGen
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
 import Data.Default (def)
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
-import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, ask, asks, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
@@ -26,7 +25,6 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig
-    , CardanoProtocolHandles (..)
     , CardanoProtocolsConfig
     , Config (..)
     , Env (..)
@@ -39,7 +37,6 @@ import Hoard.Types.Environment
     )
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
-import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.PeerManager.Config qualified as PeerManager
@@ -57,7 +54,6 @@ data ConfigFile = ConfigFile
     , maxFileDescriptors :: Maybe Word32
     , cardanoProtocols :: CardanoProtocolsConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
-    , cardanoProtocolHandles :: CardanoProtocolHandlesConfig
     , peerManager :: PeerManager.Config
     , nodeToNode :: NodeToNode.Config
     }
@@ -108,13 +104,6 @@ data DBUserCredentials = DBUserCredentials
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake DBUserCredentials
-
-
-newtype CardanoProtocolHandlesConfig = CardanoProtocolHandlesConfig
-    { blockFetch :: BlockFetch.HandlesConfig
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake CardanoProtocolHandlesConfig
 
 
 loadNodeConfig :: (IOE :> es) => FilePath -> Eff es NodeConfig
@@ -195,17 +184,8 @@ loadLoggingConfig configFile = do
     pure $ def {Log.minimumSeverity}
 
 
-loadCardanoProtocolHandles :: (Concurrent :> es) => ConfigFile -> Eff es CardanoProtocolHandles
-loadCardanoProtocolHandles configFile = do
-    blockFetch <- BlockFetch.loadHandles configFile.cardanoProtocolHandles.blockFetch
-    pure
-        CardanoProtocolHandles
-            { blockFetch
-            }
-
-
 -- | Acquire runtime handles
-acquireHandles :: (Concurrent :> es, IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
+acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
 acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
@@ -223,13 +203,11 @@ acquireHandles ioManager configFile secrets = do
     let readerConfig = toDBConfig database secrets.database.users.reader
     let writerConfig = toDBConfig database secrets.database.users.writer
     dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
-    cardanoProtocols <- loadCardanoProtocolHandles configFile
 
     pure
         Handles
             { ioManager
             , dbPools
-            , cardanoProtocols
             }
 
 
@@ -244,8 +222,7 @@ lookupNonEmpty n =
 -- Loads both the public config YAML and the secrets YAML file,
 -- then acquires all necessary runtime handles
 loadEnv
-    :: ( Concurrent :> es
-       , IOE :> es
+    :: ( IOE :> es
        , Reader ConfigPath :> es
        )
     => Eff (Reader Env : es) a

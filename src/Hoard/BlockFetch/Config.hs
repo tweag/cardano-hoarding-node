@@ -1,14 +1,9 @@
 module Hoard.BlockFetch.Config
     ( Config (..)
-    , Handles (..)
-    , HandlesConfig (..)
-    , loadHandles
     ) where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
-import Effectful (Eff, (:>))
-import Effectful.Concurrent.QSem (Concurrent, QSem, newQSem)
 
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -32,21 +27,3 @@ instance Default Config where
             , batchTimeoutMicroseconds = 10_000_000 -- 10 seconds
             , maximumIngressQueue = 393216 -- 384 KiB
             }
-
-
-data HandlesConfig = HandlesConfig
-    { maxConcurrentFetches :: Int
-    }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake HandlesConfig
-
-
-data Handles = Handles
-    { qSem :: QSem
-    }
-
-
-loadHandles :: (Concurrent :> es) => HandlesConfig -> Eff es Handles
-loadHandles conf = do
-    qSem <- newQSem conf.maxConcurrentFetches
-    pure Handles {qSem}
