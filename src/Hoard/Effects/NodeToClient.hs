@@ -13,7 +13,7 @@ import Cardano.Api
     , ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
     , EpochSize
-    , Hash (StakePoolKeyHash)
+    , Hash (HeaderHash, StakePoolKeyHash)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
         ( LocalNodeClientProtocols
@@ -28,7 +28,7 @@ import Cardano.Api
     , QueryInMode (QueryChainPoint)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
-    , Target
+    , Target (SpecificPoint)
     , connectToLocalNode
     , decodePoolDistribution
     , executeLocalStateQueryExpr
@@ -69,6 +69,7 @@ import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
+import Ouroboros.Consensus.Block (ConvertRawHash (toShortRawHash), blockSlot, headerHash)
 import Ouroboros.Consensus.Cardano.Block (Header (HeaderBabbage, HeaderConway, HeaderDijkstra))
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
@@ -91,7 +92,7 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
-import Hoard.Types.Cardano (CardanoHeader, ChainPoint (ChainPoint), Crypto)
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, ChainPoint (ChainPoint), Crypto)
 import Hoard.Types.Environment (Config (..))
 
 import Hoard.Effects.Log qualified as Log
@@ -162,7 +163,8 @@ runNodeToClient nodeToClient = do
                             HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
                             _ -> error "to do"
                         blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
-                    poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined undefined $ do
+                    let target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
+                    poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
                         -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
                         AnyCardanoEra e <- fromRight (error "to do") <$> queryCurrentEra
                         let era = fromMaybe (error "to do") $ forEraMaybeEon @Era e
