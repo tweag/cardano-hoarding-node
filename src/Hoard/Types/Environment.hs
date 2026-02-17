@@ -37,13 +37,10 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
-import Hoard.ChainSync.Config qualified as ChainSync
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Quota.Config qualified as Quota
-import Hoard.KeepAlive.Config qualified as KeepAlive
 import Hoard.PeerManager.Config qualified as PeerManager
-import Hoard.PeerSharing.Config qualified as PeerSharing
 
 
 -- | HTTP server configuration
@@ -76,10 +73,7 @@ data Config = Config
 
 -- | Cardano protocol configuration
 data CardanoProtocolsConfig = CardanoProtocolsConfig
-    { peerSharing :: PeerSharing.Config
-    , keepAlive :: KeepAlive.Config
-    , chainSync :: ChainSync.Config
-    , txSubmission :: TxSubmissionConfig
+    { txSubmission :: TxSubmissionConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake CardanoProtocolsConfig

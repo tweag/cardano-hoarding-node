@@ -1,4 +1,6 @@
-module Hoard.ChainSync.NodeToNode (miniProtocol, client) where
+module Hoard.Effects.NodeToNode.ChainSync
+    ( miniProtocol
+    ) where
 
 import Cardano.Api.Block (toConsensusPointHF)
 import Control.Tracer (nullTracer)
@@ -16,12 +18,11 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode (chainSyncMiniProtocolNum)
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
-import Prelude hiding (State, gets)
+import Prelude hiding (Reader, State, ask, gets, runReader)
 
 import Data.List qualified as List
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 
-import Hoard.ChainSync.Config (Config (..))
 import Hoard.ChainSync.Events
     ( ChainSyncIntersectionFound (..)
     , ChainSyncStarted (..)
@@ -32,6 +33,7 @@ import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
+import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
@@ -50,24 +52,25 @@ miniProtocol
        , State HoardState :> es
        , Tracing :> es
        )
-    => (forall x. Eff es x -> IO x)
-    -> Config
+    => ChainSyncConfig
+    -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
-    MiniProtocol
-        { miniProtocolNum = chainSyncMiniProtocolNum
-        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-        , miniProtocolStart = StartEagerly
-        , miniProtocolRun =
-            InitiatorProtocolOnly
-                $ mkMiniProtocolCbFromPeerPipelined
-                $ \_ ->
-                    let codec = cChainSyncCodec codecs
-                        chainSyncClient = client unlift peer
-                    in  (nullTracer, codec, chainSyncClient)
-        }
+    -> Eff es CardanoMiniProtocol
+miniProtocol conf unlift codecs peer =
+    pure
+        $ MiniProtocol
+            { miniProtocolNum = chainSyncMiniProtocolNum
+            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+            , miniProtocolStart = StartEagerly
+            , miniProtocolRun =
+                InitiatorProtocolOnly
+                    $ mkMiniProtocolCbFromPeerPipelined
+                    $ \_ ->
+                        let codec = cChainSyncCodec codecs
+                            chainSyncClient = client unlift peer
+                        in  (nullTracer, codec, chainSyncClient)
+            }
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).

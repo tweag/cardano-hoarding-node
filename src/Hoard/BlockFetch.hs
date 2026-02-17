@@ -2,14 +2,6 @@ module Hoard.BlockFetch
     ( -- * Main
       component
 
-      -- * Config
-    , Config (..)
-    , runConfig
-
-      -- * NodeToNode
-    , miniProtocol
-    , client
-
       -- * Events
     , Request (..)
     , RequestStarted (..)
@@ -24,77 +16,36 @@ module Hoard.BlockFetch
     , blockBatchCompleted
     ) where
 
-import Control.Tracer (nullTracer)
-import Data.Aeson (FromJSON (..))
-import Data.Default (Default (..))
-import Data.List (maximum, minimum)
 import Data.Time (UTCTime)
-import Effectful (Eff, IOE, (:>))
-import Effectful.Concurrent (Concurrent)
-import Effectful.Reader.Static (Reader, ask, runReader)
-import Effectful.Timeout (Timeout)
-import Network.Mux (StartOnDemandOrEagerly (..))
-import Ouroboros.Consensus.Block.Abstract (blockSlot, getHeader, headerPoint, unSlotNo)
-import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
-import Ouroboros.Network.Mux
-    ( MiniProtocol (..)
-    , MiniProtocolLimits (..)
-    , RunMiniProtocol (..)
-    , mkMiniProtocolCbFromPeer
-    )
-import Ouroboros.Network.NodeToNode
-    ( blockFetchMiniProtocolNum
-    )
-import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
+import Effectful (Eff, (:>))
+import Ouroboros.Consensus.Block.Abstract (blockSlot, getHeader, unSlotNo)
 import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
-import Network.TypedProtocol.Peer.Client qualified as Peer
-import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
-import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
-
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Chan (Chan, readChanBatched)
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure, recordBlockReceived)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
-import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
-import Hoard.Effects.Quota (Quota)
+import Hoard.Effects.Publishing (Sub)
+import Hoard.Effects.Quota (MessageStatus (..), Quota)
 import Hoard.Effects.Verifier (Verifier, verifyBlock)
-import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint)
-import Hoard.Types.QuietSnake (QuietSnake (..))
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
-import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Effects.Quota qualified as Quota
 
-
----------
-
--- * Main
-
-
----------
 
 component
     :: ( BlockRepo :> es
        , Metrics :> es
        , Quota (ID Peer, Int64) :> es
        , Sub BatchCompleted :> es
-       , Sub BlockBatchCompleted :> es
-       , Sub BlockFetchFailed :> es
-       , Sub BlockFetchStarted :> es
        , Sub BlockReceived :> es
        , Sub RequestFailed :> es
        , Sub RequestStarted :> es
@@ -113,187 +64,6 @@ component =
                 , Sub.listen blockBatchCompleted
                 ]
         }
-
-
------------
-
--- * Config
-
-
------------
-
-data Config = Config
-    { batchSize :: Int
-    -- ^ Number of block fetch requests to batch
-    , batchTimeoutMicroseconds :: Int
-    -- ^ Timeout for batching block fetch requests
-    , maximumIngressQueue :: Int
-    -- ^ Max bytes queued in ingress queue
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake Config
-
-
-instance Default Config where
-    def =
-        Config
-            { batchSize = 10
-            , batchTimeoutMicroseconds = 10_000_000 -- 10 seconds
-            , maximumIngressQueue = 393216 -- 384 KiB
-            }
-
-
-data ConfigFile = ConfigFile
-    { cardanoProtocols :: CardanoProtocolsConfigFile
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake ConfigFile
-
-
-data CardanoProtocolsConfigFile = CardanoProtocolsConfigFile
-    { blockFetch :: Config
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake CardanoProtocolsConfigFile
-
-
-runConfig :: (IOE :> es, Reader ConfigPath :> es) => Eff (Reader Config : es) a -> Eff es a
-runConfig eff = do
-    configPath <- ask
-    configFile <- loadYaml @ConfigFile configPath
-    runReader configFile.cardanoProtocols.blockFetch eff
-
-
--------------
--- NodeToNode
--------------
-
-miniProtocol
-    :: forall es
-     . ( Chan :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Pub BatchCompleted :> es
-       , Pub BlockReceived :> es
-       , Pub RequestFailed :> es
-       , Pub RequestStarted :> es
-       , Reader Config :> es
-       , Sub Request :> es
-       , Timeout :> es
-       , Tracing :> es
-       )
-    => (forall x. Eff es x -> IO x)
-    -> CardanoCodecs
-    -> Peer
-    -> Eff es CardanoMiniProtocol
-miniProtocol unlift' codecs peer = do
-    conf <- ask
-    pure
-        MiniProtocol
-            { miniProtocolNum = blockFetchMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-                let codec = cBlockFetchCodec codecs
-                    blockFetchClient = client unlift conf peer
-                    tracer = nullTracer
-                    wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
-                        addEvent "protocol_started" []
-                        pure $ blockFetchClientPeer blockFetchClient
-                in  (tracer, codec, wrappedPeer)
-            }
-  where
-    unlift :: forall x. Eff es x -> IO x
-    unlift = unlift'
-
-
--- | Create a BlockFetch client that fetches blocks on requests over events.
-client
-    :: forall es
-     . ( Chan :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Pub BatchCompleted :> es
-       , Pub BlockReceived :> es
-       , Pub RequestFailed :> es
-       , Pub RequestStarted :> es
-       , Sub Request :> es
-       , Timeout :> es
-       , Tracing :> es
-       )
-    => (forall x. Eff es x -> IO x)
-    -> Config
-    -> Peer
-    -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
-client unlift cfg peer =
-    BlockFetch.BlockFetchClient $ unlift do
-        timestamp <- Clock.currentTime
-        publish $ RequestStarted {peer, timestamp}
-        addEvent "awaiting_block_requests" []
-
-        (inChan, outChan) <- Chan.newChan
-
-        Conc.fork_ $ listen \(req :: Request) ->
-            when (req.peer.id == peer.id) $ Chan.writeChan inChan req
-
-        awaitMessage outChan
-  where
-    awaitMessage outChan = do
-        reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
-
-        addEvent "block_fetch_requests_received" [("count", show $ length reqs)]
-        let points = headerPoint . (.header) <$> reqs
-            start = minimum points
-            end = maximum points
-        addAttribute "range.start" (show start)
-        addAttribute "range.end" (show end)
-        pure
-            $ BlockFetch.SendMsgRequestRange
-                (BlockFetch.ChainRange start end)
-                (handleResponse reqs)
-            $ client unlift cfg peer
-
-    handleResponse reqs =
-        BlockFetch.BlockFetchResponse
-            { handleStartBatch =
-                pure $ blockReceiver 0
-            , handleNoBlocks = unlift $ do
-                addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
-                timestamp <- Clock.currentTime
-                for_ reqs \req ->
-                    publish
-                        $ RequestFailed
-                            { peer
-                            , timestamp
-                            , header = req.header
-                            , errorMessage = "No blocks for point"
-                            }
-            }
-
-    blockReceiver blockCount =
-        BlockFetch.BlockFetchReceiver
-            { handleBlock = \block -> unlift $ do
-                timestamp <- Clock.currentTime
-                let event =
-                        BlockReceived
-                            { peer
-                            , timestamp
-                            , block
-                            }
-                publish event
-                pure $ blockReceiver $ blockCount + 1
-            , handleBatchDone = unlift $ do
-                addEvent "batch_completed" [("blocks_fetched", show blockCount)]
-                timestamp <- Clock.currentTime
-                publish
-                    $ BatchCompleted
-                        { peer
-                        , timestamp
-                        , blockCount
-                        }
-            }
 
 
 ---------
@@ -363,11 +133,15 @@ blockReceived event = withSpan "block_received" $ do
     let block = extractBlockData event
         quotaKey = (event.peer.id, block.slotNumber)
 
-    addEvent "block_received" [("slot", show block.slotNumber), ("hash", show block.hash)]
     addAttribute "block.hash" (show block.hash)
     addAttribute "block.slot" (show block.slotNumber)
     addAttribute "peer.id" (show event.peer.id)
-    addEvent "block_received" [("slot", show block.slotNumber), ("hash", show block.hash), ("peer_address", show event.peer.address)]
+    addEvent
+        "block_received"
+        [ ("slot", show block.slotNumber)
+        , ("hash", show block.hash)
+        , ("peer_address", show event.peer.address)
+        ]
 
     verifyBlock block >>= \case
         Left _invalidBlock ->

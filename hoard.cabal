@@ -20,10 +20,8 @@ library
       Hoard.BlockFetch
       Hoard.Bootstrap
       Hoard.ChainSync
-      Hoard.ChainSync.Config
       Hoard.ChainSync.Events
       Hoard.ChainSync.Listeners
-      Hoard.ChainSync.NodeToNode
       Hoard.Collector
       Hoard.Component
       Hoard.Control.Exception
@@ -62,8 +60,12 @@ library
       Hoard.Effects.Monitoring.Tracing.Provider
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
+      Hoard.Effects.NodeToNode.BlockFetch
+      Hoard.Effects.NodeToNode.ChainSync
       Hoard.Effects.NodeToNode.Codecs
       Hoard.Effects.NodeToNode.Config
+      Hoard.Effects.NodeToNode.KeepAlive
+      Hoard.Effects.NodeToNode.PeerSharing
       Hoard.Effects.Options
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
@@ -74,8 +76,6 @@ library
       Hoard.Events
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.Node
-      Hoard.KeepAlive.Config
-      Hoard.KeepAlive.NodeToNode
       Hoard.Listeners
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
@@ -88,10 +88,8 @@ library
       Hoard.PeerManager.Config
       Hoard.PeerManager.Peers
       Hoard.PeerSharing
-      Hoard.PeerSharing.Config
       Hoard.PeerSharing.Events
       Hoard.PeerSharing.Listeners
-      Hoard.PeerSharing.NodeToNode
       Hoard.Server
       Hoard.Setup
       Hoard.Triggers

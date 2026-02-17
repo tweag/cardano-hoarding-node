@@ -29,6 +29,7 @@ import Hoard.Effects.Monitoring.Metrics (runMetrics)
 import Hoard.Effects.Monitoring.Tracing (runTracingFromConfig)
 import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
+import Hoard.Effects.NodeToNode.KeepAlive (KeepAlivePing)
 import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
@@ -36,7 +37,6 @@ import Hoard.Effects.Quota (runQuota)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
-import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.Monitoring (Poll)
 import Hoard.Network.Events (ProtocolError)
@@ -49,6 +49,7 @@ import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.ChainSync qualified as ChainSync
 import Hoard.Core qualified as Core
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode.Config
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
@@ -69,7 +70,7 @@ main =
         . runConfigReader
         . runHandlesReader
         . Monitoring.runConfig
-        . BlockFetch.runConfig
+        . NodeToNode.Config.runProtocolsConfig
         . runLog
         . runClock
         . runFileSystem
