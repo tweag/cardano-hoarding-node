@@ -161,7 +161,7 @@ runNodeToClient nodeToClient = do
                             HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
                             _ -> error "to do"
                         blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
-                    d <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined undefined $ do
+                    poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined undefined $ do
                         AnyCardanoEra e <- fromRight (error "to do") <$> queryCurrentEra
                         let era = fromMaybe (error "to do") $ forEraMaybeEon @Era e
                         serPoolDistr <-
@@ -179,15 +179,14 @@ runNodeToClient nodeToClient = do
                             fmap (SL.unPoolDistr . unPoolDistr)
                             $ decodePoolDistribution (convert era) serPoolDistr
                     let activeSlotsCoeff = undefined 0.05 -- to do. get from config
-                        a =
-                            runExcept
-                                $ doValidateVRFSignature
-                                    undefined -- to do. maybe `slotToNonce` or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
-                                    -- (M.singleton blockIssuer setSnapshotPoolDistr)
-                                    d
-                                    activeSlotsCoeff
-                                    headerView
-                    pure False
+                    pure
+                        $ isRight
+                        $ runExcept
+                        $ doValidateVRFSignature
+                            undefined -- to do. maybe `slotToNonce` or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                            poolDistribution
+                            activeSlotsCoeff
+                            headerView
             )
 
 
