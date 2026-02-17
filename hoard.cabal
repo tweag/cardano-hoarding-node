@@ -138,6 +138,7 @@ library
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-crypto-class
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-protocol-tpraos
@@ -236,6 +237,7 @@ executable hoard-exe
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-crypto-class
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-protocol-tpraos
@@ -357,6 +359,7 @@ test-suite hoard-test
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-crypto-class
     , cardano-ledger-core
     , cardano-ledger-shelley
     , cardano-protocol-tpraos

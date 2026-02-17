@@ -38,6 +38,8 @@ import Cardano.Api
     , readShelleyGenesisConfig
     )
 import Cardano.Api.Experimental (Era)
+import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
+import Cardano.Ledger.BaseTypes (mkNonceFromOutputVRF)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Control.Concurrent.Chan.Unagi
     ( InChan
@@ -73,7 +75,7 @@ import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMa
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Ouroboros.Consensus.Protocol.Praos (doValidateVRFSignature)
-import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
+import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK, hvVrfRes))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
@@ -181,7 +183,7 @@ runNodeToClient nodeToClient = do
                         $ isRight
                         $ runExcept
                         $ doValidateVRFSignature
-                            undefined -- to do. maybe `slotToNonce` or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                            (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
                             poolDistribution
                             activeSlotsCoeff
                             headerView
