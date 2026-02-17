@@ -16,6 +16,7 @@ module Hoard.Effects.NodeToNode
 
 import Cardano.Api ()
 import Data.Time (NominalDiffTime)
+import Data.Traversable (for)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
@@ -27,11 +28,11 @@ import Effectful.Timeout (Timeout)
 import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError, userError)
 import Network.Mux (Mode (..))
 import Network.Socket (SockAddr, Socket)
-import Ouroboros.Consensus.Config (configBlock, configCodec)
+import Ouroboros.Consensus.Config (TopLevelConfig (..))
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
-import Ouroboros.Consensus.Node.NetworkProtocolVersion (HasNetworkProtocolVersion (..), supportedNodeToNodeVersions)
-import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
+import Ouroboros.Consensus.Node (ProtocolInfo (..))
+import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
     ( OuroborosApplication (..)
@@ -43,7 +44,6 @@ import Ouroboros.Network.NodeToNode
     , NodeToNodeVersion
     , NodeToNodeVersionData (..)
     , ProtocolLimitFailure
-    , Versions
     , combineVersions
     , connectTo
     , networkMagic
@@ -66,26 +66,26 @@ import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, asTracer, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
-import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
+import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.Effects.UUID (GenUUID)
 import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
 import Hoard.Events.KeepAlive (KeepAlivePing)
 import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (Env)
+import Hoard.Types.Environment (Config (..), Env (..), Handles (..))
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 import Hoard.Effects.NodeToNode.BlockFetch qualified as NodeToNode.BlockFetch
 import Hoard.Effects.NodeToNode.ChainSync qualified as NodeToNode.ChainSync
 import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive
 import Hoard.Effects.NodeToNode.PeerSharing qualified as NodeToNode.PeerSharing
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
-import Hoard.Types.Environment qualified as Env
 
 
 --------------------------------------------------------------------------------
@@ -134,6 +134,7 @@ runNodeToNode
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
        , Reader Env :> es
+       , Reader NodeToNodeConfig :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
        , Sub BlockFetch.Request :> es
@@ -144,78 +145,57 @@ runNodeToNode
     -> Eff es a
 runNodeToNode =
     interpret_ \case
-        ConnectToPeer peer -> withSpan "node_to_node.connect_to_peer" $ do
-            env <- ask
-            let protocolInfo = env.config.protocolInfo
-                ioManager = env.handles.ioManager
-            let addr = IP.toSockAddr (getNodeIP peer.address.host, fromIntegral peer.address.port)
-
+        ConnectToPeer peer -> withSpan "node_to_node.connect_to_peer" do
             addAttribute "peer.id" (show peer.id)
-            addAttribute "peer.host" (show peer.address.host)
-            addAttribute "peer.port" (show peer.address.port)
-            addAttribute "peer.address" (show addr)
-            addEvent "connection_attempt" [("address", show addr)]
+            addAttribute "peer.address" (show peer.address)
 
-            addEvent "creating_snocket" []
-            let connectionTimeout = env.config.nodeToNode.connectionTimeoutSeconds
-            let snocket = withConnectionTimeout connectionTimeout (socketSnocket ioManager)
+            env <- ask @Env
+            nodeToNode <- ask @NodeToNodeConfig
+            let addr = IP.toSockAddr (peer.address.host.getNodeIP, fromIntegral peer.address.port)
+                snocket =
+                    withConnectionTimeout nodeToNode.connectionTimeoutSeconds
+                        $ socketSnocket env.handles.ioManager
+                networkMagic = getNetworkMagic $ env.config.protocolInfo.pInfoConfig.topLevelConfigBlock
+                supportedVersions = Map.toList $ supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
-            -- Load protocol info and create codecs
-            addEvent "loading_protocol_config" []
-            let codecConfig = configCodec (pInfoConfig protocolInfo)
-            let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
+                mkCodecs version blockVersion =
+                    hoistCodecs liftIO
+                        $ defaultCodecs
+                            env.config.protocolInfo.pInfoConfig.topLevelConfigCodec
+                            blockVersion
+                            encodeRemoteAddress
+                            (\v -> decodeRemoteAddress v)
+                            version
 
-            -- Get all supported versions
-            let supportedVersions = supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
-
-            addEvent "creating_codecs" []
-
-            -- Create version data for handshake
-            let versionData =
+                -- Create version data for handshake
+                versionData =
                     NodeToNodeVersionData
                         { networkMagic
                         , diffusionMode = InitiatorOnlyDiffusionMode
-                        , peerSharing = PeerSharingEnabled -- Enable peer sharing
+                        , peerSharing = PeerSharingEnabled
                         , query = False
                         }
 
-            -- Helper function to create application for a specific version
-            let strat = ConcUnlift Persistent Unlimited
-                mkVersionedApp :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
-                mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
-                    let codecs =
-                            hoistCodecs liftIO
-                                $ defaultCodecs
-                                    codecConfig
-                                    blockVersion
-                                    encodeRemoteAddress
-                                    (\v -> decodeRemoteAddress v)
-                                    nodeVersion
-                    in  mkApplication unlift env codecs peer
-
-            -- Create versions for negotiation - offer all supported versions
-            addEvent "creating_protocol_versions" []
-            let
-                mkVersions :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> Eff es (Versions NodeToNodeVersion NodeToNodeVersionData (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void))
-                mkVersions unlift version blockVersion = do
-                    app <- mkVersionedApp unlift version blockVersion
-                    pure
-                        $ simpleSingletonVersions
-                            version
-                            versionData
-                            (\_ -> app)
-
             -- Create versions for all supported protocol versions
-            let
-                versions :: (forall x. Eff es x -> IO x) -> Eff es (Versions NodeToNodeVersion NodeToNodeVersionData (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void))
-                versions unlift = do
-                    vs <-
-                        traverse (uncurry $ mkVersions unlift)
-                            $ Map.toList supportedVersions
-                    pure $ combineVersions vs
+            versions <- withSpan "create_protocol_versions" do
+                vs <-
+                    for supportedVersions \(version, blockVersion) ->
+                        withSpan "create_protocol_version" do
+                            addAttribute "node_to_node_version" $ show version
+                            addAttribute "block_node_to_node_version" $ show blockVersion
 
-            addEvent "codecs_created" []
+                            app <-
+                                withSpan "create_application"
+                                    $ mkApplication (mkCodecs version blockVersion) peer
 
+                            pure
+                                $ simpleSingletonVersions
+                                    version
+                                    versionData
+                                    (\_ -> app)
+                pure $ combineVersions vs
+
+            -- Connect to peer and handle expected exceptions and errors
             flip
                 catches
                 [ Handler $ handleIOException peer
@@ -223,39 +203,31 @@ runNodeToNode =
                 , Handler $ handleHandshakeProtocolError peer
                 , Handler $ handleProtocolLimitFailure peer
                 ]
-                do
-                    -- Connect to the peer
-                    addEvent "initiating_connection" []
-                    adhocTracers <- withEffToIO strat $ \unlift ->
-                        pure
-                            $ nullNetworkConnectTracers
-                                { nctHandshakeTracer = show >$< asTracer unlift "node_to_node.handshake"
-                                }
-                    result <- withEffToIO strat $ \unlift -> do
-                        vs <- unlift $ versions unlift
-                        connectTo
-                            snocket
-                            adhocTracers
-                            vs
-                            Nothing -- No local address binding
-                            addr
+                $ withSpan "connection" do
+                    result <- withEffToIO (ConcUnlift Persistent Unlimited) \unlift -> do
+                        let tracers =
+                                nullNetworkConnectTracers
+                                    { nctHandshakeTracer = show >$< Tracing.asTracer unlift "node_to_node.handshake"
+                                    }
+                        connectTo snocket tracers versions Nothing addr
 
-                    addEvent "connection_returned" []
-
-                    case result of
-                        Left err -> do
-                            let errMsg = "Failed to connect to peer " <> show peer <> ": " <> show err
-                            addEvent "connection_failed" [("error", show err)]
-                            setStatus $ Error errMsg
-                            pure $ ConnectToError errMsg
-                        Right (Left ()) -> do
-                            addEvent "connection_closed" []
-                            setStatus $ Error "Connection closed unexpectedly"
-                            pure $ ConnectToError "Connection closed unexpectedly"
-                        Right (Right v) -> do
-                            -- This can't happen with InitiatorOnly mode
-                            absurd v
+                    handleResult peer result
   where
+    handleResult :: Peer -> Either SomeException (Either () Void) -> Eff es ConnectToError
+    handleResult peer = \case
+        Left err -> do
+            addEvent "connection_failed" [("error", show err)]
+            let errMsg = "Failed to connect to peer " <> show peer <> ": " <> show err
+            setStatus $ Error errMsg
+            pure $ ConnectToError errMsg
+        Right (Left ()) -> do
+            addEvent "connection_closed" []
+            setStatus $ Error "Connection closed unexpectedly"
+            pure $ ConnectToError "Connection closed unexpectedly"
+        Right (Right v) -> do
+            -- This can't happen with InitiatorOnly mode
+            absurd v
+
     handleIOException :: Peer -> IOException -> Eff es ConnectToError
     handleIOException peer e = do
         let errMsg = case e.ioe_type of
@@ -329,6 +301,7 @@ mkApplication
        , Conc :> es
        , Concurrent :> es
        , GenUUID :> es
+       , IOE :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es
@@ -347,20 +320,19 @@ mkApplication
        , Timeout :> es
        , Tracing :> es
        )
-    => (forall x. Eff es x -> IO x)
-    -> Env
-    -> CardanoCodecs
+    => CardanoCodecs
     -> Peer
     -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
-mkApplication unlift _env codecs peer = do
+mkApplication codecs peer = do
     conf <- ask @ProtocolsConfig
-    pure
-        $ OuroborosApplication
-            [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
-            , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
-            , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
-            , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
-            ]
+    withEffToIO (ConcUnlift Persistent Unlimited) \unlift ->
+        pure
+            $ OuroborosApplication
+                [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
+                , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
+                , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+                , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
+                ]
 
 
 --------------------------------------------------------------------------------

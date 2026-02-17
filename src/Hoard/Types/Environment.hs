@@ -36,7 +36,6 @@ import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Quota.Config qualified as Quota
 import Hoard.PeerManager.Config qualified as PeerManager
 
@@ -63,7 +62,6 @@ data Config = Config
     , peerSnapshot :: PeerSnapshotFile
     , peerManager :: PeerManager.Config
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
-    , nodeToNode :: NodeToNode.Config
     , quota :: Quota.Config
     }
 
