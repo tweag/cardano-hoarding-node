@@ -140,6 +140,7 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
                 , peerManager = def
                 , nodeToNode = def
+                , quota = def
                 }
     let handles =
             Handles

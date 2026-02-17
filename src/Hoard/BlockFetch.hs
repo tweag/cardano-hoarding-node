@@ -4,10 +4,13 @@ import Effectful ((:>))
 
 import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchStarted, BlockReceived)
 import Hoard.Component (Component (..), defaultComponent)
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (Peer)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Publishing (Sub)
+import Hoard.Effects.Quota (Quota)
 import Hoard.Effects.Verifier (Verifier)
 
 import Hoard.BlockFetch.Listeners qualified as Listeners
@@ -17,6 +20,7 @@ import Hoard.Effects.Publishing qualified as Sub
 component
     :: ( BlockRepo :> es
        , Metrics :> es
+       , Quota (ID Peer, Int64) :> es
        , Sub BlockBatchCompleted :> es
        , Sub BlockFetchFailed :> es
        , Sub BlockFetchStarted :> es
