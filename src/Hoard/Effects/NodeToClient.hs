@@ -9,8 +9,11 @@ module Hoard.Effects.NodeToClient
     ) where
 
 import Cardano.Api
-    ( ConsensusModeParams (CardanoModeParams)
+    ( AnyCardanoEra (AnyCardanoEra)
+    , ConsensusModeParams (CardanoModeParams)
+    , Convert (convert)
     , EpochSize
+    , Hash (StakePoolKeyHash)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
         ( LocalNodeClientProtocols
@@ -21,13 +24,21 @@ import Cardano.Api
         )
     , LocalNodeConnectInfo (LocalNodeConnectInfo)
     , NetworkId (Mainnet, Testnet)
+    , PoolDistribution (unPoolDistr)
     , QueryInMode (QueryChainPoint)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
     , Target
     , connectToLocalNode
-    , readShelleyGenesisConfig, executeLocalStateQueryExpr, queryPoolDistribution, Hash (StakePoolKeyHash), queryCurrentEra, forEraMaybeEon, AnyCardanoEra (AnyCardanoEra), Convert (convert)
+    , decodePoolDistribution
+    , executeLocalStateQueryExpr
+    , forEraMaybeEon
+    , queryCurrentEra
+    , queryPoolDistribution
+    , readShelleyGenesisConfig
     )
+import Cardano.Api.Experimental (Era)
+import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Control.Concurrent.Chan.Unagi
     ( InChan
     , OutChan
@@ -35,6 +46,7 @@ import Control.Concurrent.Chan.Unagi
     , readChan
     , writeChan
     )
+import Control.Monad.Trans.Except (runExcept)
 import Effectful
     ( Eff
     , Effect
@@ -55,13 +67,21 @@ import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
+import Ouroboros.Consensus.Cardano.Block (Header (HeaderBabbage, HeaderConway, HeaderDijkstra))
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
+import Ouroboros.Consensus.Protocol.Praos (doValidateVRFSignature)
+import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
+import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
+import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
+import Cardano.Ledger.PoolDistr qualified as SL
+import Data.Map.Strict qualified as M
+import Data.Set qualified as S
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Prelude qualified as P
@@ -70,20 +90,10 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
-import Hoard.Types.Cardano (ChainPoint (ChainPoint), CardanoHeader)
+import Hoard.Types.Cardano (CardanoHeader, ChainPoint (ChainPoint))
 import Hoard.Types.Environment (Config (..))
 
 import Hoard.Effects.Log qualified as Log
-import Ouroboros.Consensus.Cardano.Block (Header(HeaderBabbage, HeaderConway, HeaderDijkstra))
-import Ouroboros.Consensus.Shelley.Ledger (Header(ShelleyHeader, shelleyHeaderRaw))
-import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol(protocolHeaderView))
-import Ouroboros.Consensus.Protocol.Praos (doValidateVRFSignature)
-import Control.Monad.Trans.Except (runExcept)
-import qualified Data.Map.Strict as M
-import Cardano.Ledger.Keys (HasKeyRole(coerceKeyRole), hashKey)
-import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView(hvVK))
-import qualified Data.Set as S
-import Cardano.Api.Experimental (Era)
 
 
 data NodeToClient :: Effect where
@@ -146,28 +156,35 @@ runNodeToClient nodeToClient = do
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
                 ValidateVrfSignature header -> withSpan "node_query.validate_vrf_signature" $ do
                     let headerView = case header of
-                                HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                                HeaderConway (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                                HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                                _ -> error "to do"
+                            HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                            HeaderConway (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                            HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
+                            _ -> error "to do"
                         blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
-                    d :: Serialised (PoolDistribution era) <- liftIO . executeLocalStateQueryExpr undefined undefined $ do
-                        AnyCardanoEra era <- fromRight (error "to do") <$> queryCurrentEra
-                        let bb = fromMaybe (error "to do") $ forEraMaybeEon @Era era
-                        -- beo <- (fmap . fmap) (\(AnyCardanoEra a) -> forEraMaybeEon @Era a) $ queryCurrentEra
-                        queryPoolDistribution (convert bb) . Just . S.singleton . StakePoolKeyHash $ blockIssuer
-                    -- copied from https://cardano-api.cardano.intersectmbo.org/cardano-api/src/Cardano.Api.LedgerState.html#currentEpochEligibleLeadershipSlots
-                    -- FUCKED UP HERE:
-                    setSnapshotPoolDistr <-
-                        first LeaderErrDecodePoolDistributionFailure
-                            . fmap (SL.unPoolDistr . unPoolDistr)
-                            $ decodePoolDistribution sbe serPoolDistr
+                    d <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined undefined $ do
+                        AnyCardanoEra e <- fromRight (error "to do") <$> queryCurrentEra
+                        let era = fromMaybe (error "to do") $ forEraMaybeEon @Era e
+                        serPoolDistr <-
+                            fmap (fromRight $ error $ "to do")
+                                $ fmap (fromRight $ error $ "to do")
+                                $ queryPoolDistribution (convert era)
+                                $ Just
+                                $ S.singleton
+                                $ StakePoolKeyHash
+                                $ blockIssuer
+                        pure
+                            $ fromRight (error "to do")
+                            $
+                            -- copied from https://cardano-api.cardano.intersectmbo.org/cardano-api/src/Cardano.Api.LedgerState.html#line-2213
+                            fmap (SL.unPoolDistr . unPoolDistr)
+                            $ decodePoolDistribution (convert era) serPoolDistr
                     let activeSlotsCoeff = undefined 0.05 -- to do. get from config
                         a =
-                            runExcept $
-                                doValidateVRFSignature
+                            runExcept
+                                $ doValidateVRFSignature
                                     undefined -- to do. maybe `slotToNonce` or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
-                                    (M.singleton blockIssuer setSnapshotPoolDistr)
+                                    -- (M.singleton blockIssuer setSnapshotPoolDistr)
+                                    d
                                     activeSlotsCoeff
                                     headerView
                     pure False
