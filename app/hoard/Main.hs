@@ -76,6 +76,7 @@ main =
         . runConfigReader
         . runHandlesReader
         . Monitoring.runConfig
+        . BlockFetch.runConfig
         . runLog
         . runClock
         . runFileSystem
