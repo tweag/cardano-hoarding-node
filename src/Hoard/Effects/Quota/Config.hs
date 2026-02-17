@@ -4,6 +4,7 @@ module Hoard.Effects.Quota.Config
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
+import Data.Time (NominalDiffTime)
 
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -12,10 +13,19 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 data Config = Config
     { maxBlocksPerPeerPerSlot :: !Int
     -- ^ Maximum number of blocks allowed per (peer, slot) pair
+    , entryTtl :: !NominalDiffTime
+    -- ^ Time-to-live for quota entries. After this duration, entries are evicted from the cache.
+    , cleanupInterval :: !NominalDiffTime
+    -- ^ How often the background cleanup thread runs to evict expired entries.
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
 
 
 instance Default Config where
-    def = Config {maxBlocksPerPeerPerSlot = 1}
+    def =
+        Config
+            { maxBlocksPerPeerPerSlot = 1
+            , entryTtl = 12 * 3600 -- 12 hours in seconds
+            , cleanupInterval = 3600 -- 1 hour in seconds
+            }

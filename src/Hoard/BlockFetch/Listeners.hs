@@ -68,6 +68,7 @@ blockReceived event = withSpan "block_received" $ do
                         BlockRepo.insertBlocks [validBlock]
                         addEvent "block_persisted" [("hash", show block.hash)]
                     FirstOverflow -> do
+                        -- TODO: Mark the block as equivocating
                         addAttribute "quota.exceeded" "true"
                         addEvent
                             "quota_exceeded_first"
