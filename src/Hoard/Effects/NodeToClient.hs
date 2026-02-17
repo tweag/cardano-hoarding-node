@@ -79,8 +79,7 @@ import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProt
 import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
-import Cardano.Ledger.PoolDistr qualified as SL
-import Data.Map.Strict qualified as M
+import Cardano.Ledger.State qualified as SL
 import Data.Set qualified as S
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
@@ -162,22 +161,21 @@ runNodeToClient nodeToClient = do
                             _ -> error "to do"
                         blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
                     poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined undefined $ do
+                        -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
                         AnyCardanoEra e <- fromRight (error "to do") <$> queryCurrentEra
                         let era = fromMaybe (error "to do") $ forEraMaybeEon @Era e
-                        serPoolDistr <-
-                            fmap (fromRight $ error $ "to do")
-                                $ fmap (fromRight $ error $ "to do")
-                                $ queryPoolDistribution (convert era)
-                                $ Just
-                                $ S.singleton
-                                $ StakePoolKeyHash
-                                $ blockIssuer
-                        pure
-                            $ fromRight (error "to do")
-                            $
-                            -- copied from https://cardano-api.cardano.intersectmbo.org/cardano-api/src/Cardano.Api.LedgerState.html#line-2213
-                            fmap (SL.unPoolDistr . unPoolDistr)
-                            $ decodePoolDistribution (convert era) serPoolDistr
+                        fmap SL.unPoolDistr
+                            $ fmap unPoolDistr
+                            $ fmap (fromRight $ error $ "to do")
+                            $ fmap (decodePoolDistribution $ convert era)
+                            $ fmap (fromRight $ error $ "to do")
+                            $ fmap (fromRight $ error $ "to do")
+                            -- to do. `Q.SendMsgQuery QueryPoolDistribution` using the existing connection instead of `queryPoolDistribution`.
+                            $ queryPoolDistribution (convert era)
+                            $ Just
+                            $ S.singleton
+                            $ StakePoolKeyHash
+                            $ blockIssuer
                     let activeSlotsCoeff = undefined 0.05 -- to do. get from config
                     pure
                         $ isRight
