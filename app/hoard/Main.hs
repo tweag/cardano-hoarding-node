@@ -46,14 +46,13 @@ import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersRec
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.ChainSync qualified as ChainSync
 import Hoard.Core qualified as Core
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode.Config
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
-import Hoard.PeerSharing qualified as PeerSharing
+import Hoard.Persistence qualified as Persistence
 import Hoard.Server qualified as Server
 
 
@@ -118,9 +117,7 @@ main =
             runSystem
                 [ Core.component
                 , Server.component
-                , PeerSharing.component
-                , ChainSync.component
-                , BlockFetch.component
+                , Persistence.component
                 , OrphanDetection.component
                 , Monitoring.component
                 , PeerManager.component

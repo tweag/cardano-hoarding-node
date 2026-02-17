@@ -19,9 +19,7 @@ library
       Hoard.API.Violations
       Hoard.BlockFetch
       Hoard.Bootstrap
-      Hoard.ChainSync
       Hoard.ChainSync.Events
-      Hoard.ChainSync.Listeners
       Hoard.Collector
       Hoard.Component
       Hoard.Control.Exception
@@ -87,9 +85,8 @@ library
       Hoard.PeerManager
       Hoard.PeerManager.Config
       Hoard.PeerManager.Peers
-      Hoard.PeerSharing
       Hoard.PeerSharing.Events
-      Hoard.PeerSharing.Listeners
+      Hoard.Persistence
       Hoard.Server
       Hoard.Setup
       Hoard.Triggers

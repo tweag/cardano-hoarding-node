@@ -21,7 +21,7 @@ import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
@@ -30,12 +30,11 @@ import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatche
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.NodeToNode.KeepAlive (KeepAlivePing (..))
-import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
-import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
 
 import Hoard.BlockFetch qualified as BlockFetch
@@ -71,7 +70,6 @@ component
        , Sub KeepAlivePing :> es
        , Sub PeerDisconnected :> es
        , Sub PeerRequested :> es
-       , Sub PeersReceived :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -86,7 +84,6 @@ component =
         , listeners =
             pure
                 [ Sub.listen updatePeerConnectionState
-                , Sub.listen persistReceivedPeers
                 , Sub.listen cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen replenishCollectors
@@ -135,19 +132,6 @@ updatePeerConnectionState event =
         $ Peers
             . Map.adjust (\c -> c {state = Connected}) event.peer.id
             . (.peers)
-
-
--- | Processes PeersReceived events and upserts the peer information into
--- the database.
-persistReceivedPeers :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
-persistReceivedPeers event = withSpan "persist_received_peers" do
-    addAttribute "peers.count" (show $ length event.peerAddresses)
-    addAttribute "source.peer" (show event.peer.address)
-    addEvent "persisting_peers" [("count", show $ length event.peerAddresses)]
-    forM_ event.peerAddresses $ \addr ->
-        addEvent "peer_address" [("host", show addr.host), ("port", show addr.port)]
-    void $ upsertPeers event.peerAddresses event.peer.address event.timestamp
-    addEvent "peers_persisted" []
 
 
 cullOldCollectors

@@ -32,6 +32,8 @@ import Hoard.ChainSync.Events
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
@@ -45,6 +47,7 @@ import Hoard.Effects.Clock qualified as Clock
 miniProtocol
     :: forall es
      . ( Clock :> es
+       , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
@@ -85,6 +88,7 @@ miniProtocol conf unlift codecs peer =
 client
     :: forall es
      . ( Clock :> es
+       , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
@@ -137,6 +141,7 @@ client unlift peer =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                recordChainSyncRollforward
                 timestamp <- Clock.currentTime
                 let event =
                         HeaderReceived
@@ -148,6 +153,7 @@ client unlift peer =
                 publish event
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                recordChainSyncRollback
                 addEvent "rollback" [("point", show point), ("tip", show tip)]
                 timestamp <- Clock.currentTime
                 publish
@@ -160,6 +166,7 @@ client unlift peer =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                    recordChainSyncRollforward
                     timestamp <- Clock.currentTime
                     publish
                         $ HeaderReceived
@@ -170,6 +177,7 @@ client unlift peer =
                             }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                    recordChainSyncRollback
                     addEvent "rollback_after_await" [("point", show point), ("tip", show tip)]
                     timestamp <- Clock.currentTime
                     publish

@@ -66,6 +66,7 @@ import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, asTracer, setStatus, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
@@ -118,6 +119,7 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
+       , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es
        , Pub BlockFetch.RequestFailed :> es
@@ -324,6 +326,7 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es
        , Pub BlockFetch.RequestFailed :> es

@@ -36,6 +36,8 @@ import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
@@ -52,6 +54,7 @@ miniProtocol
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Metrics :> es
        , Pub BatchCompleted :> es
        , Pub BlockReceived :> es
        , Pub RequestFailed :> es
@@ -89,6 +92,7 @@ client
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Metrics :> es
        , Pub BatchCompleted :> es
        , Pub BlockReceived :> es
        , Pub RequestFailed :> es
@@ -134,6 +138,7 @@ client unlift cfg peer =
             { handleStartBatch =
                 pure $ blockReceiver 0
             , handleNoBlocks = unlift $ do
+                recordBlockFetchFailure
                 addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
