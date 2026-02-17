@@ -30,17 +30,17 @@ spec_Quota = do
                 pure statuses
             result `shouldBe` [Accepted, Accepted, Accepted]
 
-        it "first message exceeding quota is FirstOverflow" do
+        it "first message exceeding quota is Overflow 1" do
             result <- runQuotaTest 2 $ do
                 statuses <- traverse (const checkStatus) [1 .. 3 :: Int]
                 pure statuses
-            result `shouldBe` [Accepted, Accepted, FirstOverflow]
+            result `shouldBe` [Accepted, Accepted, Overflow 1]
 
-        it "subsequent messages after FirstOverflow are SubsequentOverflow" do
+        it "subsequent messages increment the overflow count" do
             result <- runQuotaTest 2 $ do
                 statuses <- traverse (const checkStatus) [1 .. 5 :: Int]
                 pure statuses
-            result `shouldBe` [Accepted, Accepted, FirstOverflow, SubsequentOverflow, SubsequentOverflow]
+            result `shouldBe` [Accepted, Accepted, Overflow 1, Overflow 2, Overflow 3]
 
         it "count is accurate after multiple checks" do
             result <- runQuotaTest 3 $ do
@@ -56,8 +56,8 @@ spec_Quota = do
                 key2Statuses <- traverse (const $ checkStatusForKey @Int 2) [1 .. 3 :: Int]
                 pure (key1Statuses, key2Statuses)
             result
-                `shouldBe` ( [Accepted, Accepted, FirstOverflow]
-                           , [Accepted, Accepted, FirstOverflow]
+                `shouldBe` ( [Accepted, Accepted, Overflow 1]
+                           , [Accepted, Accepted, Overflow 1]
                            )
 
         it "one key at quota doesn't affect other keys" do
@@ -84,11 +84,11 @@ spec_Quota = do
                 pure finalCount
             result `shouldBe` 51
 
-        it "exactly one thread gets FirstOverflow" do
+        it "exactly one thread gets Overflow 1" do
             result <- runQuotaTest 5 $ do
                 -- Run 10 concurrent checks (5 within quota, 5 overflow)
                 statuses <- mapConcurrently (const checkStatus) [1 .. 10 :: Int]
-                let firstOverflowCount = length $ filter (== FirstOverflow) statuses
+                let firstOverflowCount = length $ filter (== Overflow 1) statuses
                 pure firstOverflowCount
             result `shouldBe` 1
 
@@ -98,7 +98,7 @@ spec_Quota = do
                     mapConcurrently
                         (\i -> traverse (const $ checkStatusForKey @Int i) [1 .. 3 :: Int])
                         [1 .. 5 :: Int]
-                pure $ fmap (filter (== FirstOverflow)) results
+                pure $ fmap (filter (== Overflow 1)) results
             all (\overflows -> length overflows == 1) result `shouldBe` True
 
     describe "Edge Cases" do
@@ -106,20 +106,20 @@ spec_Quota = do
             result <- runQuotaTest 0 $ do
                 statuses <- traverse (const checkStatus) [1 .. 3 :: Int]
                 pure statuses
-            result `shouldBe` [FirstOverflow, SubsequentOverflow, SubsequentOverflow]
+            result `shouldBe` [Overflow 1, Overflow 2, Overflow 3]
 
         it "quota of 1 allows one message then overflows" do
             result <- runQuotaTest 1 $ do
                 statuses <- traverse (const checkStatus) [1 .. 3 :: Int]
                 pure statuses
-            result `shouldBe` [Accepted, FirstOverflow, SubsequentOverflow]
+            result `shouldBe` [Accepted, Overflow 1, Overflow 2]
 
         it "large quota values work correctly" do
             result <- runQuotaTest 1000 $ do
                 _ <- traverse (const checkStatus) [1 .. 999 :: Int]
                 lastThree <- traverse (const checkStatus) [1 .. 3 :: Int]
                 pure lastThree
-            result `shouldBe` [Accepted, FirstOverflow, SubsequentOverflow]
+            result `shouldBe` [Accepted, Overflow 1, Overflow 2]
 
         it "interleaved key access works correctly" do
             result <- runQuotaTest 2 $ do
@@ -130,8 +130,8 @@ spec_Quota = do
                 s5 <- checkStatusForKey @Int 1
                 pure [s1, s2, s3, s4, s5]
             -- Pattern: A, B, A, B, A
-            -- Expected: Accepted(1), Accepted(2), Accepted(1), Accepted(2), FirstOverflow(1)
-            result `shouldBe` [Accepted, Accepted, Accepted, Accepted, FirstOverflow]
+            -- Expected: Accepted(1), Accepted(2), Accepted(1), Accepted(2), Overflow 1(key 1)
+            result `shouldBe` [Accepted, Accepted, Accepted, Accepted, Overflow 1]
 
     describe "Action Execution" do
         it "continuation is called with correct count and status" do
@@ -147,8 +147,8 @@ spec_Quota = do
             result
                 `shouldBe` [ (1, Accepted)
                            , (2, Accepted)
-                           , (3, FirstOverflow)
-                           , (4, SubsequentOverflow)
+                           , (3, Overflow 1)
+                           , (4, Overflow 2)
                            ]
 
         it "continuation with side effects executes correctly" do
@@ -163,7 +163,7 @@ spec_Quota = do
                         )
                         [1 .. 3 :: Int]
                 liftIO $ reverse <$> IORef.readIORef ref
-            result `shouldBe` [(1, Accepted), (2, Accepted), (3, FirstOverflow)]
+            result `shouldBe` [(1, Accepted), (2, Accepted), (3, Overflow 1)]
 
 
 --------------------------------------------------------------------------------
@@ -178,8 +178,8 @@ runQuotaTest maxMessages action =
         . runTracingNoOp
         . runConc
         . runClock
-        . runReader (Config {maxBlocksPerPeerPerSlot = maxMessages, entryTtl = 3600, cleanupInterval = 3600})
-        . runQuota @Int
+        . runReader (Config {entryTtl = 3600, cleanupInterval = 3600})
+        . runQuota @Int maxMessages
         $ action
 
 

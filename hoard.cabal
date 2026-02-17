@@ -164,6 +164,7 @@ library
     , http-types
     , iproute
     , ki
+    , list-t
     , network
     , network-mux
     , network-uri
@@ -183,6 +184,7 @@ library
     , serialise
     , servant
     , servant-server
+    , stm-containers
     , string-conversions
     , text
     , time
@@ -260,6 +262,7 @@ executable hoard-exe
     , http-types
     , iproute
     , ki
+    , list-t
     , network
     , network-mux
     , network-uri
@@ -279,6 +282,7 @@ executable hoard-exe
     , serialise
     , servant
     , servant-server
+    , stm-containers
     , string-conversions
     , text
     , time
@@ -377,6 +381,7 @@ test-suite hoard-test
     , http-types
     , iproute
     , ki
+    , list-t
     , network
     , network-mux
     , network-uri
@@ -403,6 +408,7 @@ test-suite hoard-test
     , servant-client
     , servant-client-core
     , servant-server
+    , stm-containers
     , string-conversions
     , tasty
     , tasty-discover

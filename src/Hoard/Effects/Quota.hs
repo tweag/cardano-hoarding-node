@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- | Quota tracking effect for message limits
 --
 -- Tracks the total number of messages per key, enforcing a hard limit on
@@ -20,10 +18,10 @@
 --     withQuotaCheck key $ \\count status -> do
 --         case status of
 --             Accepted -> insertBlock block
---             FirstOverflow -> do
+--             Overflow 1 -> do
 --                 warn $ "Peer " <> show block.peerId <> " exceeded quota at slot " <> show block.slotNumber
 --                 markPeerAsSpam block.peerId
---             SubsequentOverflow ->
+--             Overflow _ ->
 --                 debug $ "Additional spam from " <> show block.peerId <> " (count: " <> show count <> ")"
 -- @
 module Hoard.Effects.Quota
@@ -45,14 +43,16 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
-import Prelude hiding (Reader, ask)
+import StmContainers.Map (Map)
+import Prelude hiding (Map, Reader, ask)
 
-import Data.HashMap.Strict qualified as HashMap
 import Effectful.Concurrent.STM qualified as STM
+import ListT qualified
+import StmContainers.Map qualified as Map
 
 import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.Quota.Config
 
 import Hoard.Effects.Conc qualified as Conc
@@ -60,16 +60,14 @@ import Hoard.Effects.Conc qualified as Conc
 
 -- | Status of a message with respect to quota limits
 --
--- 'FirstOverflow' and 'SubsequentOverflow' are distinct so that callers can
--- react differently to the first violation (e.g. log a warning, flag the peer)
--- without having to manually compare the count against the configured limit.
+-- The 'Int' in 'Overflow' is a count of how many times this key has
+-- exceeded its quota, so callers can pattern match on @Overflow 1@ to react
+-- specifically to the first violation without comparing counts manually.
 data MessageStatus
     = -- | Message is within quota limits
       Accepted
-    | -- | First message exceeding the quota
-      FirstOverflow
-    | -- | Subsequent messages after quota was exceeded
-      SubsequentOverflow
+    | -- | Message exceeds quota; the 'Int' is the number of overflows so far
+      Overflow Int
     deriving stock (Eq, Show)
 
 
@@ -96,10 +94,6 @@ data QuotaState = QuotaState
     deriving stock (Show)
 
 
--- | Global quota store: map from keys to per-key state
-type QuotaStore key = HashMap.HashMap key (TVar QuotaState)
-
-
 -- | Run the Quota effect with in-memory STM-based tracking
 --
 -- Reads quota configuration from the environment.
@@ -107,99 +101,80 @@ type QuotaStore key = HashMap.HashMap key (TVar QuotaState)
 runQuota
     :: forall key es a
      . (Clock :> es, Conc :> es, Concurrent :> es, Hashable key, Reader Config :> es, Show key, Tracing :> es)
-    => Eff (Quota key : es) a
+    => Int
+    -- ^ Maximum number of messages allowed per key
+    -> Eff (Quota key : es) a
     -> Eff es a
-runQuota action = do
+runQuota maxMessages action = do
     quotaConfig <- ask @Config
-    let maxMessages = quotaConfig.maxBlocksPerPeerPerSlot
-        ttl = quotaConfig.entryTtl
+    let ttl = quotaConfig.entryTtl
         intervalMicros = round (realToFrac quotaConfig.cleanupInterval * 1_000_000 :: Double)
 
-    store :: TVar (QuotaStore key) <- STM.newTVarIO HashMap.empty
+    store <- STM.atomically Map.new
 
     Conc.fork_ $ forever $ do
         threadDelay intervalMicros
         now <- currentTime
         evicted <- STM.atomically $ evictExpiredEntries store ttl now
         when (evicted > 0)
-            $ addEvent "quota_cleanup" [("evicted", show evicted)]
+            $ addEvent "quota_cleanup" [("evicted.count", show evicted)]
 
     interpretWith action $ \env -> \case
-        WithQuotaCheck key continuation -> localSeqUnlift env $ \unlift -> do
-            now <- currentTime
-            (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
+        WithQuotaCheck key continuation -> localSeqUnlift env $ \unlift ->
+            withSpan "quota_check" $ do
+                now <- currentTime
+                (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
 
-            case status of
-                Accepted -> do
-                    addAttribute "quota.status" "accepted"
-                    addEvent "quota_check" [("key", show key), ("count", show count), ("status", "accepted")]
-                FirstOverflow -> do
-                    addAttribute "quota.status" "first_overflow"
-                    addEvent "quota_exceeded" [("key", show key), ("count", show count), ("limit", show maxMessages)]
-                SubsequentOverflow -> do
-                    addAttribute "quota.status" "subsequent_overflow"
-                    addEvent "quota_overflow_continued" [("key", show key), ("count", show count)]
+                case status of
+                    Accepted -> do
+                        addAttribute "quota.status" "accepted"
+                        addEvent "quota_check" [("key", show key), ("count", show count), ("status", "accepted")]
+                    Overflow n -> do
+                        addAttribute "quota.status" "overflow"
+                        addEvent "quota_exceeded" [("key", show key), ("overflow_count", show n), ("limit", show maxMessages)]
 
-            unlift $ continuation count status
+                unlift $ continuation count status
 
 
 -- | Atomically check and update quota state for a key
 checkAndUpdate
     :: (Hashable key)
-    => TVar (QuotaStore key)
+    => Map key QuotaState
     -> Int
     -> UTCTime
     -> key
     -> STM (Int, MessageStatus)
-checkAndUpdate storeVar maxMessages now key = do
-    store <- STM.readTVar storeVar
+checkAndUpdate store maxMessages now key = do
+    mst <- Map.lookup key store
 
-    stateVar <- case HashMap.lookup key store of
-        Just var -> pure var
-        Nothing -> do
-            var <- STM.newTVar QuotaState {messageCount = 0, createdAt = now}
-            STM.writeTVar storeVar (HashMap.insert key var store)
-            pure var
+    let newState = case mst of
+            Nothing -> QuotaState {messageCount = 1, createdAt = now}
+            Just st -> st {messageCount = st.messageCount + 1}
 
-    currentState <- STM.readTVar stateVar
-    let newCount = currentState.messageCount + 1
+        newCount = newState.messageCount
+
         status
             | newCount <= maxMessages = Accepted
-            | newCount == maxMessages + 1 = FirstOverflow
-            | otherwise = SubsequentOverflow
+            | otherwise = Overflow (newCount - maxMessages)
 
-        newState =
-            QuotaState
-                { messageCount = newCount
-                , createdAt = currentState.createdAt
-                }
-
-    STM.writeTVar stateVar newState
+    Map.insert newState key store
     pure (newCount, status)
 
 
 -- | Remove all entries whose TTL has expired. Returns the number of evicted entries.
 evictExpiredEntries
     :: (Hashable key)
-    => TVar (QuotaStore key)
+    => Map key QuotaState
     -> NominalDiffTime
     -> UTCTime
     -> STM Int
-evictExpiredEntries storeVar ttl now = do
-    store <- STM.readTVar storeVar
-    (live, evicted) <- partitionM (isAlive . snd) (HashMap.toList store)
-    STM.writeTVar storeVar (HashMap.fromList live)
-    pure (length evicted)
-  where
-    isAlive stateVar = do
-        st <- STM.readTVar stateVar
-        pure (now < addUTCTime ttl st.createdAt)
-
-    -- Partition a list of monadic predicates into (passing, failing).
-    partitionM :: (Monad m) => (a -> m Bool) -> [a] -> m ([a], [a])
-    partitionM p = foldr go (pure ([], []))
-      where
-        go x acc = do
-            (yes, no) <- acc
-            b <- p x
-            pure if b then (x : yes, no) else (yes, x : no)
+evictExpiredEntries store ttl now = do
+    ListT.fold
+        ( \count (k, v) ->
+            if now >= addUTCTime ttl v.createdAt then
+                Map.delete k store $> count + 1
+            else
+                pure count
+        )
+        0
+        $ Map.listT store

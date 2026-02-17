@@ -11,9 +11,7 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 
 -- | Configuration for quota tracking
 data Config = Config
-    { maxBlocksPerPeerPerSlot :: !Int
-    -- ^ Maximum number of blocks allowed per (peer, slot) pair
-    , entryTtl :: !NominalDiffTime
+    { entryTtl :: !NominalDiffTime
     -- ^ Time-to-live for quota entries. After this duration, entries are evicted from the cache.
     , cleanupInterval :: !NominalDiffTime
     -- ^ How often the background cleanup thread runs to evict expired entries.
@@ -25,7 +23,6 @@ data Config = Config
 instance Default Config where
     def =
         Config
-            { maxBlocksPerPeerPerSlot = 1
-            , entryTtl = 12 * 3600 -- 12 hours in seconds
+            { entryTtl = 12 * 3600 -- 12 hours in seconds
             , cleanupInterval = 3600 -- 1 hour in seconds
             }

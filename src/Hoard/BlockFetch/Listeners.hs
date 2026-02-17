@@ -53,6 +53,8 @@ blockReceived event = withSpan "block_received" $ do
     addEvent "block_received" [("slot", show block.slotNumber), ("hash", show block.hash)]
     addAttribute "block.hash" (show block.hash)
     addAttribute "block.slot" (show block.slotNumber)
+    addAttribute "peer.id" (show event.peer.id)
+    addEvent "block_received" [("slot", show block.slotNumber), ("hash", show block.hash), ("peer_address", show event.peer.address)]
 
     verifyBlock block >>= \case
         Left _invalidBlock ->
@@ -67,16 +69,16 @@ blockReceived event = withSpan "block_received" $ do
                         recordBlockReceived
                         BlockRepo.insertBlocks [validBlock]
                         addEvent "block_persisted" [("hash", show block.hash)]
-                    FirstOverflow -> do
-                        -- TODO: Mark the block as equivocating
+                    Overflow 1 -> do
                         addAttribute "quota.exceeded" "true"
+                        -- TODO: Mark the block as equivocating
                         addEvent
                             "quota_exceeded_first"
                             [ ("peer_id", show event.peer.id)
                             , ("slot", show block.slotNumber)
                             , ("count", show count)
                             ]
-                    SubsequentOverflow -> do
+                    Overflow _ -> do
                         addAttribute "quota.overflow" "true"
                         addEvent
                             "quota_overflow"

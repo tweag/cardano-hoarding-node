@@ -39,8 +39,8 @@ import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
-import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.Quota (runQuota)
+import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
 import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
@@ -89,7 +89,7 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . runTracingFromConfig
-        . runQuota @(ID Peer, Int64)
+        . runQuota @(ID Peer, Int64) 1
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound
         . runPubSub @RollBackward
