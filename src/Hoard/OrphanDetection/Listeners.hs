@@ -14,7 +14,6 @@ import Prelude hiding (State, gets, modify)
 
 import Data.Set qualified as Set
 
-import Hoard.BlockFetch.Events (BlockReceived (..))
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Effects.BlockRepo (BlockRepo)
@@ -26,6 +25,7 @@ import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.HoardState (HoardState (..))
 
+import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.NodeToClient qualified as NodeToClient
 import Hoard.Types.Cardano qualified as Hoard
@@ -90,7 +90,7 @@ blockReceivedClassifier
        , State HoardState :> es
        , Tracing :> es
        )
-    => BlockReceived
+    => BlockFetch.BlockReceived
     -> Eff es ()
 blockReceivedClassifier event = do
     let blockSlotNumber = fromIntegral $ unSlotNo $ blockSlot event.block :: Int64

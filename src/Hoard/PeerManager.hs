@@ -16,7 +16,6 @@ import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Hoard.BlockFetch.Events (BlockFetchRequest)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), defaultComponent)
@@ -39,6 +38,7 @@ import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..
 import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
 
+import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
@@ -59,7 +59,7 @@ component
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub CullRequested :> es
        , Pub PeerDisconnected :> es
        , Pub PeerRequested :> es
@@ -191,7 +191,7 @@ replenishCollectors
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub PeerDisconnected :> es
        , Reader Config :> es
        , State Peers :> es
@@ -234,7 +234,7 @@ bracketCollector
        , Concurrent :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub PeerDisconnected :> es
        , State Peers :> es
        , Sub ChainSync.HeaderReceived :> es

@@ -5,7 +5,7 @@ import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.State.Static.Shared (State)
 import Prelude hiding (State)
 
-import Hoard.BlockFetch.Events (BlockReceived)
+import Hoard.BlockFetch (BlockReceived)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)

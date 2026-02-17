@@ -61,7 +61,6 @@ import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
 import System.Timeout qualified as Timeout
 
-import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchRequest, BlockFetchStarted, BlockReceived)
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
@@ -79,7 +78,6 @@ import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
 import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
 import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
@@ -119,10 +117,10 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockReceived :> es
+       , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BlockReceived :> es
+       , Pub BlockFetch.RequestFailed :> es
+       , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -133,7 +131,7 @@ runNodeToNode
        , Reader BlockFetch.Config :> es
        , Reader Env :> es
        , State HoardState :> es
-       , Sub BlockFetchRequest :> es
+       , Sub BlockFetch.Request :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -325,10 +323,10 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockReceived :> es
+       , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BlockReceived :> es
+       , Pub BlockFetch.RequestFailed :> es
+       , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -338,7 +336,7 @@ mkApplication
        , Pub RollBackward :> es
        , Reader BlockFetch.Config :> es
        , State HoardState :> es
-       , Sub BlockFetchRequest :> es
+       , Sub BlockFetch.Request :> es
        , Timeout :> es
        , Tracing :> es
        )

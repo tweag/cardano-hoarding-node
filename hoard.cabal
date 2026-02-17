@@ -18,9 +18,6 @@ library
       Hoard.API
       Hoard.API.Violations
       Hoard.BlockFetch
-      Hoard.BlockFetch.Events
-      Hoard.BlockFetch.Listeners
-      Hoard.BlockFetch.NodeToNode
       Hoard.Bootstrap
       Hoard.ChainSync
       Hoard.ChainSync.Config

@@ -9,13 +9,6 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
-import Hoard.BlockFetch.Events
-    ( BlockBatchCompleted
-    , BlockFetchFailed
-    , BlockFetchRequest
-    , BlockFetchStarted
-    , BlockReceived
-    )
 import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
@@ -96,11 +89,11 @@ main =
         . runPubSub @RollBackward
         . runPubSub @RollForward
         . runPubSub @HeaderReceived
-        . runPubSub @BlockFetchStarted
-        . runPubSub @BlockFetchRequest
-        . runPubSub @BlockReceived
-        . runPubSub @BlockBatchCompleted
-        . runPubSub @BlockFetchFailed
+        . runPubSub @BlockFetch.RequestStarted
+        . runPubSub @BlockFetch.Request
+        . runPubSub @BlockFetch.BlockReceived
+        . runPubSub @BlockFetch.BatchCompleted
+        . runPubSub @BlockFetch.RequestFailed
         . runPubSub @PeerSharingStarted
         . runPubSub @PeersReceived
         . runPubSub @PeerSharingFailed
