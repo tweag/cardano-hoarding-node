@@ -19,6 +19,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
+import Hoard.Effects.Verifier (Verifier, getVerified, verifyCardanoHeader)
 import Hoard.PeerManager.Peers (Connection (..), awaitTermination, signalTermination)
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
@@ -33,6 +34,7 @@ collectFromPeer
        , Pub BlockFetchRequest :> es
        , Sub HeaderReceived :> es
        , Tracing :> es
+       , Verifier :> es
        )
     => Peer
     -> Connection
@@ -69,24 +71,30 @@ pickBlockFetchRequest
     :: ( BlockRepo :> es
        , Pub BlockFetchRequest :> es
        , Tracing :> es
+       , Verifier :> es
        )
     => ID Peer
     -> HeaderReceived
     -> Eff es ()
 pickBlockFetchRequest myPeerId event =
-    unless (event.peer.id /= myPeerId) do
-        let hash = blockHashFromHeader event.header
-            slot = unSlotNo $ blockSlot event.header
+    unless (event.peer.id /= myPeerId)
+        $ verifyCardanoHeader event.header >>= \case
+            Left _invalidHeader -> do
+                addEvent "collector_invalid_header" [("hash", show $ blockHashFromHeader event.header)]
+            Right validHeader -> do
+                let header = getVerified validHeader
+                    hash = blockHashFromHeader header
+                    slot = unSlotNo $ blockSlot header
 
-        exists <- BlockRepo.blockExists hash
+                exists <- BlockRepo.blockExists hash
 
-        unless exists $ withSpan "request_block_fetch" $ do
-            addAttribute "slot" (show slot)
-            addAttribute "hash" (show hash)
-            addAttribute "peer.id" (show event.peer.id)
-            publish
-                BlockFetchRequest
-                    { timestamp = event.timestamp
-                    , header = event.header
-                    , peer = event.peer
-                    }
+                unless exists $ withSpan "request_block_fetch" $ do
+                    addAttribute "slot" (show slot)
+                    addAttribute "hash" (show hash)
+                    addAttribute "peer.id" (show event.peer.id)
+                    publish
+                        BlockFetchRequest
+                            { timestamp = event.timestamp
+                            , peer = event.peer
+                            , header
+                            }
