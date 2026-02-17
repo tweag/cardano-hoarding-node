@@ -1,4 +1,4 @@
-module Hoard.PeerSharing.Events
+module Hoard.Events.PeerSharing
     ( PeerSharingStarted (..)
     , PeersReceived (..)
     , PeerSharingFailed (..)

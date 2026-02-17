@@ -27,7 +27,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
 import Hoard.Effects.NodeToNode.Config (PeerSharingConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.PeerSharing.Events (PeerSharingStarted (..), PeersReceived (..))
+import Hoard.Events.PeerSharing (PeerSharingStarted (..), PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock

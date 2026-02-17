@@ -17,9 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Violations
-      Hoard.BlockFetch
       Hoard.Bootstrap
-      Hoard.ChainSync.Events
       Hoard.Collector
       Hoard.Component
       Hoard.Control.Exception
@@ -72,20 +70,21 @@ library
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events
+      Hoard.Events.BlockFetch
+      Hoard.Events.ChainSync
       Hoard.Events.ImmutableTipRefreshTriggered
-      Hoard.Events.Node
+      Hoard.Events.Network
+      Hoard.Events.PeerSharing
       Hoard.Listeners
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
-      Hoard.Network.Events
       Hoard.OrphanDetection
       Hoard.OrphanDetection.Data
       Hoard.OrphanDetection.Listeners
       Hoard.PeerManager
       Hoard.PeerManager.Config
       Hoard.PeerManager.Peers
-      Hoard.PeerSharing.Events
       Hoard.Persistence
       Hoard.Server
       Hoard.Setup

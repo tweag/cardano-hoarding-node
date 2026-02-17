@@ -5,8 +5,6 @@ import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlotNo)
 import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
-import Hoard.BlockFetch (BlockReceived (..))
-import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
@@ -23,7 +21,9 @@ import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Quota (MessageStatus (..), Quota)
 import Hoard.Effects.Verifier (Verifier, verifyBlock)
-import Hoard.PeerSharing.Events (PeersReceived (..))
+import Hoard.Events.BlockFetch (BlockReceived (..))
+import Hoard.Events.ChainSync (HeaderReceived (..))
+import Hoard.Events.PeerSharing (PeersReceived (..))
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo

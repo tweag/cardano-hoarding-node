@@ -1,4 +1,4 @@
-module Hoard.ChainSync.Events
+module Hoard.Events.ChainSync
     ( ChainSyncStarted (..)
     , HeaderReceived (..)
     , RollBackward (..)

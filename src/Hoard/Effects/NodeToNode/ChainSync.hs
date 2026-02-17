@@ -23,12 +23,6 @@ import Prelude hiding (Reader, State, ask, gets, runReader)
 import Data.List qualified as List
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 
-import Hoard.ChainSync.Events
-    ( ChainSyncIntersectionFound (..)
-    , ChainSyncStarted (..)
-    , HeaderReceived (..)
-    , RollBackward (..)
-    )
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
@@ -37,6 +31,12 @@ import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, re
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
 import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Events.ChainSync
+    ( ChainSyncIntersectionFound (..)
+    , ChainSyncStarted (..)
+    , HeaderReceived (..)
+    , RollBackward (..)
+    )
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 

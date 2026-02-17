@@ -24,13 +24,6 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 
-import Hoard.BlockFetch
-    ( BatchCompleted (..)
-    , BlockReceived (..)
-    , Request (..)
-    , RequestFailed (..)
-    , RequestStarted (..)
-    )
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
@@ -41,6 +34,13 @@ import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
+import Hoard.Events.BlockFetch
+    ( BatchCompleted (..)
+    , BlockReceived (..)
+    , Request (..)
+    , RequestFailed (..)
+    , RequestStarted (..)
+    )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
 import Hoard.Effects.Chan qualified as Chan

@@ -1,6 +1,5 @@
-module Hoard.BlockFetch
-    ( -- * Events
-      Request (..)
+module Hoard.Events.BlockFetch
+    ( Request (..)
     , RequestStarted (..)
     , BlockReceived (..)
     , RequestFailed (..)

@@ -9,7 +9,6 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
-import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Data.ID (ID)
@@ -36,19 +35,20 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Quota (runQuota)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
+import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
+import Hoard.Events.Network (ProtocolError)
+import Hoard.Events.PeerSharing (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.Monitoring (Poll)
-import Hoard.Network.Events (ProtocolError)
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
-import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Types.HoardState (HoardState)
 
-import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.Core qualified as Core
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode.Config
+import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager

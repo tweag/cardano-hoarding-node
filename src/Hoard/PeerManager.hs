@@ -37,12 +37,12 @@ import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Triggers (every)
 
-import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Types.Environment qualified as Env
 
 

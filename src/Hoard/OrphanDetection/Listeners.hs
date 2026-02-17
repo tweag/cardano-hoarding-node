@@ -25,9 +25,9 @@ import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.HoardState (HoardState (..))
 
-import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.NodeToClient qualified as NodeToClient
+import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Types.Cardano qualified as Hoard
 
 

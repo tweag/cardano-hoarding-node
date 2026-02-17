@@ -61,7 +61,6 @@ import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
 import System.Timeout qualified as Timeout
 
-import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
@@ -72,18 +71,19 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
 import Hoard.Effects.NodeToNode.KeepAlive (KeepAlivePing)
 import Hoard.Effects.Publishing (Pub, Sub)
-import Hoard.PeerSharing.Events (PeerSharingStarted, PeersReceived)
+import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
+import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.Environment (Env)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
-import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Effects.NodeToNode.BlockFetch qualified as NodeToNode.BlockFetch
 import Hoard.Effects.NodeToNode.ChainSync qualified as NodeToNode.ChainSync
 import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive
 import Hoard.Effects.NodeToNode.PeerSharing qualified as NodeToNode.PeerSharing
+import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Types.Environment qualified as Env
 
 

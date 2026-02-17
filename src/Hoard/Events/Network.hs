@@ -1,4 +1,4 @@
-module Hoard.Network.Events (ProtocolError (..)) where
+module Hoard.Events.Network (ProtocolError (..)) where
 
 import Data.Time (UTCTime)
 

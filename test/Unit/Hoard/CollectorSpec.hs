@@ -15,7 +15,6 @@ import Prelude hiding (evalState, execState)
 
 import Data.UUID qualified as UUID
 
-import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Collector (pickBlockFetchRequest)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
@@ -27,9 +26,10 @@ import Hoard.Effects.Log (runLogNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.Publishing (runPubWriter)
 import Hoard.Effects.Verifier (runAllValidVerifier)
+import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
-import Hoard.BlockFetch qualified as BlockFetch
+import Hoard.Events.BlockFetch qualified as BlockFetch
 
 
 testBlock :: CardanoBlock
