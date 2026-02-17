@@ -1,7 +1,7 @@
 module Integration.Hoard.DB.BlockPersistenceSpec (spec_BlockPersistence) where
 
 import Data.Time (UTCTime (..))
-import Effectful (runEff)
+import Effectful (runEff, runPureEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
@@ -17,7 +17,7 @@ import Ouroboros.Consensus.Cardano.Block
         , BlockShelley
         )
     )
-import Relude.Unsafe (head, read, (!!))
+import Relude.Unsafe (fromJust, head, read, (!!))
 import Test.Consensus.Shelley.Examples
     ( examplesAllegra
     , examplesAlonzo
@@ -28,7 +28,7 @@ import Test.Consensus.Shelley.Examples
     )
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
-import Prelude hiding (head, runReader)
+import Prelude hiding (evalState, head, runReader)
 
 import Rel8 qualified
 
@@ -41,11 +41,14 @@ import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
+import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
 
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Verifier qualified as Verified
+import Hoard.Effects.Verifier qualified as Verifier
 
 
 spec_BlockPersistence :: Spec
@@ -91,11 +94,12 @@ spec_BlockPersistence = do
                 Left err -> expectationFailure $ "Block count query failed: " <> show err
 
         it "blockExists returns True for inserted block" $ \config -> do
-            let block = mkTestBlock 2
+            let verifiedBlock = mkTestBlock 2
+                block = Verifier.getVerified verifiedBlock
 
             -- Insert block and check if it exists
             result <- runWrite config $ do
-                insertBlocks [block]
+                insertBlocks [verifiedBlock]
                 blockExists block.hash
 
             case result of
@@ -104,7 +108,7 @@ spec_BlockPersistence = do
 
         it "blockExists returns False for non-existent block" $ \config -> do
             let existingBlock = mkTestBlock 3
-            let nonExistentBlock = mkTestBlock 4
+            let nonExistentBlock = Verifier.getVerified $ mkTestBlock 4
 
             -- Insert only existingBlock and check if nonExistentBlock exists (it shouldn't)
             result <- runWrite config $ do
@@ -116,13 +120,16 @@ spec_BlockPersistence = do
                 Left err -> expectationFailure $ "blockExists query failed: " <> show err
 
         it "blockExists handles multiple concurrent queries correctly" $ \config -> do
-            let block1 = mkTestBlock 5
-            let block2 = mkTestBlock 6
-            let block3 = mkTestBlock 7
+            let verifiedBlock1 = mkTestBlock 5
+                block1 = Verifier.getVerified verifiedBlock1
+            let verifiedBlock2 = mkTestBlock 6
+                block2 = Verifier.getVerified verifiedBlock2
+            let verifiedBlock3 = mkTestBlock 7
+                block3 = Verifier.getVerified verifiedBlock3
 
             -- Insert blocks and check existence of all three
             results <- runWrite config $ do
-                insertBlocks [block1, block2]
+                insertBlocks [verifiedBlock1, verifiedBlock2]
                 exists1 <- blockExists block1.hash
                 exists2 <- blockExists block2.hash
                 exists3 <- blockExists block3.hash
@@ -136,12 +143,13 @@ spec_BlockPersistence = do
                 Left err -> expectationFailure $ "blockExists queries failed: " <> show err
 
         it "handles duplicate block inserts correctly (DoNothing on conflict)" $ \config -> do
-            let block = mkTestBlock 8
+            let verifiedBlock = mkTestBlock 8
+                block = Verified.getVerified verifiedBlock
 
             -- Insert block twice (second insert should be ignored)
             _ <- runWrite config $ do
-                insertBlocks [block]
-                insertBlocks [block]
+                insertBlocks [verifiedBlock]
+                insertBlocks [verifiedBlock]
 
             -- Should still have only 1 block
             blockCount <- runRead config $ runQuery "count-blocks-after-dup" countBlocksStmt
@@ -176,7 +184,7 @@ spec_BlockPersistence = do
 
             -- Verify blockExists works for all inserted blocks
             existsResults <- runWrite config $ do
-                traverse blockExists (map (.hash) blocks)
+                traverse blockExists (map ((.hash) . Verified.getVerified) blocks)
 
             case existsResults of
                 Right results -> all (== True) results `shouldBe` True
@@ -199,21 +207,25 @@ exampleBlocks =
 
 
 -- Create a test block using the nth example (cycles if n exceeds available examples)
-mkTestBlock :: Int64 -> Block
+mkTestBlock :: Int64 -> Verified Valid Block
 mkTestBlock n =
     let cardanoBlock = exampleBlocks !! fromIntegral (n `mod` fromIntegral (length exampleBlocks))
         header = getHeader cardanoBlock
-    in  Block
-            { hash = blockHashFromHeader header
-            , slotNumber = n
-            , poolId = PoolID "test-pool"
-            , blockData = cardanoBlock
-            , validationStatus = ""
-            , validationReason = ""
-            , firstSeen = epoch
-            , classification = Nothing
-            , classifiedAt = Nothing
-            }
+    in  runPureEff
+            $ Verifier.runAllValidVerifier
+            $ fmap (fromJust . rightToMaybe)
+            $ Verifier.verifyBlock
+            $ Block
+                { hash = blockHashFromHeader header
+                , slotNumber = n
+                , poolId = PoolID "test-pool"
+                , blockData = cardanoBlock
+                , validationStatus = ""
+                , validationReason = ""
+                , firstSeen = epoch
+                , classification = Nothing
+                , classifiedAt = Nothing
+                }
 
 
 epoch :: UTCTime
