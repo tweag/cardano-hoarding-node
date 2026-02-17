@@ -116,7 +116,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
             CardanoProtocolsConfig
                 { peerSharing = def
                 , keepAlive = def
-                , blockFetch = def
                 , chainSync = def
                 , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
                 }

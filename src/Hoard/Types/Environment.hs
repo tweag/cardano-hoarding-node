@@ -37,7 +37,6 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
-import Hoard.BlockFetch.Config qualified as BlockFetch
 import Hoard.ChainSync.Config qualified as ChainSync
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
@@ -79,7 +78,6 @@ data Config = Config
 data CardanoProtocolsConfig = CardanoProtocolsConfig
     { peerSharing :: PeerSharing.Config
     , keepAlive :: KeepAlive.Config
-    , blockFetch :: BlockFetch.Config
     , chainSync :: ChainSync.Config
     , txSubmission :: TxSubmissionConfig
     }

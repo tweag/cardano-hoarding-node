@@ -30,7 +30,7 @@ import Network.Socket (SockAddr, Socket)
 import Ouroboros.Consensus.Config (configBlock, configCodec)
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
-import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
+import Ouroboros.Consensus.Node.NetworkProtocolVersion (HasNetworkProtocolVersion (..), supportedNodeToNodeVersions)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
 import Ouroboros.Network.Mux
@@ -43,6 +43,7 @@ import Ouroboros.Network.NodeToNode
     , NodeToNodeVersion
     , NodeToNodeVersionData (..)
     , ProtocolLimitFailure
+    , Versions
     , combineVersions
     , connectTo
     , networkMagic
@@ -77,6 +78,7 @@ import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
+import Hoard.BlockFetch qualified as BlockFetch
 import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
 import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.ChainSync.NodeToNode qualified as ChainSync
@@ -128,6 +130,7 @@ runNodeToNode
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
+       , Reader BlockFetch.Config :> es
        , Reader Env :> es
        , State HoardState :> es
        , Sub BlockFetchRequest :> es
@@ -175,6 +178,7 @@ runNodeToNode =
 
             -- Helper function to create application for a specific version
             let strat = ConcUnlift Persistent Unlimited
+                mkVersionedApp :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
                 mkVersionedApp (unlift :: forall x. Eff es x -> IO x) nodeVersion blockVersion =
                     let codecs =
                             hoistCodecs liftIO
@@ -188,18 +192,24 @@ runNodeToNode =
 
             -- Create versions for negotiation - offer all supported versions
             addEvent "creating_protocol_versions" []
-            let mkVersions (unlift :: forall x. Eff es x -> IO x) version blockVersion =
-                    simpleSingletonVersions
-                        version
-                        versionData
-                        (\_ -> mkVersionedApp unlift version blockVersion)
+            let
+                mkVersions :: (forall x. Eff es x -> IO x) -> NodeToNodeVersion -> BlockNodeToNodeVersion CardanoBlock -> Eff es (Versions NodeToNodeVersion NodeToNodeVersionData (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void))
+                mkVersions unlift version blockVersion = do
+                    app <- mkVersionedApp unlift version blockVersion
+                    pure
+                        $ simpleSingletonVersions
+                            version
+                            versionData
+                            (\_ -> app)
 
             -- Create versions for all supported protocol versions
-            let versions (unlift :: forall x. Eff es x -> IO x) =
-                    combineVersions
-                        [ mkVersions unlift nodeVersion blockVersion
-                        | (nodeVersion, blockVersion) <- Map.toList supportedVersions
-                        ]
+            let
+                versions :: (forall x. Eff es x -> IO x) -> Eff es (Versions NodeToNodeVersion NodeToNodeVersionData (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void))
+                versions unlift = do
+                    vs <-
+                        traverse (uncurry $ mkVersions unlift)
+                            $ Map.toList supportedVersions
+                    pure $ combineVersions vs
 
             addEvent "codecs_created" []
 
@@ -218,11 +228,12 @@ runNodeToNode =
                             $ nullNetworkConnectTracers
                                 { nctHandshakeTracer = show >$< asTracer unlift "node_to_node.handshake"
                                 }
-                    result <- withEffToIO strat $ \unlift ->
+                    result <- withEffToIO strat $ \unlift -> do
+                        vs <- unlift $ versions unlift
                         connectTo
                             snocket
                             adhocTracers
-                            (versions unlift)
+                            vs
                             Nothing -- No local address binding
                             addr
 
@@ -325,6 +336,7 @@ mkApplication
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
+       , Reader BlockFetch.Config :> es
        , State HoardState :> es
        , Sub BlockFetchRequest :> es
        , Timeout :> es
@@ -334,14 +346,16 @@ mkApplication
     -> Env
     -> CardanoCodecs
     -> Peer
-    -> OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void
-mkApplication unlift env codecs peer =
-    OuroborosApplication
-        [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
-        , BlockFetch.miniProtocol unlift env.config.cardanoProtocols.blockFetch codecs peer
-        , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs peer
-        , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
-        ]
+    -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
+mkApplication unlift env codecs peer = do
+    blockFetch <- BlockFetch.miniProtocol unlift codecs peer
+    pure
+        $ OuroborosApplication
+            [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
+            , blockFetch
+            , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs peer
+            , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
+            ]
 
 
 --------------------------------------------------------------------------------

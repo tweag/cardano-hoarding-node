@@ -4,6 +4,7 @@ import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -18,13 +19,13 @@ import Ouroboros.Network.NodeToNode
     ( blockFetchMiniProtocolNum
     )
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
-import Prelude hiding (State, evalState, get, modify)
+import Prelude hiding (Reader, State, ask, evalState, get, modify)
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 
-import Hoard.BlockFetch.Config (Config (..))
+import Hoard.BlockFetch (Config (..))
 import Hoard.BlockFetch.Events
     ( BlockBatchCompleted (..)
     , BlockFetchFailed (..)
@@ -56,29 +57,31 @@ miniProtocol
        , Pub BlockFetchFailed :> es
        , Pub BlockFetchStarted :> es
        , Pub BlockReceived :> es
+       , Reader Config :> es
        , Sub BlockFetchRequest :> es
        , Timeout :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> Config
     -> CardanoCodecs
     -> Peer
-    -> CardanoMiniProtocol
-miniProtocol unlift' conf codecs peer =
-    MiniProtocol
-        { miniProtocolNum = blockFetchMiniProtocolNum
-        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-        , miniProtocolStart = StartEagerly
-        , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-            let codec = cBlockFetchCodec codecs
-                blockFetchClient = client unlift conf peer
-                tracer = nullTracer
-                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
-                    addEvent "protocol_started" []
-                    pure $ blockFetchClientPeer blockFetchClient
-            in  (tracer, codec, wrappedPeer)
-        }
+    -> Eff es CardanoMiniProtocol
+miniProtocol unlift' codecs peer = do
+    conf <- ask
+    pure
+        MiniProtocol
+            { miniProtocolNum = blockFetchMiniProtocolNum
+            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+            , miniProtocolStart = StartEagerly
+            , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
+                let codec = cBlockFetchCodec codecs
+                    blockFetchClient = client unlift conf peer
+                    tracer = nullTracer
+                    wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
+                        addEvent "protocol_started" []
+                        pure $ blockFetchClientPeer blockFetchClient
+                in  (tracer, codec, wrappedPeer)
+            }
   where
     unlift :: forall x. Eff es x -> IO x
     unlift = unlift'
