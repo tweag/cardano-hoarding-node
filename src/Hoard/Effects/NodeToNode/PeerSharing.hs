@@ -24,7 +24,7 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), sockAddrToPeerAddress)
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, asTracer, withSpan)
 import Hoard.Effects.NodeToNode.Config (PeerSharingConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.PeerSharing (PeerSharingStarted (..), PeersReceived (..))
@@ -46,7 +46,7 @@ miniProtocol
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol conf unlift' codecs peer =
+miniProtocol conf unlift codecs peer =
     MiniProtocol
         { miniProtocolNum = peerSharingMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -57,17 +57,19 @@ miniProtocol conf unlift' codecs peer =
                 $ \_ ->
                     let peerSharingClient = client unlift conf peer
                         codec = cPeerSharingCodec codecs
-                        wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
-                            timestamp <- Clock.currentTime
-                            publish $ PeerSharingStarted {peer, timestamp}
-                            addEvent @Int "protocol_started" []
-                            pure (peerSharingClientPeer peerSharingClient)
+                        wrappedPeer = Peer.Effect
+                            $ unlift
+                            $ withExceptionLogging "PeerSharing"
+                            $ withSpan "peer_sharing_protocol"
+                            $ do
+                                addAttribute "peer.id" peer.id
+                                addAttribute "peer.address" peer.address
+                                timestamp <- Clock.currentTime
+                                publish $ PeerSharingStarted {peer, timestamp}
+                                pure (peerSharingClientPeer peerSharingClient)
                         tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
                     in  (tracer, codec, wrappedPeer)
         }
-  where
-    unlift :: forall x. Eff es x -> IO x
-    unlift = unlift'
 
 
 -- | Create a PeerSharing client that requests peer addresses.
@@ -86,8 +88,8 @@ client
 client unlift conf peer = requestPeers withPeers
   where
     requestPeers = SendMsgShareRequest $ PeerSharingAmount $ fromIntegral conf.requestAmount
-    withPeers peerAddrs = unlift do
-        addEvent "peer_sharing_response_received" [("peer_count", length peerAddrs)]
+    withPeers peerAddrs = unlift $ withSpan "peer_sharing.response_received" do
+        addAttribute "peer.count" $ length peerAddrs
         timestamp <- Clock.currentTime
         publish
             $ PeersReceived
@@ -95,7 +97,7 @@ client unlift conf peer = requestPeers withPeers
                 , timestamp
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
-        addEvent "waiting_for_next_request" [("wait_seconds", conf.requestIntervalMicroseconds `div` 1_000_000)]
-        threadDelay conf.requestIntervalMicroseconds
-        addEvent @Int "sending_next_request" []
-        pure $ requestPeers withPeers
+        withSpan "waiting_for_next_request" do
+            addAttribute "wait_duration.seconds" $ conf.requestIntervalMicroseconds `div` 1_000_000
+            threadDelay conf.requestIntervalMicroseconds
+        withSpan "sending_next_request" $ pure $ requestPeers withPeers

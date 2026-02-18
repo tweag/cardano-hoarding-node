@@ -19,9 +19,9 @@ import Prelude hiding (Reader, State, ask, asks, evalState, gets, runReader)
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, asTracer, withSpan)
 import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.KeepAlive (KeepAlivePing (..))
@@ -52,13 +52,15 @@ miniProtocol conf unlift codecs peer =
                 $ mkMiniProtocolCbFromPeer
                 $ \_ ->
                     let codec = cKeepAliveCodec codecs
-                        wrappedPeer = Peer.Effect
-                            $ unlift
-                            $ withExceptionLogging "KeepAlive"
-                            $ withSpan "keep_alive_protocol"
-                            $ do
-                                addEvent @Int "protocol_started" []
-                                pure (keepAliveClientPeer $ client unlift conf peer)
+                        wrappedPeer =
+                            Peer.Effect
+                                $ unlift
+                                $ withExceptionLogging "KeepAlive"
+                                $ withSpan "keep_alive_protocol"
+                                $ do
+                                    addAttribute "peer.id" peer.id
+                                    addAttribute "peer.address" peer.address
+                                    pure $ keepAliveClientPeer $ client unlift conf peer
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
         }
@@ -81,14 +83,14 @@ client
     -> KeepAliveClient IO ()
 client unlift conf peer = KeepAliveClient sendFirst
   where
-    sendFirst = unlift do
-        addEvent @Int "sending_first_keepalive" []
+    sendFirst = unlift $ withSpan "keep_alive.start" do
         timestamp <- Clock.currentTime
         publish KeepAlivePing {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
-    sendNext = unlift do
-        addEvent "keepalive_response_received" [("wait_seconds", conf.intervalMicroseconds `div` 1_000_000)]
-        threadDelay conf.intervalMicroseconds
-        addEvent @Int "sending_keepalive" []
-        pure $ SendMsgKeepAlive (Cookie 42) sendNext
+    sendNext = unlift $ withSpan "keep_alive.continue" do
+        withSpan "keep_alive.waiting" do
+            addAttribute "wait_seconds" $ conf.intervalMicroseconds `div` 1_000_000
+            threadDelay conf.intervalMicroseconds
+        withSpan "keep_alive.sending" do
+            pure $ SendMsgKeepAlive (Cookie 42) sendNext
