@@ -32,6 +32,7 @@ import Hoard.Effects.Options (loadOptions)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Quota (runQuota)
+import Hoard.Effects.UUID (runGenUUID)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
 import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
@@ -105,6 +106,7 @@ main =
         . runPubSub @ImmutableTipRefreshed
         . runPubSub @ProtocolError
         . runPubSub @KeepAlivePing
+        . runGenUUID
         . runNodeToClient
         . runNodeToNode
         . runDBRead

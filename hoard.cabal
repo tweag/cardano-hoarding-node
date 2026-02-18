@@ -67,6 +67,7 @@ library
       Hoard.Effects.Publishing
       Hoard.Effects.Quota
       Hoard.Effects.Quota.Config
+      Hoard.Effects.UUID
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events
