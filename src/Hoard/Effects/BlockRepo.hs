@@ -6,20 +6,22 @@ module Hoard.Effects.BlockRepo
     , classifyBlock
     , getUnclassifiedBlocksBeforeSlot
     , getViolations
+    , evictBlocks
     , runBlockRepo
     , runBlockRepoState
     ) where
 
+import Data.List (partition)
 import Data.Time (UTCTime)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith)
-import Effectful.State.Static.Shared (State, gets, modify)
+import Effectful.State.Static.Shared (State, get, gets, modify, put)
 import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
 import Rel8 (isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
-import Prelude hiding (Reader, State, ask, atomically, gets, modify, newTVarIO, runReader)
+import Prelude hiding (Reader, State, ask, atomically, get, gets, modify, newTVarIO, put, runReader)
 
 import Data.Set qualified as Set
 import Hasql.Transaction qualified as TX
@@ -33,7 +35,7 @@ import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
-import Hoard.OrphanDetection.Data (BlockClassification)
+import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
 
 import Hoard.DB.Schemas.Blocks qualified as Blocks
@@ -48,6 +50,7 @@ data BlockRepo :: Effect where
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
     GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
     GetViolations :: Maybe BlockClassification -> Maybe Int64 -> Maybe Int64 -> BlockRepo m [BlockViolation]
+    EvictBlocks :: BlockRepo m Int
 
 
 makeEffect ''BlockRepo
@@ -92,6 +95,12 @@ runBlockRepo action = do
             addAttribute "parse.errors.count" (show $ length parseErrors)
             forM_ parseErrors $ \err -> addEvent "parse_error" [("error", err)]
             pure violations
+        EvictBlocks -> withSpan "block_repo.evict_blocks" $ do
+            hashes <- runTransaction "evict-blocks" evictUninterestingBlocksTrans
+            -- Remove evicted blocks from cache so future lookups hit the DB
+            Singleflight.removeFromCache hashes
+            addAttribute "evicted.count" (show $ length hashes)
+            pure (length hashes)
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
@@ -212,6 +221,45 @@ getViolationsQuery mbClassification mbMinSlot mbMaxSlot =
         pure $ blockToViolation block receipts
 
 
+-- | Delete canonical blocks that have no orphaned block at the same slot.
+-- These are "uncontested" canonical blocks that are safe to evict.
+-- Returns the hashes of deleted blocks.
+evictUninterestingBlocksTrans :: Transaction [BlockHash]
+evictUninterestingBlocksTrans = do
+    hashes <- TX.statement () getEvictableBlockHashesQuery
+    unless (null hashes)
+        $ TX.statement () (deleteBlocksByHashesQuery hashes)
+    pure hashes
+
+
+-- | Select canonical blocks that have no orphaned block at the same slot.
+getEvictableBlockHashesQuery :: Statement () [BlockHash]
+getEvictableBlockHashesQuery =
+    Rel8.run . Rel8.select $ do
+        block <- Rel8.each Blocks.schema
+        where_ $ block.classification ==. lit (Just Canonical)
+        hasOrphanAtSameSlot <- Rel8.exists $ do
+            orphan <- Rel8.each Blocks.schema
+            where_
+                $ orphan.classification ==. lit (Just Orphaned)
+                    &&. orphan.slotNumber ==. block.slotNumber
+            pure orphan
+        where_ $ Rel8.not_ hasOrphanAtSameSlot
+        pure block.hash
+
+
+deleteBlocksByHashesQuery :: [BlockHash] -> Statement () ()
+deleteBlocksByHashesQuery hashes =
+    Rel8.run_
+        $ Rel8.delete
+            Rel8.Delete
+                { from = Blocks.schema
+                , using = pure ()
+                , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
+                , returning = Rel8.NoReturning
+                }
+
+
 runBlockRepoState :: (State [Block] :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
@@ -239,3 +287,12 @@ runBlockRepoState = interpret_ \case
                 && maybe True (\maxSlot -> block.slotNumber <= maxSlot) mbMaxSlot
         -- In test state, return empty receipts list and convert to DTOs
         pure $ fmap (\block -> blockToViolation block []) blocks
+    EvictBlocks -> do
+        blocks <- get
+        let orphanedSlots = map (.slotNumber) $ filter (\b -> b.classification == Just Orphaned) blocks
+            isEvictable b =
+                b.classification == Just Canonical
+                    && b.slotNumber `notElem` orphanedSlots
+            (evictable, keep) = partition isEvictable blocks
+        put keep
+        pure (length evictable)
