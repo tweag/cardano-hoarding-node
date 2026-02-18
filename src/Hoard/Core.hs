@@ -12,7 +12,8 @@ import Prelude hiding (Reader, State, asks, modify)
 import Hoard.CardanoNode.Config (Config (..))
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
+import Hoard.Effects.Log (Log)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
@@ -30,6 +31,7 @@ component
     :: ( Concurrent :> es
        , HoardStateRepo :> es
        , IOE :> es
+       , Log :> es
        , NodeToClient :> es
        , Pub ImmutableTipRefreshTriggered :> es
        , Pub ImmutableTipRefreshed :> es
@@ -63,10 +65,8 @@ component =
             -- Load immutable tip from DB and set in state
             immutableTip <- HoardStateRepo.getImmutableTip
             modify (\hoardState -> hoardState {immutableTip = immutableTip})
-        , start = do
-            -- Trigger initial immutable tip refresh now that listeners are registered
+        , start =
             publish ImmutableTipRefreshTriggered
-            addEvent @Int "initial_tip_refresh_triggered" []
         }
 
 
@@ -98,7 +98,7 @@ defaultMaxFileDescriptors = 8192
 -- which must not exceed the hard limit. If the requested limit is higher than the
 -- hard limit, it will be capped at the hard limit.
 setFileDescriptorLimit :: (IOE :> es, Reader SetupConfig :> es, Tracing :> es) => Eff es ()
-setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
+setFileDescriptorLimit = withSpan "set_file_descriptor_limit" do
     -- Set file descriptor limit (use default if not configured)
     configLimit <- asks (.maxFileDescriptors)
     let limit = fromMaybe defaultMaxFileDescriptors configLimit
@@ -120,10 +120,8 @@ setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
                     requested
 
     -- Only update if different from current
-    when (newSoftLimit /= softLimit) $ do
-        liftIO $ setResourceLimit ResourceOpenFiles ResourceLimits {softLimit = newSoftLimit, hardLimit}
-        addEvent @Text
-            "file_descriptor_limit_updated"
-            [ ("new_soft_limit", show newSoftLimit)
-            , ("old_soft_limit", show softLimit)
-            ]
+    when (newSoftLimit /= softLimit)
+        $ liftIO
+        $ setResourceLimit
+            ResourceOpenFiles
+            ResourceLimits {softLimit = newSoftLimit, hardLimit}

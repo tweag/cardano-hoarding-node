@@ -39,6 +39,7 @@ import Hoard.Effects.Clock (Clock, runClockConst)
 import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
+import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Log qualified as Log
@@ -91,6 +92,7 @@ runEffectStackTest eff = liftIO $ do
             . runReader (def :: Log.Config)
             . runLog
             . runClockConst testTime
+            . runTracingNoOp
             . runMetrics
             . runState @[Block] []
             . runBlockRepoState
@@ -104,6 +106,7 @@ type TestAppEffs =
     , BlockRepo
     , State [Block]
     , Metrics
+    , Tracing
     , Clock
     , Log
     , Reader Log.Config

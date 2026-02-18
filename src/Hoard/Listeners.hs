@@ -6,6 +6,7 @@ import Prelude hiding (Reader, State)
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen)
@@ -21,6 +22,7 @@ import Hoard.Effects.Conc qualified as Conc
 runListeners
     :: ( Conc :> es
        , HoardStateRepo :> es
+       , Log :> es
        , NodeToClient :> es
        , Pub ImmutableTipRefreshed :> es
        , State HoardState :> es

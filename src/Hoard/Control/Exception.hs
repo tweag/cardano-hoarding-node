@@ -11,21 +11,22 @@ import System.IO.Error (userError)
 
 import Control.Exception qualified as IOE
 
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addEvent, setStatus)
+import Hoard.Effects.Log (Log)
+
+import Hoard.Effects.Log qualified as Log
 
 
 -- | Wrap a protocol action with exception logging.
 --
 -- Emits trace events for graceful shutdowns and sets error status for real errors.
-withExceptionLogging :: (Tracing :> es) => Text -> Eff es a -> Eff es a
+withExceptionLogging :: (Log :> es) => Text -> Eff es a -> Eff es a
 withExceptionLogging protocolName action =
     action `catch` \(e :: SomeException) -> do
         let exceptionType = toText (displayException e)
         if isGracefulShutdown e then
-            addEvent "graceful_shutdown" [("protocol", protocolName)]
+            Log.warn $ "Graceful shutdown: " <> protocolName
         else do
-            addEvent "protocol_error" [("protocol", protocolName), ("exception", exceptionType)]
-            setStatus $ Error (protocolName <> ": " <> exceptionType)
+            Log.err $ "Protocol exception: " <> protocolName <> ", exception: " <> exceptionType
         throwIO e
 
 

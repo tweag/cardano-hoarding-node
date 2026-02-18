@@ -16,7 +16,7 @@ import Prelude hiding (Reader, asks)
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
 
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 
 import Hoard.Types.DBConfig qualified as DB
@@ -38,7 +38,7 @@ runDBWrite
 runDBWrite eff = do
     pool <- asks $ DB.writerPool
     interpretWith_ eff \case
-        RunTransaction txName tx -> withSpan "db.transaction" $ do
+        RunTransaction txName tx -> withSpan "db.transaction" do
             addAttribute @Text "db.operation" "write"
             addAttribute "db.transaction.name" txName
             addAttribute @Text "db.isolation_level" "ReadCommitted"
@@ -46,7 +46,6 @@ runDBWrite eff = do
             result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
             case result of
                 Left err -> do
-                    addEvent "transaction_failed" [("transaction", txName), ("error", show err)]
                     setStatus $ Error $ "Transaction failed: " <> show err
                     throwError $ "Transaction failed: " <> txName <> " - " <> show err
                 Right value -> do

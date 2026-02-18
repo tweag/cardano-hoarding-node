@@ -66,8 +66,9 @@ import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
@@ -121,6 +122,7 @@ runNodeToNode
        , Concurrent :> es
        , GenUUID :> es
        , IOE :> es
+       , Log :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es
@@ -146,10 +148,7 @@ runNodeToNode
     -> Eff es a
 runNodeToNode =
     interpret_ \case
-        ConnectToPeer peer -> withSpan "node_to_node.connect_to_peer" do
-            addAttribute "peer.id" peer.id
-            addAttribute "peer.address" peer.address
-
+        ConnectToPeer peer -> do
             ioManager <- ask @IOManager
             protocolInfo <- ask @(ProtocolInfo CardanoBlock)
             nodeToNode <- ask @NodeToNodeConfig
@@ -179,15 +178,15 @@ runNodeToNode =
                         }
 
             -- Create versions for all supported protocol versions
-            versions <- withSpan "create_protocol_versions" do
+            versions <- withSpan "node_to_node.create_protocol_versions" do
                 vs <-
                     for supportedVersions \(version, blockVersion) ->
-                        withSpan "create_protocol_version" do
+                        withSpan "node_to_node.create_protocol_version" do
                             addAttribute "node_to_node_version" $ show @Text version
                             addAttribute "block_node_to_node_version" $ show @Text blockVersion
 
                             app <-
-                                withSpan "create_application"
+                                withSpan "node_to_node.create_application"
                                     $ mkApplication (mkCodecs version blockVersion) peer
 
                             pure
@@ -205,7 +204,7 @@ runNodeToNode =
                 , Handler $ handleHandshakeProtocolError peer
                 , Handler $ handleProtocolLimitFailure peer
                 ]
-                $ withSpan "connection" do
+                $ do
                     result <- withEffToIO (ConcUnlift Persistent Unlimited) \unlift -> do
                         let tracers =
                                 nullNetworkConnectTracers
@@ -218,13 +217,8 @@ runNodeToNode =
     handleResult :: Peer -> Either SomeException (Either () Void) -> Eff es ConnectToError
     handleResult peer = \case
         Left err -> do
-            addEvent "connection_failed" [("error", show @Text err)]
-            let errMsg = "Failed to connect to peer " <> show peer <> ": " <> show err
-            setStatus $ Error errMsg
-            pure $ ConnectToError errMsg
+            pure $ ConnectToError $ "Failed to connect to peer " <> show peer <> ": " <> show err
         Right (Left ()) -> do
-            addEvent @Text "connection_closed" []
-            setStatus $ Error "Connection closed unexpectedly"
             pure $ ConnectToError "Connection closed unexpectedly"
         Right (Right v) -> do
             -- This can't happen with InitiatorOnly mode
@@ -241,52 +235,24 @@ runNodeToNode =
                     "Connection timed out: peer (" <> show peer.address <> ")"
                 _ ->
                     "Unknown IOException in connectTo: error (" <> show e <> "), peer (" <> show peer.address <> ")"
-        case e.ioe_type of
-            NoSuchThing -> do
-                addEvent "io_exception" [("type", "NoSuchThing"), ("error", toText e.ioe_description)]
-                setStatus $ Error errMsg
-                pure $ ConnectToError errMsg
-            ResourceVanished -> do
-                addEvent "io_exception" [("type", "ResourceVanished"), ("error", toText e.ioe_description)]
-                setStatus $ Error errMsg
-                pure $ ConnectToError errMsg
-            TimeExpired -> do
-                addEvent @Text "io_exception" [("type", "TimeExpired")]
-                setStatus $ Error errMsg
-                pure $ ConnectToError errMsg
-            _ -> do
-                addEvent "io_exception" [("type", "Unknown"), ("error", show @Text e)]
-                setStatus $ Error errMsg
-                pure $ ConnectToError errMsg
+        pure $ ConnectToError errMsg
 
     handleMuxError :: Peer -> Mux.Error -> Eff es ConnectToError
     handleMuxError peer = \case
         Mux.IOException e _msg ->
             handleIOException peer e
-        Mux.BearerClosed reason -> do
-            let errMsg = "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
-            addEvent "mux_error" [("type", "BearerClosed"), ("reason", toText reason)]
-            setStatus $ Error errMsg
-            pure $ ConnectToError errMsg
-        e -> do
-            let errMsg = "Disconnected due to unknown ouroboros error: " <> show e
-            addEvent "mux_error" [("type", "Unknown"), ("error", show @Text e)]
-            setStatus $ Error errMsg
-            pure $ ConnectToError errMsg
+        Mux.BearerClosed reason ->
+            pure $ ConnectToError $ "Disconnected due to the other party closing the socket: " <> toText reason <> ", " <> show peer.address
+        e ->
+            pure $ ConnectToError $ "Disconnected due to unknown ouroboros error: " <> show e
 
     handleHandshakeProtocolError :: Peer -> HandshakeProtocolError NodeToNodeVersion -> Eff es ConnectToError
-    handleHandshakeProtocolError peer e = do
-        let errMsg = "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
-        addEvent "handshake_error" [("error", show @Text e)]
-        setStatus $ Error errMsg
-        pure $ ConnectToError errMsg
+    handleHandshakeProtocolError peer e =
+        pure $ ConnectToError $ "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
 
     handleProtocolLimitFailure :: Peer -> ProtocolLimitFailure -> Eff es ConnectToError
-    handleProtocolLimitFailure peer e = do
-        let errMsg = "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
-        addEvent "protocol_limit_error" [("error", show @Text e)]
-        setStatus $ Error errMsg
-        pure $ ConnectToError errMsg
+    handleProtocolLimitFailure peer e =
+        pure $ ConnectToError $ "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
 
 
 --------------------------------------------------------------------------------
@@ -304,6 +270,7 @@ mkApplication
        , Concurrent :> es
        , GenUUID :> es
        , IOE :> es
+       , Log :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
        , Pub BlockFetch.BlockReceived :> es

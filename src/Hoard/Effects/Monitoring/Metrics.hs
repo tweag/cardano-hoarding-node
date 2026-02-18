@@ -51,6 +51,7 @@ import Prometheus qualified as Prom
 import Prometheus.Metric.GHC qualified as GHC
 
 import Hoard.Effects.Clock (Clock, currentTime)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 import Hoard.Effects.Monitoring.Metrics.Registry qualified as Registry
 
@@ -76,28 +77,33 @@ makeEffect ''Metrics
 -- Initializes the metric registry and registers GHC metrics automatically.
 runMetrics
     :: forall es a
-     . (Clock :> es, IOE :> es)
+     . (Clock :> es, IOE :> es, Tracing :> es)
     => Eff (Metrics : es) a
     -> Eff es a
 runMetrics action = do
     -- Initialize metrics registry and register GHC metrics
-    handles <- liftIO Registry.initMetricHandles
-    void $ liftIO $ Prom.register GHC.ghcMetrics
+
+    handles <- withSpan "metrics.setup" do
+        void $ liftIO $ Prom.register GHC.ghcMetrics
+        liftIO Registry.initMetricHandles
+
     interpretWith action \env -> \case
-        GaugeSet name value -> liftIO $ Registry.setGauge handles name value
-        GaugeInc name -> liftIO $ Registry.incGauge handles name
-        GaugeDec name -> liftIO $ Registry.decGauge handles name
-        CounterInc name -> liftIO $ Registry.incCounter handles name
-        CounterAdd name value -> liftIO $ Registry.addCounter handles name value
-        HistogramObserve name value -> liftIO $ Registry.observeHistogram handles name value
+        GaugeSet name value -> withSpan "metrics.gauge_set" $ liftIO $ Registry.setGauge handles name value
+        GaugeInc name -> withSpan "metrics.gauge_inc" $ liftIO $ Registry.incGauge handles name
+        GaugeDec name -> withSpan "metrics.gauge_dec" $ liftIO $ Registry.decGauge handles name
+        CounterInc name -> withSpan "metrics.counter_inc" $ liftIO $ Registry.incCounter handles name
+        CounterAdd name value -> withSpan "metrics.counter_add" $ liftIO $ Registry.addCounter handles name value
+        HistogramObserve name value -> withSpan "metrics.histogram_observe" $ liftIO $ Registry.observeHistogram handles name value
         WithHistogramTiming metricName eff -> do
             start <- currentTime
             result <- localSeqUnlift env \unlift -> unlift eff
             end <- currentTime
             let duration = realToFrac $ diffUTCTime end start
-            liftIO $ Registry.observeHistogram handles metricName duration
+            withSpan "metrics.with_histogram_timing.histogram_observe"
+                $ liftIO
+                $ Registry.observeHistogram handles metricName duration
             pure result
-        ExportMetrics -> liftIO $ decodeUtf8 <$> Prom.exportMetricsAsText
+        ExportMetrics -> withSpan "metrics.export_metrics" $ liftIO $ decodeUtf8 <$> Prom.exportMetricsAsText
 
 
 -- | No-op interpreter that discards all metrics operations

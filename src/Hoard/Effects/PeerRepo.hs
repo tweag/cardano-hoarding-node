@@ -26,6 +26,7 @@ import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 
@@ -86,26 +87,32 @@ makeEffect ''PeerRepo
 
 -- | Run the PeerRepo effect using the DBRead and DBWrite effects
 runPeerRepo
-    :: (DBRead :> es, DBWrite :> es)
+    :: (DBRead :> es, DBWrite :> es, Tracing :> es)
     => Eff (PeerRepo : es) a
     -> Eff es a
 runPeerRepo = interpret $ \_ -> \case
     UpsertPeers peerAddrs sourcePeer timestamp ->
-        runTransaction "upsert-peers"
+        withSpan "peer_repo.upsert_peers"
+            $ runTransaction "upsert-peers"
             $ upsertPeersImpl peerAddrs sourcePeer timestamp
     GetPeerByAddress peerAddr ->
-        runQuery "get-peer-by-address"
+        withSpan "peer_repo.get_peer_by_address"
+            $ runQuery "get-peer-by-address"
             $ getPeerByAddressImpl peerAddr
     GetAllPeers ->
-        runQuery "get-all-peers" getAllPeersImpl
+        withSpan "peer_repo.get_all_peers"
+            $ runQuery "get-all-peers" getAllPeersImpl
     UpdatePeerFailure peer timestamp ->
-        runTransaction "update-peer-failure"
+        withSpan "peer_repo.update_peer_failure"
+            $ runTransaction "update-peer-failure"
             $ updatePeerFailureImpl peer timestamp
     UpdateLastConnected peerId timestamp ->
-        runTransaction "update-last-connected"
+        withSpan "peer_repo.update_last_connected"
+            $ runTransaction "update-last-connected"
             $ updateLastConnectedImpl peerId timestamp
     GetEligiblePeers failureTimeout alreadyConnectedPeers limit ->
-        runQuery "get-eligible-peers"
+        withSpan "peer_repo.get_eligible_peers"
+            $ runQuery "get-eligible-peers"
             $ getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
 
 

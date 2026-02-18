@@ -42,6 +42,7 @@ import Ouroboros.Consensus.Byron.Ledger.Integrity qualified as Byron
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 
 import Hoard.Data.Block (Block (..))
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
@@ -70,11 +71,11 @@ makeEffect ''Verifier
 
 runVerifier
     :: forall es a
-     . (Reader (BlockConfig ByronBlock) :> es, Reader ShelleyConfig :> es)
+     . (Reader (BlockConfig ByronBlock) :> es, Reader ShelleyConfig :> es, Tracing :> es)
     => Eff (Verifier : es) a
     -> Eff es a
 runVerifier = interpret_ \case
-    VerifyCardanoHeader header -> do
+    VerifyCardanoHeader header -> withSpan "verifier.verify_cardano_header" do
         let verifyShelley :: (ProtocolHeaderSupportsKES proto) => Header (ShelleyBlock proto era) -> Eff es (VerificationResult CardanoHeader)
             verifyShelley h = do
                 shelleyConf <- ask @ShelleyConfig
@@ -97,8 +98,8 @@ runVerifier = interpret_ \case
             HeaderMary h -> verifyShelley h
             HeaderAlonzo h -> verifyShelley h
             HeaderDijkstra h -> verifyShelley h
-    VerifyCardanoBlock block -> verifyCardanoBlock' block
-    VerifyBlock block -> do
+    VerifyCardanoBlock block -> withSpan "verifier.verify_cardano_block" $ verifyCardanoBlock' block
+    VerifyBlock block -> withSpan "verifier.verify_block" do
         bimap (const $ Verified block) (const $ Verified block) <$> verifyCardanoBlock' block.blockData
   where
     verifyCardanoBlock' block = do
