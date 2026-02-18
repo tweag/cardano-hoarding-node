@@ -125,7 +125,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
                 , peerManager = def
-                , nodeToNode = def
                 , quota = def
                 }
     let handles =

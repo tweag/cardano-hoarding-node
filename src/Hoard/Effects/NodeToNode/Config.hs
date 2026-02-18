@@ -1,6 +1,6 @@
 module Hoard.Effects.NodeToNode.Config
     ( -- * Connection config
-      Config (..)
+      NodeToNodeConfig (..)
 
       -- * Mini-protocol configs
     , BlockFetchConfig (..)
@@ -25,19 +25,19 @@ import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Connection-level configuration (TCP handshake timeout etc.)
-data Config = Config
+data NodeToNodeConfig = NodeToNodeConfig
     { connectionTimeoutSeconds :: NominalDiffTime
     -- ^ Timeout for the TCP connection handshake. If the socket doesn't
     -- connect within this duration, the connection attempt fails. This does
     -- NOT affect already-established connections.
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via (QuietSnake Config)
+    deriving (FromJSON) via (QuietSnake NodeToNodeConfig)
 
 
-instance Default Config where
+instance Default NodeToNodeConfig where
     def =
-        Config
+        NodeToNodeConfig
             { connectionTimeoutSeconds = 10
             }
 
@@ -130,13 +130,19 @@ data ProtocolsConfig = ProtocolsConfig
 
 data ConfigFile = ConfigFile
     { cardanoProtocols :: ProtocolsConfig
+    , nodeToNode :: NodeToNodeConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
 
 
-runProtocolsConfig :: (IOE :> es, Reader ConfigPath :> es) => Eff (Reader ProtocolsConfig : es) a -> Eff es a
+runProtocolsConfig
+    :: (IOE :> es, Reader ConfigPath :> es)
+    => Eff (Reader NodeToNodeConfig : Reader ProtocolsConfig : es) a
+    -> Eff es a
 runProtocolsConfig eff = do
     configPath <- ask
     configFile <- loadYaml @ConfigFile configPath
-    runReader configFile.cardanoProtocols eff
+    runReader configFile.cardanoProtocols
+        $ runReader configFile.nodeToNode
+        $ eff

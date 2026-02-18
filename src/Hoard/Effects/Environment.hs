@@ -37,7 +37,6 @@ import Hoard.Types.Environment
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Quota.Config qualified as Quota
 import Hoard.PeerManager.Config qualified as PeerManager
 
@@ -54,7 +53,6 @@ data ConfigFile = ConfigFile
     , maxFileDescriptors :: Maybe Word32
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , peerManager :: PeerManager.Config
-    , nodeToNode :: NodeToNode.Config
     , quota :: Quota.Config
     }
     deriving stock (Eq, Generic, Show)
@@ -251,7 +249,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , peerSnapshot
                 , peerManager = configFile.peerManager
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
-                , nodeToNode = configFile.nodeToNode
                 , quota = configFile.quota
                 }
         env = Env {config, handles}
