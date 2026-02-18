@@ -51,7 +51,6 @@ import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
-import GHC.Stack (SrcLoc (..))
 import Prelude hiding (Reader, ask, local, runReader)
 
 import Data.ByteString.Char8 qualified as B8
@@ -186,30 +185,11 @@ formatMessage msg =
         [ square $ show msg.severity
         , " "
         , showNamespace msg.namespace
-        , square $ showSourceLoc msg.stack
-        , " "
         , msg.text
         ]
   where
     showNamespace (Namespace "") = ""
     showNamespace (Namespace ns) = square ns <> " "
-
-
-showSourceLoc :: CallStack -> Text
-showSourceLoc cs = showCallStack
-  where
-    showCallStack = case getCallStack cs of
-        [] -> "<unknown loc>"
-        [(name, loc)] -> showLoc name loc
-        (_, loc) : (callerName, _) : _ -> showLoc callerName loc
-    showLoc name src =
-        mconcat
-            [ toText src.srcLocModule
-            , "."
-            , toText name
-            , "#"
-            , show src.srcLocStartLine
-            ]
 
 
 square :: Text -> Text

@@ -7,9 +7,8 @@ module Hoard.Component
     , runSystem
     ) where
 
-import Data.Char (toLower)
 import Effectful (Eff, (:>))
-import Text.Casing (fromHumps, toSnake)
+import Text.Casing (fromHumps, toQuietSnake)
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
@@ -109,4 +108,4 @@ runSystem components = do
 
 
 formatName :: Text -> Text
-formatName = toText . toSnake . fromHumps . fmap toLower . toString
+formatName = toText . toQuietSnake . fromHumps . toString
