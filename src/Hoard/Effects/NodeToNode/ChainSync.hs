@@ -59,21 +59,20 @@ miniProtocol
     -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> Eff es CardanoMiniProtocol
+    -> CardanoMiniProtocol
 miniProtocol conf unlift codecs peer =
-    pure
-        $ MiniProtocol
-            { miniProtocolNum = chainSyncMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly
-                    $ mkMiniProtocolCbFromPeerPipelined
-                    $ \_ ->
-                        let codec = cChainSyncCodec codecs
-                            chainSyncClient = client unlift peer
-                        in  (nullTracer, codec, chainSyncClient)
-            }
+    MiniProtocol
+        { miniProtocolNum = chainSyncMiniProtocolNum
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+        , miniProtocolStart = StartEagerly
+        , miniProtocolRun =
+            InitiatorProtocolOnly
+                $ mkMiniProtocolCbFromPeerPipelined
+                $ \_ ->
+                    let codec = cChainSyncCodec codecs
+                        chainSyncClient = client unlift peer
+                    in  (nullTracer, codec, chainSyncClient)
+        }
 
 
 -- | Create a ChainSync client that synchronizes chain headers (pipelined version).

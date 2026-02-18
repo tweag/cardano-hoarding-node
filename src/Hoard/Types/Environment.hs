@@ -5,8 +5,6 @@ module Hoard.Types.Environment
     , Topology (..)
 
       -- * Cardano protocol configuration
-    , CardanoProtocolsConfig (..)
-    , TxSubmissionConfig (..)
 
       -- * Tracing configuration
     , TracingConfig (..)
@@ -64,28 +62,10 @@ data Config = Config
     , topology :: Topology
     , peerSnapshot :: PeerSnapshotFile
     , peerManager :: PeerManager.Config
-    , cardanoProtocols :: CardanoProtocolsConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , nodeToNode :: NodeToNode.Config
     , quota :: Quota.Config
     }
-
-
--- | Cardano protocol configuration
-data CardanoProtocolsConfig = CardanoProtocolsConfig
-    { txSubmission :: TxSubmissionConfig
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake CardanoProtocolsConfig
-
-
--- | Transaction submission configuration
-data TxSubmissionConfig = TxSubmissionConfig
-    { maximumIngressQueue :: Int
-    -- ^ Max bytes queued in ingress queue
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake TxSubmissionConfig
 
 
 -- | Tracing configuration for OpenTelemetry

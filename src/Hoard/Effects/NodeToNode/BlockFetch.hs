@@ -67,22 +67,21 @@ miniProtocol
     -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> Eff es CardanoMiniProtocol
+    -> CardanoMiniProtocol
 miniProtocol conf unlift codecs peer =
-    pure
-        MiniProtocol
-            { miniProtocolNum = blockFetchMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-                let codec = cBlockFetchCodec codecs
-                    blockFetchClient = client unlift conf peer
-                    tracer = nullTracer
-                    wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
-                        addEvent "protocol_started" []
-                        pure $ blockFetchClientPeer blockFetchClient
-                in  (tracer, codec, wrappedPeer)
-            }
+    MiniProtocol
+        { miniProtocolNum = blockFetchMiniProtocolNum
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+        , miniProtocolStart = StartEagerly
+        , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
+            let codec = cBlockFetchCodec codecs
+                blockFetchClient = client unlift conf peer
+                tracer = nullTracer
+                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
+                    addEvent "protocol_started" []
+                    pure $ blockFetchClientPeer blockFetchClient
+            in  (tracer, codec, wrappedPeer)
+        }
 
 
 -- | Create a BlockFetch client that fetches blocks on requests over events.

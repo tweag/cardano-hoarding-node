@@ -1,12 +1,7 @@
 module Hoard.Effects.NodeToNode.KeepAlive
-    ( -- * NodeToNode
-      miniProtocol
-
-      -- * Events
-    , KeepAlivePing (..)
+    ( miniProtocol
     ) where
 
-import Data.Time (UTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
@@ -29,6 +24,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
 import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -45,28 +41,27 @@ miniProtocol
     -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> Eff es CardanoMiniProtocol
+    -> CardanoMiniProtocol
 miniProtocol conf unlift codecs peer =
-    pure
-        $ MiniProtocol
-            { miniProtocolNum = keepAliveMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly
-                    $ mkMiniProtocolCbFromPeer
-                    $ \_ ->
-                        let codec = cKeepAliveCodec codecs
-                            wrappedPeer = Peer.Effect
-                                $ unlift
-                                $ withExceptionLogging "KeepAlive"
-                                $ withSpan "keep_alive_protocol"
-                                $ do
-                                    addEvent "protocol_started" []
-                                    pure (keepAliveClientPeer $ client unlift conf peer)
-                            tracer = show >$< asTracer unlift "keep_alive.protocol_message"
-                        in  (tracer, codec, wrappedPeer)
-            }
+    MiniProtocol
+        { miniProtocolNum = keepAliveMiniProtocolNum
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+        , miniProtocolStart = StartEagerly
+        , miniProtocolRun =
+            InitiatorProtocolOnly
+                $ mkMiniProtocolCbFromPeer
+                $ \_ ->
+                    let codec = cKeepAliveCodec codecs
+                        wrappedPeer = Peer.Effect
+                            $ unlift
+                            $ withExceptionLogging "KeepAlive"
+                            $ withSpan "keep_alive_protocol"
+                            $ do
+                                addEvent "protocol_started" []
+                                pure (keepAliveClientPeer $ client unlift conf peer)
+                        tracer = show >$< asTracer unlift "keep_alive.protocol_message"
+                    in  (tracer, codec, wrappedPeer)
+        }
 
 
 -- | KeepAlive client implementation.
@@ -97,14 +92,3 @@ client unlift conf peer = KeepAliveClient sendFirst
         threadDelay conf.intervalMicroseconds
         addEvent "sending_keepalive" []
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
-
-
----------
--- Events
----------
-
-data KeepAlivePing = KeepAlivePing
-    { timestamp :: UTCTime
-    , peer :: Peer
-    }
-    deriving (Show, Typeable)

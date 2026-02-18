@@ -73,6 +73,7 @@ library
       Hoard.Events.BlockFetch
       Hoard.Events.ChainSync
       Hoard.Events.ImmutableTipRefreshTriggered
+      Hoard.Events.KeepAlive
       Hoard.Events.Network
       Hoard.Events.PeerSharing
       Hoard.Listeners

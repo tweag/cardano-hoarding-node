@@ -69,9 +69,9 @@ import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, asTracer, setStatus, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
-import Hoard.Effects.NodeToNode.KeepAlive (KeepAlivePing)
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
+import Hoard.Events.KeepAlive (KeepAlivePing)
 import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.Environment (Env)
@@ -351,16 +351,12 @@ mkApplication
     -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
 mkApplication unlift _env codecs peer = do
     conf <- ask @ProtocolsConfig
-    blockFetch <- NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
-    chainSync <- NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
-    keepAlive <- NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
-    peerSharing <- NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
     pure
         $ OuroborosApplication
-            [ chainSync
-            , blockFetch
-            , keepAlive
-            , peerSharing
+            [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
+            , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
+            , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+            , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
             ]
 
 

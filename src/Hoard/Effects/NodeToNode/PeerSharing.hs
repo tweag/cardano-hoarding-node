@@ -45,27 +45,26 @@ miniProtocol
     -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> Eff es CardanoMiniProtocol
+    -> CardanoMiniProtocol
 miniProtocol conf unlift' codecs peer =
-    pure
-        $ MiniProtocol
-            { miniProtocolNum = peerSharingMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun =
-                InitiatorProtocolOnly
-                    $ mkMiniProtocolCbFromPeer
-                    $ \_ ->
-                        let peerSharingClient = client unlift conf peer
-                            codec = cPeerSharingCodec codecs
-                            wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
-                                timestamp <- Clock.currentTime
-                                publish $ PeerSharingStarted {peer, timestamp}
-                                addEvent "protocol_started" []
-                                pure (peerSharingClientPeer peerSharingClient)
-                            tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
-                        in  (tracer, codec, wrappedPeer)
-            }
+    MiniProtocol
+        { miniProtocolNum = peerSharingMiniProtocolNum
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+        , miniProtocolStart = StartEagerly
+        , miniProtocolRun =
+            InitiatorProtocolOnly
+                $ mkMiniProtocolCbFromPeer
+                $ \_ ->
+                    let peerSharingClient = client unlift conf peer
+                        codec = cPeerSharingCodec codecs
+                        wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
+                            timestamp <- Clock.currentTime
+                            publish $ PeerSharingStarted {peer, timestamp}
+                            addEvent "protocol_started" []
+                            pure (peerSharingClientPeer peerSharingClient)
+                        tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
+                    in  (tracer, codec, wrappedPeer)
+        }
   where
     unlift :: forall x. Eff es x -> IO x
     unlift = unlift'
