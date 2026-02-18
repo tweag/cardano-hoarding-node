@@ -65,8 +65,7 @@ cardano_protocols:
     maximum_ingress_queue: 393216 # 384 KiB
   chain_sync:
     maximum_ingress_queue: 1200
-  tx_submission:
-    maximum_ingress_queue: 10
+
 
 cardano_protocol_handles:
   block_fetch:

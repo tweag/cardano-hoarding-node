@@ -1,26 +1,23 @@
-module Hoard.BlockFetch.Events
-    ( BlockFetchRequest (..)
-    , BlockFetchStarted (..)
+module Hoard.Events.BlockFetch
+    ( Request (..)
+    , RequestStarted (..)
     , BlockReceived (..)
-    , BlockFetchFailed (..)
-    , BlockBatchCompleted (..)
+    , RequestFailed (..)
+    , BatchCompleted (..)
     ) where
 
 import Data.Time (UTCTime)
+import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
-import Hoard.Data.Peer (Peer)
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
-
---------------------------------------------------------------------------------
--- BlockFetch Protocol Events
---------------------------------------------------------------------------------
 
 -- | Events from the BlockFetch mini-protocol.
 --
 -- BlockFetch is responsible for downloading block bodies after ChainSync
 -- has provided the headers.
-data BlockFetchStarted = BlockFetchStarted
+data RequestStarted = RequestStarted
     { peer :: Peer
     , timestamp :: UTCTime
     }
@@ -28,7 +25,7 @@ data BlockFetchStarted = BlockFetchStarted
 
 
 -- | A request to fetch a single block.
-data BlockFetchRequest = BlockFetchRequest
+data Request = Request
     { peer :: Peer
     , timestamp :: UTCTime
     , header :: CardanoHeader
@@ -44,7 +41,7 @@ data BlockReceived = BlockReceived
     deriving (Typeable)
 
 
-data BlockFetchFailed = BlockFetchFailed
+data RequestFailed = RequestFailed
     { peer :: Peer
     , timestamp :: UTCTime
     , header :: CardanoHeader
@@ -53,7 +50,7 @@ data BlockFetchFailed = BlockFetchFailed
     deriving (Typeable)
 
 
-data BlockBatchCompleted = BlockBatchCompleted
+data BatchCompleted = BatchCompleted
     { peer :: Peer
     , timestamp :: UTCTime
     , blockCount :: Int

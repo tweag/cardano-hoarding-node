@@ -9,14 +9,6 @@ import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 import Prelude hiding (evalState)
 
-import Hoard.BlockFetch.Events
-    ( BlockBatchCompleted
-    , BlockFetchFailed
-    , BlockFetchRequest
-    , BlockFetchStarted
-    , BlockReceived
-    )
-import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Data.ID (ID)
@@ -42,24 +34,25 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Quota (runQuota)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.Effects.WithSocket (withNodeSockets)
+import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
-import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
+import Hoard.Events.KeepAlive (KeepAlivePing)
+import Hoard.Events.Network (ProtocolError)
+import Hoard.Events.PeerSharing (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.Monitoring (Poll)
-import Hoard.Network.Events (ProtocolError)
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
-import Hoard.PeerSharing.Events (PeerSharingFailed, PeerSharingStarted, PeersReceived)
 import Hoard.Types.HoardState (HoardState)
 
-import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.ChainSync qualified as ChainSync
 import Hoard.Core qualified as Core
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.NodeToNode.Config qualified as NodeToNode.Config
+import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
-import Hoard.PeerSharing qualified as PeerSharing
+import Hoard.Persistence qualified as Persistence
 import Hoard.Server qualified as Server
 
 
@@ -76,7 +69,7 @@ main =
         . runConfigReader
         . runHandlesReader
         . Monitoring.runConfig
-        . BlockFetch.runConfig
+        . NodeToNode.Config.runProtocolsConfig
         . runLog
         . runClock
         . runFileSystem
@@ -96,11 +89,11 @@ main =
         . runPubSub @RollBackward
         . runPubSub @RollForward
         . runPubSub @HeaderReceived
-        . runPubSub @BlockFetchStarted
-        . runPubSub @BlockFetchRequest
-        . runPubSub @BlockReceived
-        . runPubSub @BlockBatchCompleted
-        . runPubSub @BlockFetchFailed
+        . runPubSub @BlockFetch.RequestStarted
+        . runPubSub @BlockFetch.Request
+        . runPubSub @BlockFetch.BlockReceived
+        . runPubSub @BlockFetch.BatchCompleted
+        . runPubSub @BlockFetch.RequestFailed
         . runPubSub @PeerSharingStarted
         . runPubSub @PeersReceived
         . runPubSub @PeerSharingFailed
@@ -124,9 +117,7 @@ main =
             runSystem
                 [ Core.component
                 , Server.component
-                , PeerSharing.component
-                , ChainSync.component
-                , BlockFetch.component
+                , Persistence.component
                 , OrphanDetection.component
                 , Monitoring.component
                 , PeerManager.component

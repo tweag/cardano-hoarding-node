@@ -10,9 +10,9 @@ import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
+import Hoard.Events.Network (ProtocolError)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed, immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
 import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
-import Hoard.Network.Events (ProtocolError)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Conc qualified as Conc

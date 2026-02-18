@@ -1,10 +1,11 @@
-module Hoard.BlockFetch.NodeToNode (miniProtocol, client) where
+module Hoard.Effects.NodeToNode.BlockFetch
+    ( miniProtocol
+    ) where
 
 import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
-import Effectful.Reader.Static (Reader, ask)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Ouroboros.Consensus.Block.Abstract (headerPoint)
@@ -15,31 +16,31 @@ import Ouroboros.Network.Mux
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
     )
-import Ouroboros.Network.NodeToNode
-    ( blockFetchMiniProtocolNum
-    )
+import Ouroboros.Network.NodeToNode (blockFetchMiniProtocolNum)
 import Ouroboros.Network.Protocol.BlockFetch.Client (blockFetchClientPeer)
-import Prelude hiding (Reader, State, ask, evalState, get, modify)
+import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 
-import Hoard.BlockFetch (Config (..))
-import Hoard.BlockFetch.Events
-    ( BlockBatchCompleted (..)
-    , BlockFetchFailed (..)
-    , BlockFetchRequest (..)
-    , BlockFetchStarted (..)
-    , BlockReceived (..)
-    )
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
+import Hoard.Events.BlockFetch
+    ( BatchCompleted (..)
+    , BlockReceived (..)
+    , Request (..)
+    , RequestFailed (..)
+    , RequestStarted (..)
+    )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
 import Hoard.Effects.Chan qualified as Chan
@@ -53,38 +54,34 @@ miniProtocol
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
+       , Metrics :> es
+       , Pub BatchCompleted :> es
        , Pub BlockReceived :> es
-       , Reader Config :> es
-       , Sub BlockFetchRequest :> es
+       , Pub RequestFailed :> es
+       , Pub RequestStarted :> es
+       , Sub Request :> es
        , Timeout :> es
        , Tracing :> es
        )
-    => (forall x. Eff es x -> IO x)
+    => BlockFetchConfig
+    -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
-    -> Eff es CardanoMiniProtocol
-miniProtocol unlift' codecs peer = do
-    conf <- ask
-    pure
-        MiniProtocol
-            { miniProtocolNum = blockFetchMiniProtocolNum
-            , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
-            , miniProtocolStart = StartEagerly
-            , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-                let codec = cBlockFetchCodec codecs
-                    blockFetchClient = client unlift conf peer
-                    tracer = nullTracer
-                    wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
-                        addEvent "protocol_started" []
-                        pure $ blockFetchClientPeer blockFetchClient
-                in  (tracer, codec, wrappedPeer)
-            }
-  where
-    unlift :: forall x. Eff es x -> IO x
-    unlift = unlift'
+    -> CardanoMiniProtocol
+miniProtocol conf unlift codecs peer =
+    MiniProtocol
+        { miniProtocolNum = blockFetchMiniProtocolNum
+        , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
+        , miniProtocolStart = StartEagerly
+        , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
+            let codec = cBlockFetchCodec codecs
+                blockFetchClient = client unlift conf peer
+                tracer = nullTracer
+                wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" $ do
+                    addEvent "protocol_started" []
+                    pure $ blockFetchClientPeer blockFetchClient
+            in  (tracer, codec, wrappedPeer)
+        }
 
 
 -- | Create a BlockFetch client that fetches blocks on requests over events.
@@ -94,27 +91,28 @@ client
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
+       , Metrics :> es
+       , Pub BatchCompleted :> es
        , Pub BlockReceived :> es
-       , Sub BlockFetchRequest :> es
+       , Pub RequestFailed :> es
+       , Pub RequestStarted :> es
+       , Sub Request :> es
        , Timeout :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> Config
+    -> BlockFetchConfig
     -> Peer
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
 client unlift cfg peer =
     BlockFetch.BlockFetchClient $ unlift do
         timestamp <- Clock.currentTime
-        publish $ BlockFetchStarted {peer, timestamp}
+        publish $ RequestStarted {peer, timestamp}
         addEvent "awaiting_block_requests" []
 
         (inChan, outChan) <- Chan.newChan
 
-        Conc.fork_ $ listen \(req :: BlockFetchRequest) ->
+        Conc.fork_ $ listen \(req :: Request) ->
             when (req.peer.id == peer.id) $ Chan.writeChan inChan req
 
         awaitMessage outChan
@@ -139,11 +137,12 @@ client unlift cfg peer =
             { handleStartBatch =
                 pure $ blockReceiver 0
             , handleNoBlocks = unlift $ do
+                recordBlockFetchFailure
                 addEvent "no_blocks_returned" [("request_count", show $ length reqs)]
                 timestamp <- Clock.currentTime
                 for_ reqs \req ->
                     publish
-                        $ BlockFetchFailed
+                        $ RequestFailed
                             { peer
                             , timestamp
                             , header = req.header
@@ -167,7 +166,7 @@ client unlift cfg peer =
                 addEvent "batch_completed" [("blocks_fetched", show blockCount)]
                 timestamp <- Clock.currentTime
                 publish
-                    $ BlockBatchCompleted
+                    $ BatchCompleted
                         { peer
                         , timestamp
                         , blockCount

@@ -17,16 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Violations
-      Hoard.BlockFetch
-      Hoard.BlockFetch.Events
-      Hoard.BlockFetch.Listeners
-      Hoard.BlockFetch.NodeToNode
       Hoard.Bootstrap
-      Hoard.ChainSync
-      Hoard.ChainSync.Config
-      Hoard.ChainSync.Events
-      Hoard.ChainSync.Listeners
-      Hoard.ChainSync.NodeToNode
       Hoard.Collector
       Hoard.Component
       Hoard.Control.Exception
@@ -65,8 +56,12 @@ library
       Hoard.Effects.Monitoring.Tracing.Provider
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
+      Hoard.Effects.NodeToNode.BlockFetch
+      Hoard.Effects.NodeToNode.ChainSync
       Hoard.Effects.NodeToNode.Codecs
       Hoard.Effects.NodeToNode.Config
+      Hoard.Effects.NodeToNode.KeepAlive
+      Hoard.Effects.NodeToNode.PeerSharing
       Hoard.Effects.Options
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
@@ -75,26 +70,23 @@ library
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events
+      Hoard.Events.BlockFetch
+      Hoard.Events.ChainSync
       Hoard.Events.ImmutableTipRefreshTriggered
-      Hoard.Events.Node
-      Hoard.KeepAlive.Config
-      Hoard.KeepAlive.NodeToNode
+      Hoard.Events.KeepAlive
+      Hoard.Events.Network
+      Hoard.Events.PeerSharing
       Hoard.Listeners
       Hoard.Listeners.ImmutableTipRefreshTriggeredListener
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
-      Hoard.Network.Events
       Hoard.OrphanDetection
       Hoard.OrphanDetection.Data
       Hoard.OrphanDetection.Listeners
       Hoard.PeerManager
       Hoard.PeerManager.Config
       Hoard.PeerManager.Peers
-      Hoard.PeerSharing
-      Hoard.PeerSharing.Config
-      Hoard.PeerSharing.Events
-      Hoard.PeerSharing.Listeners
-      Hoard.PeerSharing.NodeToNode
+      Hoard.Persistence
       Hoard.Server
       Hoard.Setup
       Hoard.Triggers

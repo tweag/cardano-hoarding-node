@@ -9,8 +9,6 @@ import Effectful.Concurrent.MVar (newEmptyMVar, putMVar, tryReadMVar)
 import Ouroboros.Consensus.Block (SlotNo (..), blockSlot)
 import Prelude hiding (Reader, State, asks, get, modify, newEmptyMVar, putMVar, state, takeMVar, tryReadMVar)
 
-import Hoard.BlockFetch.Events (BlockFetchRequest (..))
-import Hoard.ChainSync.Events (HeaderReceived (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
@@ -20,10 +18,12 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSp
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyCardanoHeader)
+import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.PeerManager.Peers (Connection (..), awaitTermination, signalTermination)
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Events.BlockFetch qualified as BlockFetch
 
 
 collectFromPeer
@@ -31,7 +31,7 @@ collectFromPeer
        , Conc :> es
        , Concurrent :> es
        , NodeToNode :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Sub HeaderReceived :> es
        , Tracing :> es
        , Verifier :> es
@@ -69,7 +69,7 @@ collectFromPeer peer conn = withSpan "collector.collect_from_peer" $ do
 -- that are not in the database.
 pickBlockFetchRequest
     :: ( BlockRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -93,7 +93,7 @@ pickBlockFetchRequest myPeerId event =
                     addAttribute "hash" (show hash)
                     addAttribute "peer.id" (show event.peer.id)
                     publish
-                        BlockFetchRequest
+                        BlockFetch.Request
                             { timestamp = event.timestamp
                             , peer = event.peer
                             , header

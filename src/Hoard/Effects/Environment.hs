@@ -25,7 +25,6 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig
-    , CardanoProtocolsConfig
     , Config (..)
     , Env (..)
     , Handles (..)
@@ -53,7 +52,6 @@ data ConfigFile = ConfigFile
     , logging :: LoggingConfig
     , tracing :: TracingConfig
     , maxFileDescriptors :: Maybe Word32
-    , cardanoProtocols :: CardanoProtocolsConfig
     , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
     , peerManager :: PeerManager.Config
     , nodeToNode :: NodeToNode.Config
@@ -252,7 +250,6 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
                 , topology
                 , peerSnapshot
                 , peerManager = configFile.peerManager
-                , cardanoProtocols = configFile.cardanoProtocols
                 , cardanoNodeIntegration = configFile.cardanoNodeIntegration
                 , nodeToNode = configFile.nodeToNode
                 , quota = configFile.quota

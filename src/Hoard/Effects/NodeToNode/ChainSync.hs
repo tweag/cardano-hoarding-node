@@ -1,4 +1,6 @@
-module Hoard.ChainSync.NodeToNode (miniProtocol, client) where
+module Hoard.Effects.NodeToNode.ChainSync
+    ( miniProtocol
+    ) where
 
 import Cardano.Api.Block (toConsensusPointHF)
 import Control.Tracer (nullTracer)
@@ -16,23 +18,25 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode (chainSyncMiniProtocolNum)
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
-import Prelude hiding (State, gets)
+import Prelude hiding (Reader, State, ask, gets, runReader)
 
 import Data.List qualified as List
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 
-import Hoard.ChainSync.Config (Config (..))
-import Hoard.ChainSync.Events
+import Hoard.Control.Exception (withExceptionLogging)
+import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward)
+import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
+import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
+import Hoard.Effects.Publishing (Pub, publish)
+import Hoard.Events.ChainSync
     ( ChainSyncIntersectionFound (..)
     , ChainSyncStarted (..)
     , HeaderReceived (..)
     , RollBackward (..)
     )
-import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
-import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -43,6 +47,7 @@ import Hoard.Effects.Clock qualified as Clock
 miniProtocol
     :: forall es
      . ( Clock :> es
+       , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
@@ -50,12 +55,12 @@ miniProtocol
        , State HoardState :> es
        , Tracing :> es
        )
-    => (forall x. Eff es x -> IO x)
-    -> Config
+    => ChainSyncConfig
+    -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
+miniProtocol conf unlift codecs peer =
     MiniProtocol
         { miniProtocolNum = chainSyncMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -82,6 +87,7 @@ miniProtocol unlift conf codecs peer =
 client
     :: forall es
      . ( Clock :> es
+       , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
@@ -134,6 +140,7 @@ client unlift peer =
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                recordChainSyncRollforward
                 timestamp <- Clock.currentTime
                 let event =
                         HeaderReceived
@@ -145,6 +152,7 @@ client unlift peer =
                 publish event
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                recordChainSyncRollback
                 addEvent "rollback" [("point", show point), ("tip", show tip)]
                 timestamp <- Clock.currentTime
                 publish
@@ -157,6 +165,7 @@ client unlift peer =
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                    recordChainSyncRollforward
                     timestamp <- Clock.currentTime
                     publish
                         $ HeaderReceived
@@ -167,6 +176,7 @@ client unlift peer =
                             }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                    recordChainSyncRollback
                     addEvent "rollback_after_await" [("point", show point), ("tip", show tip)]
                     timestamp <- Clock.currentTime
                     publish

@@ -36,7 +36,6 @@ import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
 import Hoard.API (API, Routes, server)
-import Hoard.ChainSync.Config ()
 import Hoard.Data.Block (Block)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
@@ -45,13 +44,10 @@ import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.Environment (loadNodeConfig, loadProtocolInfo)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
-import Hoard.KeepAlive.Config ()
 import Hoard.PeerManager.Config ()
-import Hoard.PeerSharing.Config ()
 import Hoard.Types.DBConfig (DBPools (..))
 import Hoard.Types.Environment
     ( CardanoNodeIntegrationConfig (..)
-    , CardanoProtocolsConfig (..)
     , Config (..)
     , Env (..)
     , Handles (..)
@@ -61,7 +57,6 @@ import Hoard.Types.Environment
     , ServerConfig (..)
     , Topology (..)
     , TracingConfig (..)
-    , TxSubmissionConfig (..)
     )
 import Hoard.Types.HoardState (HoardState)
 
@@ -112,13 +107,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
     let testTime = UTCTime (toEnum 0) 0
     let dbPools = DBPools pool pool
     let serverConfig = ServerConfig {host = "localhost", port = 3000}
-    let cardanoProtocols =
-            CardanoProtocolsConfig
-                { peerSharing = def
-                , keepAlive = def
-                , chainSync = def
-                , txSubmission = TxSubmissionConfig {maximumIngressQueue = 10}
-                }
     let cardanoNodeIntegrationCfg =
             CardanoNodeIntegrationConfig
                 { sshServerAliveIntervalSeconds = 60
@@ -135,7 +123,6 @@ runEffectStackTest mkEff = liftIO $ withIOManager $ \ioManager -> do
                 , maxFileDescriptors = Nothing
                 , topology = Topology {peerSnapshotFile = "peer-snapshot.json"}
                 , peerSnapshot = PeerSnapshotFile {bigLedgerPools = []}
-                , cardanoProtocols
                 , cardanoNodeIntegration = cardanoNodeIntegrationCfg
                 , peerManager = def
                 , nodeToNode = def

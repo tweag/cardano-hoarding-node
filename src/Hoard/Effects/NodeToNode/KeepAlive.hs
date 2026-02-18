@@ -1,10 +1,7 @@
-module Hoard.KeepAlive.NodeToNode
+module Hoard.Effects.NodeToNode.KeepAlive
     ( miniProtocol
-    , client
-    , KeepAlivePing (..)
     ) where
 
-import Data.Time (UTCTime)
 import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
@@ -14,12 +11,10 @@ import Ouroboros.Network.Mux
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
     )
-import Ouroboros.Network.NodeToNode
-    ( keepAliveMiniProtocolNum
-    )
+import Ouroboros.Network.NodeToNode (keepAliveMiniProtocolNum)
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
-import Prelude hiding (Reader, State, asks, evalState, gets)
+import Prelude hiding (Reader, State, ask, asks, evalState, gets, runReader)
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
@@ -27,8 +22,9 @@ import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, asTracer, withSpan)
+import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.KeepAlive.Config (Config (..))
+import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -41,12 +37,12 @@ miniProtocol
        , Pub KeepAlivePing :> es
        , Tracing :> es
        )
-    => (forall x. Eff es x -> IO x)
-    -> Config
+    => KeepAliveConfig
+    -> (forall x. Eff es x -> IO x)
     -> CardanoCodecs
     -> Peer
     -> CardanoMiniProtocol
-miniProtocol unlift conf codecs peer =
+miniProtocol conf unlift codecs peer =
     MiniProtocol
         { miniProtocolNum = keepAliveMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
@@ -80,7 +76,7 @@ client
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
-    -> Config
+    -> KeepAliveConfig
     -> Peer
     -> KeepAliveClient IO ()
 client unlift conf peer = KeepAliveClient sendFirst
@@ -96,10 +92,3 @@ client unlift conf peer = KeepAliveClient sendFirst
         threadDelay conf.intervalMicroseconds
         addEvent "sending_keepalive" []
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
-
-
-data KeepAlivePing = KeepAlivePing
-    { timestamp :: UTCTime
-    , peer :: Peer
-    }
-    deriving (Show, Typeable)

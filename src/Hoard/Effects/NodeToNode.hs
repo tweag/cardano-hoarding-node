@@ -61,29 +61,29 @@ import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
 import System.Timeout qualified as Timeout
 
-import Hoard.BlockFetch.Events (BlockBatchCompleted, BlockFetchFailed, BlockFetchRequest, BlockFetchStarted, BlockReceived)
-import Hoard.ChainSync.Events (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, asTracer, setStatus, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
-import Hoard.Effects.NodeToNode.Config (Config (..))
+import Hoard.Effects.NodeToNode.Config (Config (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
-import Hoard.KeepAlive.NodeToNode (KeepAlivePing)
-import Hoard.PeerSharing.Events (PeerSharingStarted, PeersReceived)
+import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
+import Hoard.Events.KeepAlive (KeepAlivePing)
+import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (CardanoProtocolsConfig (..), Env)
+import Hoard.Types.Environment (Env)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
-import Hoard.BlockFetch qualified as BlockFetch
-import Hoard.BlockFetch.NodeToNode qualified as BlockFetch
-import Hoard.ChainSync.Events qualified as ChainSync
-import Hoard.ChainSync.NodeToNode qualified as ChainSync
-import Hoard.KeepAlive.NodeToNode qualified as KeepAlive
-import Hoard.PeerSharing.NodeToNode qualified as PeerSharing
+import Hoard.Effects.NodeToNode.BlockFetch qualified as NodeToNode.BlockFetch
+import Hoard.Effects.NodeToNode.ChainSync qualified as NodeToNode.ChainSync
+import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive
+import Hoard.Effects.NodeToNode.PeerSharing qualified as NodeToNode.PeerSharing
+import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Types.Environment qualified as Env
 
 
@@ -119,10 +119,11 @@ runNodeToNode
        , Conc :> es
        , Concurrent :> es
        , IOE :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockReceived :> es
+       , Metrics :> es
+       , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BlockReceived :> es
+       , Pub BlockFetch.RequestFailed :> es
+       , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -130,10 +131,10 @@ runNodeToNode
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
-       , Reader BlockFetch.Config :> es
        , Reader Env :> es
+       , Reader ProtocolsConfig :> es
        , State HoardState :> es
-       , Sub BlockFetchRequest :> es
+       , Sub BlockFetch.Request :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -325,10 +326,11 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Pub BlockBatchCompleted :> es
-       , Pub BlockFetchFailed :> es
-       , Pub BlockFetchStarted :> es
-       , Pub BlockReceived :> es
+       , Metrics :> es
+       , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BlockReceived :> es
+       , Pub BlockFetch.RequestFailed :> es
+       , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -336,9 +338,9 @@ mkApplication
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
-       , Reader BlockFetch.Config :> es
+       , Reader ProtocolsConfig :> es
        , State HoardState :> es
-       , Sub BlockFetchRequest :> es
+       , Sub BlockFetch.Request :> es
        , Timeout :> es
        , Tracing :> es
        )
@@ -347,14 +349,14 @@ mkApplication
     -> CardanoCodecs
     -> Peer
     -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
-mkApplication unlift env codecs peer = do
-    blockFetch <- BlockFetch.miniProtocol unlift codecs peer
+mkApplication unlift _env codecs peer = do
+    conf <- ask @ProtocolsConfig
     pure
         $ OuroborosApplication
-            [ ChainSync.miniProtocol unlift env.config.cardanoProtocols.chainSync codecs peer
-            , blockFetch
-            , KeepAlive.miniProtocol unlift env.config.cardanoProtocols.keepAlive codecs peer
-            , PeerSharing.miniProtocol unlift env.config.cardanoProtocols.peerSharing codecs peer
+            [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
+            , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
+            , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+            , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
             ]
 
 

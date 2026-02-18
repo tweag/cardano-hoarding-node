@@ -16,13 +16,12 @@ import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Hoard.BlockFetch.Events (BlockFetchRequest)
 import Hoard.Bootstrap (bootstrapPeers)
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
@@ -30,20 +29,20 @@ import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
-import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
-import Hoard.KeepAlive.NodeToNode (KeepAlivePing (..))
+import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
-import Hoard.PeerSharing.Events (PeersReceived (..))
 import Hoard.Triggers (every)
 
-import Hoard.ChainSync.Events qualified as ChainSync
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Types.Environment qualified as Env
 
 
@@ -59,7 +58,7 @@ component
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub CullRequested :> es
        , Pub PeerDisconnected :> es
        , Pub PeerRequested :> es
@@ -71,7 +70,6 @@ component
        , Sub KeepAlivePing :> es
        , Sub PeerDisconnected :> es
        , Sub PeerRequested :> es
-       , Sub PeersReceived :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -86,7 +84,6 @@ component =
         , listeners =
             pure
                 [ Sub.listen updatePeerConnectionState
-                , Sub.listen persistReceivedPeers
                 , Sub.listen cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen replenishCollectors
@@ -137,19 +134,6 @@ updatePeerConnectionState event =
             . (.peers)
 
 
--- | Processes PeersReceived events and upserts the peer information into
--- the database.
-persistReceivedPeers :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
-persistReceivedPeers event = withSpan "persist_received_peers" do
-    addAttribute "peers.count" (show $ length event.peerAddresses)
-    addAttribute "source.peer" (show event.peer.address)
-    addEvent "persisting_peers" [("count", show $ length event.peerAddresses)]
-    forM_ event.peerAddresses $ \addr ->
-        addEvent "peer_address" [("host", show addr.host), ("port", show addr.port)]
-    void $ upsertPeers event.peerAddresses event.peer.address event.timestamp
-    addEvent "peers_persisted" []
-
-
 cullOldCollectors
     :: ( Clock :> es
        , Concurrent :> es
@@ -191,7 +175,7 @@ replenishCollectors
        , Metrics :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub PeerDisconnected :> es
        , Reader Config :> es
        , State Peers :> es
@@ -234,7 +218,7 @@ bracketCollector
        , Concurrent :> es
        , NodeToNode :> es
        , PeerRepo :> es
-       , Pub BlockFetchRequest :> es
+       , Pub BlockFetch.Request :> es
        , Pub PeerDisconnected :> es
        , State Peers :> es
        , Sub ChainSync.HeaderReceived :> es
