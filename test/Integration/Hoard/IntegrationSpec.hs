@@ -3,7 +3,6 @@ module Integration.Hoard.IntegrationSpec (spec_ViolationsIntegration) where
 import Test.Hspec
 
 import Hoard.API (Routes (..))
-import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.TestHelpers (client, withEffectStackServer)
 
 
@@ -14,33 +13,26 @@ spec_ViolationsIntegration = describe "Violations API Integration Tests" $ do
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                result <- runClient (client.violations Nothing Nothing Nothing)
-                liftIO $ result `shouldSatisfy` isRight
-
-        it "accepts classification query parameter"
-            $ void @IO
-            $ withEffectStackServer
-            $ \_ runClient -> do
-                result <- runClient (client.violations (Just Canonical) Nothing Nothing)
+                result <- runClient (client.violations Nothing Nothing)
                 liftIO $ result `shouldSatisfy` isRight
 
         it "accepts minSlot query parameter"
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                result <- runClient (client.violations Nothing (Just 1000) Nothing)
+                result <- runClient (client.violations (Just 1000) Nothing)
                 liftIO $ result `shouldSatisfy` isRight
 
         it "accepts maxSlot query parameter"
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                result <- runClient (client.violations Nothing Nothing (Just 2000))
+                result <- runClient (client.violations Nothing (Just 2000))
                 liftIO $ result `shouldSatisfy` isRight
 
-        it "accepts all query parameters together"
+        it "accepts both slot parameters"
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                result <- runClient (client.violations (Just Canonical) (Just 1000) (Just 2000))
+                result <- runClient (client.violations (Just 1000) (Just 2000))
                 liftIO $ result `shouldSatisfy` isRight

@@ -6,10 +6,9 @@ module Hoard.API.Violations
 import Effectful (Eff)
 import Servant (Get, JSON, QueryParam, type (:-), type (:>))
 
-import Hoard.Data.BlockViolation (BlockViolation)
+import Hoard.API.Data.BlockViolation (SlotDispute)
 import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.OrphanDetection.Data (BlockClassification)
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 
@@ -18,12 +17,11 @@ import Hoard.Effects.BlockRepo qualified as BlockRepo
 type ViolationsAPI mode =
     mode
         :- "violations"
-            :> QueryParam "classification" BlockClassification
             :> QueryParam "minSlot" Int64
             :> QueryParam "maxSlot" Int64
-            :> Get '[JSON] [BlockViolation]
+            :> Get '[JSON] [SlotDispute]
 
 
 -- | Handler for violations endpoint
-violationsHandler :: (BlockRepo ::> es) => Maybe BlockClassification -> Maybe Int64 -> Maybe Int64 -> Eff es [BlockViolation]
+violationsHandler :: (BlockRepo ::> es) => Maybe Int64 -> Maybe Int64 -> Eff es [SlotDispute]
 violationsHandler = BlockRepo.getViolations

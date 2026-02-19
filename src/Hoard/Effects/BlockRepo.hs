@@ -27,10 +27,10 @@ import Data.Set qualified as Set
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
+import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolation, groupIntoDisputes)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
-import Hoard.Data.BlockViolation (BlockViolation, blockToViolation)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
@@ -49,7 +49,7 @@ data BlockRepo :: Effect where
     BlockExists :: BlockHash -> BlockRepo m Bool
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
     GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
-    GetViolations :: Maybe BlockClassification -> Maybe Int64 -> Maybe Int64 -> BlockRepo m [BlockViolation]
+    GetViolations :: Maybe Int64 -> Maybe Int64 -> BlockRepo m [SlotDispute]
     EvictBlocks :: BlockRepo m Int
 
 
@@ -84,17 +84,15 @@ runBlockRepo action = do
             addAttribute "exclude.count" (show $ Set.size excludeHashes)
             runQuery "get-unclassified-blocks"
                 $ getUnclassifiedBlocksQuery slot limit excludeHashes
-        GetViolations mbClassification mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" $ do
-            addAttribute "filter.classification" (show mbClassification)
+        GetViolations mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" $ do
             addAttribute "filter.min_slot" (show mbMinSlot)
             addAttribute "filter.max_slot" (show mbMaxSlot)
-            results <- runQuery "get-violations" $ getViolationsQuery mbClassification mbMinSlot mbMaxSlot
+            (parseErrors, disputes) <- runQuery "get-violations" $ getViolationsQuery mbMinSlot mbMaxSlot
 
             -- Log parsing errors before discarding them
-            let (parseErrors, violations) = partitionEithers results
             addAttribute "parse.errors.count" (show $ length parseErrors)
             forM_ parseErrors $ \err -> addEvent "parse_error" [("error", err)]
-            pure violations
+            pure disputes
         EvictBlocks -> withSpan "block_repo.evict_blocks" $ do
             hashes <- runTransaction "evict-blocks" evictUninterestingBlocksTrans
             -- Remove evicted blocks from cache so future lookups hit the DB
@@ -193,18 +191,24 @@ optionalFilter Nothing _ = lit True
 optionalFilter (Just val) f = f val
 
 
--- Query blocks with given filters and their receipts
--- Returns Either values so parsing errors can be logged before being discarded
-getViolationsQuery :: Maybe BlockClassification -> Maybe Int64 -> Maybe Int64 -> Statement () [Either Text BlockViolation]
-getViolationsQuery mbClassification mbMinSlot mbMaxSlot =
-    (fmap . fmap $ parseRow) . Rel8.run . Rel8.select $ do
+-- | Query all classified blocks at disputed slots (slots with at least one orphan),
+-- filtered by optional slot range. Returns both the canonical winner and orphan(s)
+-- for each disputed slot.
+-- Returns Either values so parsing errors can be logged before being discarded.
+getViolationsQuery :: Maybe Int64 -> Maybe Int64 -> Statement () ([Text], [SlotDispute])
+getViolationsQuery mbMinSlot mbMaxSlot =
+    (fmap (second groupIntoDisputes . partitionEithers) . fmap (fmap parseRow)) . Rel8.run . Rel8.select $ do
         block <- Rel8.each Blocks.schema
 
-        -- Apply block filters
+        -- Only classified blocks within the optional slot range
         where_
-            $ optionalFilter mbClassification (\cls -> block.classification ==. lit (Just cls))
+            $ Rel8.not_ (isNull block.classification)
                 &&. optionalFilter mbMinSlot (\minSlot -> block.slotNumber >=. lit minSlot)
                 &&. optionalFilter mbMaxSlot (\maxSlot -> block.slotNumber <=. lit maxSlot)
+
+        -- Only include blocks at slots that have at least one orphan
+        hasOrphanAtSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
+        where_ hasOrphanAtSlot
 
         -- Get all receipts for this block
         receipts <- Rel8.many $ do
@@ -232,18 +236,20 @@ evictUninterestingBlocksTrans = do
     pure hashes
 
 
+orphanExistsAtSlot :: Rel8.Query (Blocks.Row Rel8.Expr) -> Rel8.Expr Int64 -> Rel8.Query (Rel8.Expr Bool)
+orphanExistsAtSlot orphans slot = Rel8.exists $ do
+    orphan <- orphans
+    where_ $ orphan.classification ==. lit (Just Orphaned) &&. orphan.slotNumber ==. slot
+    pure orphan
+
+
 -- | Select canonical blocks that have no orphaned block at the same slot.
 getEvictableBlockHashesQuery :: Statement () [BlockHash]
 getEvictableBlockHashesQuery =
     Rel8.run . Rel8.select $ do
         block <- Rel8.each Blocks.schema
         where_ $ block.classification ==. lit (Just Canonical)
-        hasOrphanAtSameSlot <- Rel8.exists $ do
-            orphan <- Rel8.each Blocks.schema
-            where_
-                $ orphan.classification ==. lit (Just Orphaned)
-                    &&. orphan.slotNumber ==. block.slotNumber
-            pure orphan
+        hasOrphanAtSameSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
         where_ $ Rel8.not_ hasOrphanAtSameSlot
         pure block.hash
 
@@ -280,13 +286,13 @@ runBlockRepoState = interpret_ \case
                             && block.slotNumber < slot
                             && Set.notMember block.hash excludeHashes
                     )
-    GetViolations mbClassification mbMinSlot mbMaxSlot -> do
+    GetViolations mbMinSlot mbMaxSlot -> do
         blocks <- gets $ filter $ \block ->
-            maybe True (\cls -> block.classification == Just cls) mbClassification
+            isJust block.classification
                 && maybe True (\minSlot -> block.slotNumber >= minSlot) mbMinSlot
                 && maybe True (\maxSlot -> block.slotNumber <= maxSlot) mbMaxSlot
         -- In test state, return empty receipts list and convert to DTOs
-        pure $ fmap (\block -> blockToViolation block []) blocks
+        pure $ groupIntoDisputes $ fmap (\block -> blockToViolation block []) blocks
     EvictBlocks -> do
         blocks <- get
         let orphanedSlots = map (.slotNumber) $ filter (\b -> b.classification == Just Orphaned) blocks

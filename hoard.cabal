@@ -16,6 +16,7 @@ build-type:    Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.API.Data.BlockViolation
       Hoard.API.Violations
       Hoard.BlockEviction
       Hoard.BlockEviction.Config
@@ -26,7 +27,6 @@ library
       Hoard.Core
       Hoard.Data.Block
       Hoard.Data.BlockHash
-      Hoard.Data.BlockViolation
       Hoard.Data.Eras
       Hoard.Data.Header
       Hoard.Data.ID
