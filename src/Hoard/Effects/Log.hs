@@ -56,6 +56,7 @@ import Prelude hiding (Reader, ask, local, runReader)
 import Data.ByteString.Char8 qualified as B8
 
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
+import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 data Log :: Effect where
@@ -85,8 +86,11 @@ instance Semigroup Namespace where
 
 data Config = Config
     { minimumSeverity :: Severity
-    , output :: Handle
     }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake Config
+
+
 data Severity
     = DEBUG
     | INFO
@@ -100,7 +104,6 @@ instance Default Config where
     def =
         Config
             { minimumSeverity = minBound
-            , output = stdout
             }
 
 
@@ -153,14 +156,23 @@ runLogNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
 runLog :: (IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
 runLog action = do
     config <- ask
+    overrideLog <- liftIO $ (>>= readMaybe) <$> lookupEnv "LOG"
+    overrideLogging <- liftIO $ (>>= readMaybe) <$> lookupEnv "LOGGING"
+    overrideDebug <-
+        liftIO
+            $ (>>= \x -> if x == "0" then Nothing else Just DEBUG)
+                <$> lookupEnv "DEBUG"
+    let severity =
+            fromMaybe config.minimumSeverity
+                $ overrideDebug <|> overrideLogging <|> overrideLog
 
     reinterpretWith (runReader (Namespace "")) action \env -> \case
         LogMsg msg ->
-            liftIO $ when (msg.severity >= config.minimumSeverity) do
+            liftIO $ when (msg.severity >= severity) do
                 -- NOTE: We use hPutStr here with an appended newline because
                 -- hPutStrLn is not atomic for ByteStrings longer than 1024 bytes.
                 -- Data.Text.IO.hPutStrLn is not atomic for even short Texts.
-                B8.hPutStr config.output
+                B8.hPutStr stdout
                     . encodeUtf8
                     . (<> "\n")
                     . formatMessage
