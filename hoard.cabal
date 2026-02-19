@@ -91,7 +91,6 @@ library
       Hoard.PeerManager.Peers
       Hoard.Persistence
       Hoard.Server
-      Hoard.Setup
       Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.DBConfig
