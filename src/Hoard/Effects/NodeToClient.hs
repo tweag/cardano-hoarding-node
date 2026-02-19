@@ -171,7 +171,7 @@ runNodeToClient nodeToClient = do
                         fmap SL.unPoolDistr
                             $ fmap unPoolDistr
                             $ fmap (fromRight $ error $ "to do")
-                            $ fmap (decodePoolDistribution $ convert era)
+                            $ fmap (decodePoolDistribution $ convert $ era)
                             $ fmap (fromRight $ error $ "to do")
                             $ fmap (fromRight $ error $ "to do")
                             -- to do. `Q.SendMsgQuery QueryPoolDistribution` using the existing connection instead of `queryPoolDistribution`.
