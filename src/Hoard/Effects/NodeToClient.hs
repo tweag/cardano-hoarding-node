@@ -10,8 +10,8 @@ module Hoard.Effects.NodeToClient
 
 import Cardano.Api
     ( AnyCardanoEra (AnyCardanoEra)
-    , BabbageEraOnwards (..)
-    , CardanoEra (..)
+    , BabbageEraOnwards (BabbageEraOnwardsBabbage, BabbageEraOnwardsConway, BabbageEraOnwardsDijkstra)
+    , CardanoEra (AllegraEra, AlonzoEra, BabbageEra, ByronEra, ConwayEra, DijkstraEra, MaryEra, ShelleyEra)
     , ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
     , EpochSize
