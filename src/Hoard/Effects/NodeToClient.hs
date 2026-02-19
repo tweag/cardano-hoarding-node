@@ -10,6 +10,8 @@ module Hoard.Effects.NodeToClient
 
 import Cardano.Api
     ( AnyCardanoEra (AnyCardanoEra)
+    , BabbageEraOnwards (..)
+    , CardanoEra (..)
     , ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
     , EpochSize
@@ -32,12 +34,10 @@ import Cardano.Api
     , connectToLocalNode
     , decodePoolDistribution
     , executeLocalStateQueryExpr
-    , forEraMaybeEon
     , queryCurrentEra
     , queryPoolDistribution
     , readShelleyGenesisConfig
     )
-import Cardano.Api.Experimental (Era)
 import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
 import Cardano.Ledger.BaseTypes (mkNonceFromOutputVRF)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
@@ -93,7 +93,9 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, ChainPoint (ChainPoint), Crypto)
-import Hoard.Types.Environment (Config (..))
+import Hoard.Types.Environment
+    ( Config (Config, nodeConfig, protocolInfo)
+    )
 
 import Hoard.Effects.Log qualified as Log
 
@@ -166,8 +168,18 @@ runNodeToClient nodeToClient = do
                     let target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
                     poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
                         -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
-                        AnyCardanoEra e <- fromRight (error "to do") <$> queryCurrentEra
-                        let era = fromMaybe (error "to do") $ forEraMaybeEon @Era e
+                        AnyCardanoEra (e :: CardanoEra era) <- fromRight (error "to do") <$> queryCurrentEra
+                        let
+                            era :: BabbageEraOnwards era
+                            era = case e of
+                                ByronEra -> error "to do. validation error"
+                                ShelleyEra -> error "to do. validation error"
+                                AllegraEra -> error "to do. validation error"
+                                MaryEra -> error "to do. validation error"
+                                AlonzoEra -> error "to do. validation error"
+                                BabbageEra -> BabbageEraOnwardsBabbage
+                                ConwayEra -> BabbageEraOnwardsConway
+                                DijkstraEra -> BabbageEraOnwardsDijkstra
                         fmap SL.unPoolDistr
                             $ fmap unPoolDistr
                             $ fmap (fromRight $ error $ "to do")
@@ -175,7 +187,7 @@ runNodeToClient nodeToClient = do
                             $ fmap (fromRight $ error $ "to do")
                             $ fmap (fromRight $ error $ "to do")
                             -- to do. `Q.SendMsgQuery QueryPoolDistribution` using the existing connection instead of `queryPoolDistribution`.
-                            $ queryPoolDistribution (convert era)
+                            $ queryPoolDistribution era
                             $ Just
                             $ S.singleton
                             $ StakePoolKeyHash
