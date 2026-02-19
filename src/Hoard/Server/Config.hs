@@ -1,4 +1,4 @@
-module Hoard.BlockEviction.Config
+module Hoard.Server.Config
     ( Config (..)
     ) where
 
@@ -8,10 +8,10 @@ import Data.Default (Default (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
--- | Configuration for block eviction
+-- | HTTP server configuration
 data Config = Config
-    { evictionIntervalSeconds :: !Int
-    -- ^ How often the eviction trigger runs (in seconds).
+    { host :: Text
+    , port :: Word16
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -20,5 +20,6 @@ data Config = Config
 instance Default Config where
     def =
         Config
-            { evictionIntervalSeconds = 3600 -- 1 hour
+            { host = "0.0.0.0"
+            , port = 3000
             }

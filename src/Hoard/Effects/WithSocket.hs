@@ -9,19 +9,52 @@ module Hoard.Effects.WithSocket
 
       -- * Operations
     , getSocket
+
+      -- * Configuration
+    , NodeSocketsConfig (..)
+    , SshTunnel (..)
+    , Local (..)
     ) where
 
 import Cardano.Api (File (File), SocketPath)
+import Data.Aeson (FromJSON)
 import Effectful (Eff, Effect, IOE, type (:>))
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Labeled (Labeled, runLabeled)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
 import System.Process.Typed (proc, withProcessTerm)
-import Prelude hiding (Reader, asks)
+import Prelude hiding (Reader, ask)
 
-import Hoard.Types.Environment (CardanoNodeIntegrationConfig (..), Config (..), Local (..), NodeSocketsConfig (..), SshTunnel (..))
+import Hoard.CardanoNode.Config (Config (..))
+import Hoard.Types.QuietSnake (QuietSnake (..))
+
+
+data NodeSocketsConfig
+    = SshTunnel SshTunnel
+    | Local Local
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake NodeSocketsConfig
+
+
+data SshTunnel = MakeSshTunnel
+    { nodeToClientSocket :: FilePath
+    , tracerSocket :: FilePath
+    , user :: Text
+    , remoteHost :: Text
+    , sshKey :: Maybe FilePath
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake SshTunnel
+
+
+data Local = MakeLocal
+    { nodeToClientSocket :: FilePath
+    , tracerSocket :: FilePath
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake Local
 
 
 data WithSocket :: Effect where
@@ -32,12 +65,12 @@ makeEffect ''WithSocket
 
 
 withNodeSockets
-    :: (IOE :> es, Reader Config :> es, Temporary :> es)
+    :: (IOE :> es, Reader Config :> es, Reader NodeSocketsConfig :> es, Temporary :> es)
     => Eff (Labeled "nodeToClient" WithSocket : Labeled "tracer" WithSocket : es) a
     -> Eff es a
 withNodeSockets action = do
-    nodeIntegrationCfg <- asks (.cardanoNodeIntegration)
-    asks (.nodeSockets) >>= \case
+    nodeIntegrationCfg <- ask @Config
+    ask @NodeSocketsConfig >>= \case
         SshTunnel (MakeSshTunnel {nodeToClientSocket, tracerSocket, user, remoteHost, sshKey}) ->
             runLabeled @"tracer" (sshTunnelSocket nodeIntegrationCfg user remoteHost tracerSocket sshKey)
                 . runLabeled @"nodeToClient" (sshTunnelSocket nodeIntegrationCfg user remoteHost nodeToClientSocket sshKey)
@@ -50,7 +83,7 @@ withNodeSockets action = do
 
 sshTunnelSocket
     :: (IOE :> es, Temporary :> es)
-    => CardanoNodeIntegrationConfig
+    => Config
     -- ^ Cardano node integration configuration
     -> Text
     -- ^ user

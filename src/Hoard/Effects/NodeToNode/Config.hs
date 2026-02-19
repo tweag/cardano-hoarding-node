@@ -10,17 +10,12 @@ module Hoard.Effects.NodeToNode.Config
 
       -- * Unified protocols config
     , ProtocolsConfig (..)
-    , runProtocolsConfig
     ) where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
-import Effectful (Eff, IOE, (:>))
-import Effectful.Reader.Static (Reader, ask, runReader)
-import Prelude hiding (Reader, ask, runReader)
 
-import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
@@ -126,23 +121,3 @@ data ProtocolsConfig = ProtocolsConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ProtocolsConfig
-
-
-data ConfigFile = ConfigFile
-    { cardanoProtocols :: ProtocolsConfig
-    , nodeToNode :: NodeToNodeConfig
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake ConfigFile
-
-
-runProtocolsConfig
-    :: (IOE :> es, Reader ConfigPath :> es)
-    => Eff (Reader NodeToNodeConfig : Reader ProtocolsConfig : es) a
-    -> Eff es a
-runProtocolsConfig eff = do
-    configPath <- ask
-    configFile <- loadYaml @ConfigFile configPath
-    runReader configFile.cardanoProtocols
-        $ runReader configFile.nodeToNode
-        $ eff

@@ -1,4 +1,4 @@
-module Hoard.BlockEviction (component) where
+module Hoard.BlockEviction (component, Config (..)) where
 
 import Effectful ((:>))
 import Effectful.Concurrent (Concurrent)

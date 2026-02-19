@@ -1,93 +1,16 @@
 module Hoard.Types.Environment
-    ( ServerConfig (..)
-    , Config (..)
-    , Handles (..)
-    , Topology (..)
-
-      -- * Cardano protocol configuration
-
-      -- * Tracing configuration
-    , TracingConfig (..)
-
-      -- * Cardano node integration configuration
-    , CardanoNodeIntegrationConfig (..)
-
-      -- * peer-snapshot.json
-    , PeerSnapshotFile (..)
+    ( -- * peer-snapshot.json
+      PeerSnapshotFile (..)
     , LedgerPool (..)
     , BootstrapPeerIP (..)
     , BootstrapPeerDomain (..)
 
-      -- * Misc
-    , Env (..)
-    , NodeSocketsConfig (..)
-    , SshTunnel (..)
-    , Local (..)
+      -- * Topology
+    , Topology (..)
     )
 where
 
-import Cardano.Api (NodeConfig)
 import Data.Aeson (FromJSON (..), withObject, (.:))
-import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
-import Ouroboros.Network.IOManager (IOManager)
-
-import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.DBConfig (DBPools (..))
-import Hoard.Types.QuietSnake (QuietSnake (..))
-
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Quota.Config qualified as Quota
-import Hoard.PeerManager.Config qualified as PeerManager
-
-
--- | HTTP server configuration
-data ServerConfig = ServerConfig
-    { host :: Text
-    , port :: Word16
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake ServerConfig
-
-
--- | Pure configuration data loaded from config files
-data Config = Config
-    { server :: ServerConfig
-    , nodeSockets :: NodeSocketsConfig
-    , logging :: Log.Config
-    , tracing :: TracingConfig
-    , protocolInfo :: ProtocolInfo CardanoBlock
-    , nodeConfig :: NodeConfig
-    , maxFileDescriptors :: Maybe Word32
-    , topology :: Topology
-    , peerSnapshot :: PeerSnapshotFile
-    , peerManager :: PeerManager.Config
-    , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
-    , quota :: Quota.Config
-    }
-
-
--- | Tracing configuration for OpenTelemetry
-data TracingConfig = TracingConfig
-    { enabled :: Bool
-    -- ^ Enable tracing
-    , serviceName :: Text
-    -- ^ Service name for traces
-    , otlpEndpoint :: Text
-    -- ^ OTLP endpoint (e.g., "http://localhost:4318")
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake TracingConfig
-
-
--- | Configuration for integrating with a Cardano node
-data CardanoNodeIntegrationConfig = CardanoNodeIntegrationConfig
-    { sshServerAliveIntervalSeconds :: Int
-    -- ^ SSH tunnel keepalive interval
-    , immutableTipRefreshSeconds :: Int
-    -- ^ Interval between immutable tip refresh
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake CardanoNodeIntegrationConfig
 
 
 data Topology = Topology
@@ -135,43 +58,3 @@ data BootstrapPeerDomain = BootstrapPeerDomain
     }
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON)
-
-
--- | Runtime handles and resources
-data Handles = Handles
-    { ioManager :: IOManager
-    , dbPools :: DBPools
-    }
-
-
--- | Application environment combining config and handles
-data Env = Env
-    { config :: Config
-    , handles :: Handles
-    }
-
-
-data NodeSocketsConfig
-    = SshTunnel SshTunnel
-    | Local Local
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake NodeSocketsConfig
-
-
-data SshTunnel = MakeSshTunnel
-    { nodeToClientSocket :: FilePath
-    , tracerSocket :: FilePath
-    , user :: Text
-    , remoteHost :: Text
-    , sshKey :: Maybe FilePath
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake SshTunnel
-
-
-data Local = MakeLocal
-    { nodeToClientSocket :: FilePath
-    , tracerSocket :: FilePath
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake Local

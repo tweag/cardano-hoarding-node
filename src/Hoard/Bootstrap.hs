@@ -3,9 +3,9 @@ module Hoard.Bootstrap (bootstrapPeers) where
 import Control.Exception (try)
 import Data.IP (IP)
 import Effectful (Eff, IOE, (:>))
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (Reader, ask)
 import Network.Socket (HostName, PortNumber)
-import Prelude hiding (Reader, asks)
+import Prelude hiding (Reader, ask)
 
 import Data.IP qualified as IP
 import Data.Set qualified as S
@@ -17,7 +17,6 @@ import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Types.Environment
     ( BootstrapPeerDomain (..)
     , BootstrapPeerIP (..)
-    , Config (..)
     , LedgerPool (..)
     , PeerSnapshotFile (..)
     )
@@ -29,10 +28,10 @@ import Hoard.Effects.Clock qualified as Clock
 -- | Bootstrap peers from the peer snapshot configuration.
 -- Extracts all relays from bigLedgerPools, resolves their addresses,
 -- and upserts them to the database.
-bootstrapPeers :: (Clock :> es, IOE :> es, PeerRepo :> es, Reader Config :> es) => Eff es (Set Peer)
+bootstrapPeers :: (Clock :> es, IOE :> es, PeerRepo :> es, Reader PeerSnapshotFile :> es) => Eff es (Set Peer)
 bootstrapPeers = do
     -- Get peer snapshot from config
-    peerSnapshot <- asks (.peerSnapshot)
+    peerSnapshot <- ask
 
     -- Extract all relays from all ledger pools
     let allRelays = concatMap (.relays) peerSnapshot.bigLedgerPools

@@ -2,25 +2,24 @@ module Hoard.Monitoring
     ( component
     , listener
     , Poll (..)
-    , runConfig
+    , Config (..)
     ) where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.List (partition)
-import Effectful (Eff, IOE, (:>))
+import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
-import Effectful.Reader.Static (Reader, ask, asks, runReader)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Rel8 (isNull)
-import Prelude hiding (Reader, State, ask, asks, gets, runReader)
+import Prelude hiding (Reader, State, asks, gets)
 
 import Cardano.Api qualified as C
 import Data.Set qualified as S
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.DB.Schema (countRows, countRowsWhere)
-import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Effects.DBRead (DBRead)
 import Hoard.Effects.Log (Log, withNamespace)
 import Hoard.Effects.Monitoring.Metrics (Metrics, gaugeSet)
@@ -106,17 +105,3 @@ instance Default Config where
         Config
             { pollingIntervalSeconds = 5
             }
-
-
-data ConfigFile = ConfigFile
-    { monitoring :: Config
-    }
-    deriving stock (Generic)
-    deriving (FromJSON) via QuietSnake ConfigFile
-
-
-runConfig :: (IOE :> es, Reader ConfigPath :> es) => Eff (Reader Config : es) a -> Eff es a
-runConfig eff = do
-    configPath <- ask
-    configFile <- loadYaml @ConfigFile configPath
-    runReader configFile.monitoring eff
