@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
 module Hoard.Effects.NodeToClient
     ( NodeToClient
     , runNodeToClient
@@ -21,6 +23,7 @@ import Cardano.Api
     , QueryInMode (QueryChainPoint)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
+    , Target
     , connectToLocalNode
     , readShelleyGenesisConfig
     )
@@ -81,12 +84,11 @@ makeEffect ''NodeToClient
 
 data Connection
     = Connection
-        (InChan (MVar ChainPoint))
-        -- ^ immutableTipQueries
-        (InChan (ChainPoint, MVar Bool))
-        -- ^ isOnChainQueries
-        (MVar SomeException)
-        -- ^ used to signal that the connection died so queries can stop waiting for responses
+    { localStateQueries :: InChan (Target C.ChainPoint, MVar ChainPoint)
+    , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
+    , dead :: MVar SomeException
+    -- ^ used to signal that the connection died so queries can stop waiting for responses
+    }
 
 
 -- to do. use `Hoard.Effects.Chan`,...
@@ -109,9 +111,9 @@ runNodeToClient nodeToClient = do
             (inject nodeToClient)
             ( \case
                 ImmutableTip -> withSpan "node_query.immutable_tip" $ do
-                    Connection immutableTipQueries _ dead <- ensureConnection
+                    Connection localStateQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
-                    liftIO $ writeChan immutableTipQueries resultVar
+                    liftIO $ writeChan localStateQueries (C.ImmutableTip, resultVar)
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
                 IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
@@ -121,41 +123,50 @@ runNodeToClient nodeToClient = do
             )
 
 
-newConnection :: (Concurrent :> es, IOE :> es) => Eff es (Connection, (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
+newConnection
+    :: (Concurrent :> es, IOE :> es)
+    => Eff es (Connection, (OutChan (Target C.ChainPoint, MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
 newConnection =
     do
-        (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
+        (localStateQueriesIn, localStateQueriesOut) <- liftIO newChan
         (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
         dead <- newEmptyMVar
-        pure (Connection immutableTipQueriesIn isOnChainQueriesIn dead, (immutableTipQueriesOut, isOnChainQueriesOut, dead))
+        pure (Connection localStateQueriesIn isOnChainQueriesIn dead, (localStateQueriesOut, isOnChainQueriesOut, dead))
 
 
-initializeConnection :: (Conc :> es, Concurrent :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Log :> es, Reader Config :> es, State (Either SomeException Connection) :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
-initializeConnection =
-    ( \(immutableTipQueriesOut, isOnChainQueriesOut, dead) -> do
-        config <- ask
-        epochSize <- loadEpochSize config
-        nodeToClientSocket <- labeled @"nodeToClient" getSocket
-        let networkMagic = getNetworkMagic (configBlock (pInfoConfig config.protocolInfo))
-            networkId = toNetworkId networkMagic
-        fork
-            . handleSync
-                ( \e -> do
-                    put (Left e)
-                    putMVar dead e
-                    Log.warn $ "`connectToLocalNode` error. " <> toText (displayException e)
-                )
-            . liftIO
-            $ localNodeClient
-                ( LocalNodeConnectInfo
-                    { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
-                    , localNodeNetworkId = networkId
-                    , localNodeSocketPath = nodeToClientSocket
-                    }
-                )
-                immutableTipQueriesOut
-                isOnChainQueriesOut
-    )
+initializeConnection
+    :: ( Conc :> es
+       , Concurrent :> es
+       , IOE :> es
+       , Labeled "nodeToClient" WithSocket :> es
+       , Log :> es
+       , Reader Config :> es
+       , State (Either SomeException Connection) :> es
+       )
+    => (OutChan (Target C.ChainPoint, MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException)
+    -> Eff es (Thread ())
+initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
+    config <- ask
+    epochSize <- loadEpochSize config
+    nodeToClientSocket <- labeled @"nodeToClient" getSocket
+    fork
+        . handleSync
+            ( \e -> do
+                put (Left e)
+                putMVar dead e
+                Log.warn $ "`connectToLocalNode` error. " <> toText (displayException e)
+            )
+        . liftIO
+        $ localNodeClient
+            ( LocalNodeConnectInfo
+                { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
+                , localNodeNetworkId =
+                    toNetworkId $ getNetworkMagic $ configBlock $ pInfoConfig $ config.protocolInfo
+                , localNodeSocketPath = nodeToClientSocket
+                }
+            )
+            localStateQueriesOut
+            isOnChainQueriesOut
 
 
 ensureConnection
@@ -181,8 +192,12 @@ ensureConnection = do
     pure connection
 
 
-localNodeClient :: LocalNodeConnectInfo -> OutChan (MVar ChainPoint) -> OutChan (ChainPoint, MVar Bool) -> IO ()
-localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
+localNodeClient
+    :: LocalNodeConnectInfo
+    -> OutChan (Target C.ChainPoint, MVar ChainPoint)
+    -> OutChan (ChainPoint, MVar Bool)
+    -> IO ()
+localNodeClient connectionInfo localStateQueries isOnChainQueries =
     connectToLocalNode
         connectionInfo
         LocalNodeClientProtocols
@@ -192,11 +207,11 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
             , localTxMonitoringClient = Nothing
             }
   where
-    queryImmutableTip :: IO (Q.ClientStIdle block point QueryInMode IO void)
+    queryImmutableTip :: IO (Q.ClientStIdle block C.ChainPoint QueryInMode IO void)
     queryImmutableTip = do
-        resultVar <- readChan immutableTipQueries
+        (target, resultVar) <- readChan localStateQueries
         pure
-            . Q.SendMsgAcquire C.ImmutableTip
+            . Q.SendMsgAcquire target
             $ Q.ClientStAcquiring
                 { recvMsgAcquired =
                     pure
