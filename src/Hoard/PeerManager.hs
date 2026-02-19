@@ -1,5 +1,6 @@
 module Hoard.PeerManager
     ( component
+    , Config (..)
     , PeerRequested (..)
     , CullRequested (..)
     , PeerDisconnected (..)
@@ -36,6 +37,7 @@ import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Triggers (every)
+import Hoard.Types.Environment (PeerSnapshotFile)
 
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
@@ -43,7 +45,6 @@ import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
-import Hoard.Types.Environment qualified as Env
 
 
 -- * Component
@@ -63,7 +64,7 @@ component
        , Pub PeerDisconnected :> es
        , Pub PeerRequested :> es
        , Reader Config :> es
-       , Reader Env.Config :> es
+       , Reader PeerSnapshotFile :> es
        , State Peers :> es
        , Sub ChainSync.HeaderReceived :> es
        , Sub CullRequested :> es

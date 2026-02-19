@@ -18,6 +18,7 @@ import Cardano.Api
         )
     , LocalNodeConnectInfo (LocalNodeConnectInfo)
     , NetworkId (Mainnet, Testnet)
+    , NodeConfig
     , QueryInMode (QueryChainPoint)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
@@ -65,8 +66,7 @@ import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
-import Hoard.Types.Cardano (ChainPoint (ChainPoint))
-import Hoard.Types.Environment (Config (..))
+import Hoard.Types.Cardano (CardanoBlock, ChainPoint (ChainPoint))
 
 import Hoard.Effects.Log qualified as Log
 
@@ -96,7 +96,8 @@ runNodeToClient
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
+       , Reader NodeConfig :> es
        , Tracing :> es
        )
     => Eff (NodeToClient : es) a
@@ -130,13 +131,14 @@ newConnection =
         pure (Connection immutableTipQueriesIn isOnChainQueriesIn dead, (immutableTipQueriesOut, isOnChainQueriesOut, dead))
 
 
-initializeConnection :: (Conc :> es, Concurrent :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Log :> es, Reader Config :> es, State (Either SomeException Connection) :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
+initializeConnection :: (Conc :> es, Concurrent :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Log :> es, Reader (ProtocolInfo CardanoBlock) :> es, Reader NodeConfig :> es, State (Either SomeException Connection) :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
 initializeConnection =
     ( \(immutableTipQueriesOut, isOnChainQueriesOut, dead) -> do
-        config <- ask
-        epochSize <- loadEpochSize config
+        protocolInfo <- ask @(ProtocolInfo CardanoBlock)
+        nodeConfig <- ask @NodeConfig
+        epochSize <- loadEpochSize nodeConfig
         nodeToClientSocket <- labeled @"nodeToClient" getSocket
-        let networkMagic = getNetworkMagic (configBlock (pInfoConfig config.protocolInfo))
+        let networkMagic = getNetworkMagic (configBlock (pInfoConfig protocolInfo))
             networkId = toNetworkId networkMagic
         fork
             . handleSync
@@ -164,7 +166,8 @@ ensureConnection
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
+       , Reader NodeConfig :> es
        , State (Either SomeException Connection) :> es
        )
     => Eff es Connection
@@ -216,8 +219,8 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                 }
 
 
-loadEpochSize :: (IOE :> es) => Config -> Eff es EpochSize
-loadEpochSize Config {nodeConfig} = do
+loadEpochSize :: (IOE :> es) => NodeConfig -> Eff es EpochSize
+loadEpochSize nodeConfig = do
     genesisConfigResult <- runExceptT $ readShelleyGenesisConfig nodeConfig
     ShelleyConfig {scConfig = ShelleyGenesis {sgEpochLength}} <- case genesisConfigResult of
         Left err -> error $ "Failed to read shelley genesis config: " <> show err

@@ -1,5 +1,6 @@
 module Hoard.Server
     ( component
+    , Config (..)
     )
 where
 
@@ -15,7 +16,7 @@ import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
-import Hoard.Types.Environment (Config (..), Env (..), ServerConfig (..))
+import Hoard.Server.Config (Config (..))
 
 import Hoard.Effects.Log qualified as Log
 
@@ -25,17 +26,17 @@ component
        , IOE :> es
        , Log :> es
        , Metrics :> es
-       , Reader Env :> es
+       , Reader Config :> es
        )
     => Component es
 component =
     defaultComponent
         { name = "Server"
         , start = do
-            env <- ask
+            cfg <- ask
             -- Log startup messages
-            let host = toString env.config.server.host
-                port = fromIntegral env.config.server.port
+            let host = toString cfg.host
+                port = fromIntegral cfg.port
 
             Log.debug $ "Starting Hoard server on " <> toText host <> ":" <> show port
 
