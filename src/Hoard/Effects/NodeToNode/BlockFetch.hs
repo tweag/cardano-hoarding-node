@@ -33,7 +33,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Attr (..), Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Effects.UUID (GenUUID)
@@ -83,7 +83,7 @@ miniProtocol conf unlift codecs peer =
                 blockFetchClient = client unlift conf peer
                 tracer = nullTracer
                 wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "BlockFetch" $ withSpan "block_fetch_protocol" do
-                    addEvent "protocol_started" []
+                    addEvent @Text "protocol_started" []
                     pure $ blockFetchClientPeer blockFetchClient
             in  (tracer, codec, wrappedPeer)
         }
@@ -114,7 +114,7 @@ client unlift cfg peer =
     BlockFetch.BlockFetchClient $ unlift do
         timestamp <- Clock.currentTime
         publish $ RequestStarted {peer, timestamp}
-        addEvent "awaiting_block_requests" []
+        addEvent @Int "awaiting_block_requests" []
 
         (inChan, outChan) <- Chan.newChan
 
@@ -126,20 +126,20 @@ client unlift cfg peer =
     awaitMessage outChan = do
         reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
 
-        addEvent "block_fetch_requests_received" [("count", show $ length reqs)]
-        requestId <- show <$> UUID.gen
+        addEvent "block_fetch_requests_received" [("count", length reqs)]
+        requestId <- show @Text <$> UUID.gen
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
             requestedHashes = Set.fromList $ blockHashFromHeader . (.header) <$> toList reqs
-        addAttribute "range.start" (show start)
-        addAttribute "range.end" (show end)
+        addAttribute "range.start" (show @Text start)
+        addAttribute "range.end" (show @Text end)
         addEvent
             "block_fetch_requests_received"
-            [ ("request.id", requestId)
-            , ("range.count", show $ length reqs)
-            , ("range.start", show start)
-            , ("range.end", show end)
+            [ ("request.id", Attr requestId)
+            , ("range.count", Attr $ length reqs)
+            , ("range.start", Attr $ show @Text start)
+            , ("range.end", Attr $ show @Text end)
             ]
         pure
             $ BlockFetch.SendMsgRequestRange
@@ -190,7 +190,7 @@ client unlift cfg peer =
                         ]
                 pure $ blockReceiver requestId requestedHashes $ blockCount + 1
             , handleBatchDone = unlift $ do
-                addEvent "batch_completed" [("received.count", show blockCount)]
+                addEvent "batch_completed" [("received.count", blockCount)]
                 timestamp <- Clock.currentTime
                 publish
                     $ BatchCompleted

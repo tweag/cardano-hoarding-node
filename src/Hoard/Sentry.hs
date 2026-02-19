@@ -13,7 +13,15 @@ import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing
+    ( SpanStatus (..)
+    , ToAttribute
+    , ToAttributeShow (..)
+    , Tracing
+    , addAttribute
+    , setStatus
+    , withSpan
+    )
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Quota (MessageStatus (..), Quota, withQuotaCheck)
 import Hoard.Events.BlockFetch (BlockReceived (..))
@@ -49,9 +57,9 @@ duplicateBlockGuard
     => BlockReceived -> Eff es ()
 duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
     let blockHash = blockHashFromHeader $ getHeader event.block
-    addAttribute "peer.id" $ show event.peer.id
-    addAttribute "peer.address" $ show event.peer.address
-    addAttribute "block.hash" $ show blockHash
+    addAttribute "peer.id" event.peer.id
+    addAttribute "peer.address" event.peer.address
+    addAttribute "block.hash" blockHash
 
     withQuotaCheck (DuplicateBlockKey event.peer.id blockHash) \_ -> \case
         Overflow 1 -> do
@@ -65,8 +73,8 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     }
         Overflow n -> do
             setStatus $ Error "Duplicate block threshold keeps being exceeded"
-            addAttribute "times" $ show n
-            addAttribute "already_marked_as_malicious" "true"
+            addAttribute "times" n
+            addAttribute "already_marked_as_malicious" True
         _ ->
             setStatus Ok
 
@@ -74,6 +82,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
 data DuplicateBlockKey = DuplicateBlockKey {id :: (ID Peer), hash :: BlockHash}
     deriving (Hashable)
     deriving stock (Eq, Generic, Ord, Show)
+    deriving (ToAttribute) via ToAttributeShow DuplicateBlockKey
 
 
 data PeerMarkedAsMalicious = PeerMarkedAsMalicious
