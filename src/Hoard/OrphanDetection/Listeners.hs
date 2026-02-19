@@ -18,7 +18,7 @@ import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock, currentTime)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Attr (..), SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
@@ -47,23 +47,23 @@ classifyBlockByChainStatus blockData = withSpan "classify_block_by_chain_status"
     let header = getHeader blockData
         hash = blockHashFromHeader header
 
-    addAttribute "block.hash" (show hash)
-    addAttribute "block.slot" (show $ blockSlot blockData)
+    addAttribute "block.hash" hash
+    addAttribute "block.slot" $ show @Text $ blockSlot blockData
 
     apiHash <- deserialiseBlockHeaderHash blockData
     let blockChainPoint = Hoard.ChainPoint (ChainPoint (blockSlot blockData) apiHash)
 
     NodeToClient.isOnChain blockChainPoint >>= \case
         Nothing -> do
-            addEvent "is_on_chain_query_failed" [("block.hash", show hash)]
+            addEvent "is_on_chain_query_failed" [("block.hash", hash)]
             setStatus $ Error "Failed to query isOnChain"
             -- Remove from being classified set even on failure to prevent permanent blocking
             modify $ \s -> s {blocksBeingClassified = Set.delete hash s.blocksBeingClassified}
         Just isOnChain -> do
             timestamp <- currentTime
             let classification = if isOnChain then Canonical else Orphaned
-            addAttribute "block.classification" (show classification)
-            addEvent "block_classified" [("block.hash", show hash), ("classification", show classification)]
+            addAttribute "block.classification" classification
+            addEvent "block_classified" [("block.hash", Attr hash), ("classification", Attr classification)]
             BlockRepo.classifyBlock hash classification timestamp
             setStatus Ok
             -- Remove from being classified set after successful classification
@@ -97,16 +97,16 @@ blockReceivedClassifier event = do
 
     immutableSlot <- gets (chainPointToSlot . (.immutableTip))
 
-    addAttribute "block.slot" (show blockSlotNumber)
-    addAttribute "immutable.slot" (show immutableSlot)
+    addAttribute "block.slot" blockSlotNumber
+    addAttribute "immutable.slot" immutableSlot
 
     -- Check if block is after immutable tip
     if blockSlotNumber >= immutableSlot then do
         -- Defer classification for blocks after immutable tip
-        addEvent "classification_deferred" [("block.slot", show blockSlotNumber), ("reason", "after immutable tip")]
+        addEvent "classification_deferred" [("block.slot", Attr blockSlotNumber), ("reason", Attr @Text "after immutable tip")]
     else do
         -- Classify blocks before immutable tip immediately
-        addEvent "classifying_block" [("block.slot", show blockSlotNumber)]
+        addEvent "classifying_block" [("block.slot", blockSlotNumber)]
         classifyBlockByChainStatus event.block
 
 
@@ -137,15 +137,15 @@ immutableTipUpdatedAger _event = do
     newSlot <- gets (chainPointToSlot . (.immutableTip))
     beingClassified <- gets (.blocksBeingClassified)
 
-    addAttribute "immutable.slot" (show newSlot)
-    addAttribute "being_classified.count" (show $ Set.size beingClassified)
+    addAttribute "immutable.slot" newSlot
+    addAttribute "being_classified.count" $ Set.size beingClassified
 
     -- Get up to 1000 unclassified blocks that are not currently being classified
     unclassifiedBlocks <- BlockRepo.getUnclassifiedBlocksBeforeSlot newSlot 1000 beingClassified
 
     let blocksToAge = length unclassifiedBlocks
-    addAttribute "unclassified.count" (show blocksToAge)
-    addEvent "aging_blocks" [("count", show blocksToAge), ("before_slot", show newSlot)]
+    addAttribute "unclassified.count" blocksToAge
+    addEvent "aging_blocks" [("count", Attr blocksToAge), ("before_slot", Attr newSlot)]
 
     -- Add blocks to the being classified set
     let blockHashes = Set.fromList $ fmap (.hash) unclassifiedBlocks

@@ -30,7 +30,13 @@ import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
+import Hoard.Effects.Monitoring.Tracing
+    ( ToAttribute
+    , ToAttributeShow (..)
+    , Tracing
+    , addAttribute
+    , withSpan
+    )
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
@@ -80,9 +86,9 @@ duplicateBlockGuard
        )
     => BlockReceived -> Eff es ()
 duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
-    addAttribute "peer.id" $ show event.peer.id
-    addAttribute "peer.address" $ show event.peer.address
-    addAttribute "request.id" $ show event.requestId
+    addAttribute "peer.id" event.peer.id
+    addAttribute "peer.address" event.peer.address
+    addAttribute "request.id" $ show @Text event.requestId
     let blockHash = blockHashFromHeader $ getHeader event.block
     m <- gets (.duplicateBlocks)
     let key = (event.peer.id, event.requestId, blockHash)
@@ -95,7 +101,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
     timestamp <- Clock.currentTime
     if
         | c > duplicateConfig.criticalThreshold -> do
-            addAttribute "result" "warning"
+            addAttribute @Text "result" "warning"
             publish
                 $ AdversarialBehavior
                     { timestamp
@@ -104,7 +110,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     , severity = Critical
                     }
         | c > duplicateConfig.warningThreshold -> do
-            addAttribute "result" "critical"
+            addAttribute @Text "result" "critical"
             publish
                 $ AdversarialBehavior
                     { timestamp
@@ -113,7 +119,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     , severity = Minor
                     }
         | otherwise -> do
-            addAttribute "result" "none"
+            addAttribute @Text "result" "none"
             pure ()
 
 
@@ -124,6 +130,7 @@ data DuplicateBlockKey = DuplicateBlockKey
     }
     deriving (Hashable)
     deriving stock (Eq, Generic, Ord, Show)
+    deriving (ToAttribute) via ToAttributeShow DuplicateBlockKey
 
 
 data AdversarialSeverity

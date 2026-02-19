@@ -108,8 +108,8 @@ client unlift peer =
             -- Publish started event
             timestamp <- Clock.currentTime
             publish $ ChainSyncStarted {peer, timestamp}
-            addEvent "protocol_started" []
-            addEvent "finding_intersection" []
+            addEvent @Int "protocol_started" []
+            addEvent @Int "finding_intersection" []
             initialPoints <-
                 fmap List.singleton
                     . fmap toConsensusPointHF
@@ -122,10 +122,10 @@ client unlift peer =
     findIntersect initialPoints =
         Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
             ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                addEvent "intersection_not_found" []
+                addEvent @Int "intersection_not_found" []
                 pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                addEvent "intersection_found" [("point", show point), ("tip", show tip)]
+                addEvent @Text "intersection_found" [("point", show point), ("tip", show tip)]
                 timestamp <- Clock.currentTime
                 publish
                     $ ChainSyncIntersectionFound
@@ -153,7 +153,7 @@ client unlift peer =
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
                 recordChainSyncRollback
-                addEvent "rollback" [("point", show point), ("tip", show tip)]
+                addEvent @Text "rollback" [("point", show point), ("tip", show tip)]
                 timestamp <- Clock.currentTime
                 publish
                     $ RollBackward
@@ -177,7 +177,7 @@ client unlift peer =
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
                     recordChainSyncRollback
-                    addEvent "rollback_after_await" [("point", show point), ("tip", show tip)]
+                    addEvent @Text "rollback_after_await" [("point", show point), ("tip", show tip)]
                     timestamp <- Clock.currentTime
                     publish
                         $ RollBackward

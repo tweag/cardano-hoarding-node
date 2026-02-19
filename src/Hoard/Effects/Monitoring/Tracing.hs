@@ -33,6 +33,9 @@ module Hoard.Effects.Monitoring.Tracing
     , setStatus
     , getSpanContext
     , asTracer
+    , OT.ToAttribute (..)
+    , Attr (..)
+    , ToAttributeShow (..)
 
       -- * Interpreters
     , runTracing
@@ -107,13 +110,40 @@ data Tracing :: Effect where
     -- | Execute an action within a named span (bracket-style, automatic cleanup)
     WithSpan :: Text -> m a -> Tracing m a
     -- | Add an attribute to the current span
-    AddAttribute :: Text -> Text -> Tracing m ()
+    AddAttribute :: (OT.ToAttribute attr) => Text -> attr -> Tracing m ()
     -- | Add an event to the current span
-    AddEvent :: Text -> [(Text, Text)] -> Tracing m ()
+    AddEvent :: (OT.ToAttribute attr) => Text -> [(Text, attr)] -> Tracing m ()
     -- | Set the status of the current span
     SetStatus :: SpanStatus -> Tracing m ()
     -- | Get the current span context (for exemplars)
     GetSpanContext :: Tracing m (Maybe SpanContext)
+
+
+-- | Useful to create a heterogeneous list of attribute values. These two are equivalent:
+--
+--
+-- @
+-- addEvent "foo" [OT.toAttribute 1, OT.toAttribute "foo"]
+-- addEvent "foo" [Attr 1, Attr "foo"]
+-- @
+data Attr where
+    Attr :: (OT.ToAttribute a) => a -> Attr
+
+
+instance OT.ToAttribute Attr where
+    toAttribute (Attr a) = OT.toAttribute a
+
+
+newtype ToAttributeShow a = ToAttributeShow
+    { getToAttributeShow :: a
+    }
+
+
+instance (Show a) => OT.ToPrimitiveAttribute (ToAttributeShow a) where
+    toPrimitiveAttribute = OT.TextAttribute . show . getToAttributeShow
+
+
+instance (Show a) => OT.ToAttribute (ToAttributeShow a)
 
 
 makeEffect ''Tracing

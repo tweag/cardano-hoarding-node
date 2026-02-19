@@ -11,8 +11,6 @@ import Prelude hiding (evalState)
 
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
@@ -44,6 +42,7 @@ import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefresh
 import Hoard.Monitoring (Poll)
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
+import Hoard.Persistence (PeerSlotKey)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.BlockEviction qualified as BlockEviction
@@ -100,7 +99,7 @@ main =
         . evalState @Peers def
         . Sentry.runDuplicateBlocksState
         . runTracingFromConfig
-        . runQuota @(ID Peer, Int64) 1
+        . runQuota @PeerSlotKey 1
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound
         . runPubSub @RollBackward
