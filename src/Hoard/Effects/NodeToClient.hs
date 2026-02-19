@@ -57,6 +57,7 @@ import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
@@ -84,11 +85,15 @@ makeEffect ''NodeToClient
 
 data Connection
     = Connection
-    { localStateQueries :: InChan (Target C.ChainPoint, MVar ChainPoint)
+    { localStateQueries :: InChan (Target C.ChainPoint, LocalStateQueryWithResultMVar)
     , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
     , dead :: MVar SomeException
     -- ^ used to signal that the connection died so queries can stop waiting for responses
     }
+
+
+data LocalStateQueryWithResultMVar where
+    LocalStateQueryWithResultMVar :: QueryInMode result -> MVar (Either AcquireFailure result) -> LocalStateQueryWithResultMVar
 
 
 -- to do. use `Hoard.Effects.Chan`,...
@@ -113,8 +118,15 @@ runNodeToClient nodeToClient = do
                 ImmutableTip -> withSpan "node_query.immutable_tip" $ do
                     Connection localStateQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
-                    liftIO $ writeChan localStateQueries (C.ImmutableTip, resultVar)
-                    rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
+                    liftIO $ writeChan localStateQueries (C.ImmutableTip, LocalStateQueryWithResultMVar QueryChainPoint resultVar)
+                    rightToMaybe
+                        <$> race
+                            (readMVar dead)
+                            ( fmap ChainPoint
+                                $ fmap (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
+                                $ readMVar
+                                $ resultVar
+                            )
                 IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
@@ -125,7 +137,7 @@ runNodeToClient nodeToClient = do
 
 newConnection
     :: (Concurrent :> es, IOE :> es)
-    => Eff es (Connection, (OutChan (Target C.ChainPoint, MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
+    => Eff es (Connection, (OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar), OutChan (ChainPoint, MVar Bool), MVar SomeException))
 newConnection =
     do
         (localStateQueriesIn, localStateQueriesOut) <- liftIO newChan
@@ -143,7 +155,7 @@ initializeConnection
        , Reader Config :> es
        , State (Either SomeException Connection) :> es
        )
-    => (OutChan (Target C.ChainPoint, MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException)
+    => (OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar), OutChan (ChainPoint, MVar Bool), MVar SomeException)
     -> Eff es (Thread ())
 initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
     config <- ask
@@ -194,7 +206,7 @@ ensureConnection = do
 
 localNodeClient
     :: LocalNodeConnectInfo
-    -> OutChan (Target C.ChainPoint, MVar ChainPoint)
+    -> OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar)
     -> OutChan (ChainPoint, MVar Bool)
     -> IO ()
 localNodeClient connectionInfo localStateQueries isOnChainQueries =
@@ -202,23 +214,23 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
         connectionInfo
         LocalNodeClientProtocols
             { localChainSyncClient = LocalChainSyncClient (S.ChainSyncClient queryIsOnChain)
-            , localStateQueryClient = Just (Q.LocalStateQueryClient queryImmutableTip)
+            , localStateQueryClient = Just (Q.LocalStateQueryClient localStateQuery)
             , localTxSubmissionClient = Nothing
             , localTxMonitoringClient = Nothing
             }
   where
-    queryImmutableTip :: IO (Q.ClientStIdle block C.ChainPoint QueryInMode IO void)
-    queryImmutableTip = do
-        (target, resultVar) <- readChan localStateQueries
+    localStateQuery :: IO (Q.ClientStIdle block C.ChainPoint QueryInMode IO void)
+    localStateQuery = do
+        (target, LocalStateQueryWithResultMVar query resultVar) <- readChan localStateQueries
         pure
             . Q.SendMsgAcquire target
             $ Q.ClientStAcquiring
                 { recvMsgAcquired =
                     pure
-                        . Q.SendMsgQuery QueryChainPoint
+                        . Q.SendMsgQuery query
                         . Q.ClientStQuerying
-                        $ \result -> P.putMVar resultVar (ChainPoint result) $> Q.SendMsgRelease queryImmutableTip
-                , recvMsgFailure = error "`ImmutableTip` should never fail to be acquired."
+                        $ \r -> P.putMVar resultVar (Right r) $> Q.SendMsgRelease localStateQuery
+                , recvMsgFailure = \e -> P.putMVar resultVar (Left e) *> localStateQuery
                 }
     queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
     queryIsOnChain = do
