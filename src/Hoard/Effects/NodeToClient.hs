@@ -70,7 +70,18 @@ import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Block (ConvertRawHash (toShortRawHash), blockSlot, headerHash)
-import Ouroboros.Consensus.Cardano.Block (Header (HeaderBabbage, HeaderConway, HeaderDijkstra))
+import Ouroboros.Consensus.Cardano.Block
+    ( Header
+        ( HeaderAllegra
+        , HeaderAlonzo
+        , HeaderBabbage
+        , HeaderByron
+        , HeaderConway
+        , HeaderDijkstra
+        , HeaderMary
+        , HeaderShelley
+        )
+    )
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
@@ -160,10 +171,14 @@ runNodeToClient nodeToClient = do
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
                 ValidateVrfSignature header -> withSpan "node_query.validate_vrf_signature" $ do
                     let headerView = case header of
+                            HeaderByron _ -> error "to do"
+                            HeaderShelley _ -> error "to do"
+                            HeaderAllegra _ -> error "to do"
+                            HeaderMary _ -> error "to do"
+                            HeaderAlonzo _ -> error "to do"
                             HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
                             HeaderConway (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
                             HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                            _ -> error "to do"
                         blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
                     let target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
                     poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
