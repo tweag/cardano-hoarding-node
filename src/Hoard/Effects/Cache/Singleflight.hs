@@ -2,6 +2,7 @@ module Hoard.Effects.Cache.Singleflight
     ( Singleflight
     , withCache
     , updateCache
+    , removeFromCache
     , runSingleflight
     ) where
 
@@ -31,6 +32,8 @@ data Singleflight key value :: Effect where
     -- | Pre-populate the cache with known values
     -- Useful when values are already available to avoid redundant computation
     UpdateCache :: [(key, value)] -> Singleflight key value m ()
+    -- | Remove keys from the cache so future requests recompute from source
+    RemoveFromCache :: [key] -> Singleflight key value m ()
 
 
 makeEffect ''Singleflight
@@ -135,3 +138,7 @@ runSingleflight action = do
                             -- No in-flight computation: create fresh TMVar with value
                             tmvar <- STM.newTMVar (Right value)
                             STM.modifyTVar cache (Map.insert key tmvar)
+        RemoveFromCache keys ->
+            STM.atomically
+                $ STM.modifyTVar cache
+                $ \cache' -> foldr Map.delete cache' keys

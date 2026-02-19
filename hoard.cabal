@@ -17,6 +17,8 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Violations
+      Hoard.BlockEviction
+      Hoard.BlockEviction.Config
       Hoard.Bootstrap
       Hoard.Collector
       Hoard.Component
@@ -300,6 +302,7 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.DB.BlockEvictionSpec
       Integration.Hoard.DB.BlockPersistenceSpec
       Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec

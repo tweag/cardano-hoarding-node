@@ -46,6 +46,8 @@ import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
 import Hoard.Types.HoardState (HoardState)
 
+import Hoard.BlockEviction qualified as BlockEviction
+import Hoard.BlockEviction.Config qualified as BlockEviction.Config
 import Hoard.Core qualified as Core
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode.Config
@@ -71,6 +73,7 @@ main =
         . runHandlesReader
         . Monitoring.runConfig
         . NodeToNode.Config.runProtocolsConfig
+        . BlockEviction.Config.runBlockEvictionConfig
         . runLog
         . runClock
         . runFileSystem
@@ -121,6 +124,7 @@ main =
                 , Server.component
                 , Persistence.component
                 , OrphanDetection.component
+                , BlockEviction.component
                 , Monitoring.component
                 , PeerManager.component
                 ]

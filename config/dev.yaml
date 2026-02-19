@@ -97,6 +97,9 @@ quota:
   entry_ttl: 43200 # 12 hours
   cleanup_interval: 3600 # 1 hour
 
+block_eviction:
+  eviction_interval_seconds: 3600 # 1 hour
+
 # Cardano node integration configuration
 cardano_node_integration:
   ssh_server_alive_interval_seconds: 60
