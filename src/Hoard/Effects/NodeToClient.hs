@@ -74,11 +74,11 @@ import Ouroboros.Consensus.Cardano.Block (Header (HeaderBabbage, HeaderConway, H
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr, doValidateVRFSignature)
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK, hvVrfRes))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
