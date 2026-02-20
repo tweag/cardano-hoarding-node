@@ -57,7 +57,7 @@ miniProtocol conf unlift codecs peer =
                             $ withExceptionLogging "KeepAlive"
                             $ withSpan "keep_alive_protocol"
                             $ do
-                                addEvent "protocol_started" []
+                                addEvent @Int "protocol_started" []
                                 pure (keepAliveClientPeer $ client unlift conf peer)
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
@@ -82,13 +82,13 @@ client
 client unlift conf peer = KeepAliveClient sendFirst
   where
     sendFirst = unlift do
-        addEvent "sending_first_keepalive" []
+        addEvent @Int "sending_first_keepalive" []
         timestamp <- Clock.currentTime
         publish KeepAlivePing {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
-        addEvent "keepalive_response_received" [("wait_seconds", show (conf.intervalMicroseconds `div` 1_000_000))]
+        addEvent "keepalive_response_received" [("wait_seconds", conf.intervalMicroseconds `div` 1_000_000)]
         threadDelay conf.intervalMicroseconds
-        addEvent "sending_keepalive" []
+        addEvent @Int "sending_keepalive" []
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

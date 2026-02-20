@@ -39,9 +39,9 @@ runDBWrite eff = do
     pool <- asks $ DB.writerPool
     interpretWith_ eff \case
         RunTransaction txName tx -> withSpan "db.transaction" $ do
-            addAttribute "db.operation" "write"
+            addAttribute @Text "db.operation" "write"
             addAttribute "db.transaction.name" txName
-            addAttribute "db.isolation_level" "ReadCommitted"
+            addAttribute @Text "db.isolation_level" "ReadCommitted"
 
             result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
             case result of

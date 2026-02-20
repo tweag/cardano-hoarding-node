@@ -41,7 +41,7 @@ runDBRead eff = do
     pool <- asks $ DB.readerPool
     interpretWith_ eff \case
         RunQuery queryName stmt -> withSpan "db.query" $ do
-            addAttribute "db.operation" "read"
+            addAttribute @Text "db.operation" "read"
             addAttribute "db.query.name" queryName
             counterInc metricDBQueries
             withHistogramTiming metricDBQueryDuration $ do

@@ -11,8 +11,6 @@ import Prelude hiding (evalState)
 
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
@@ -29,6 +27,7 @@ import Hoard.Effects.Monitoring.Tracing (runTracingFromConfig)
 import Hoard.Effects.NodeToClient (runNodeToClient)
 import Hoard.Effects.NodeToNode (runNodeToNode)
 import Hoard.Effects.Options (loadOptions)
+import Hoard.Effects.PeerNoteRepo (runPeerNoteRepo)
 import Hoard.Effects.PeerRepo (runPeerRepo)
 import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Quota (runQuota)
@@ -44,6 +43,8 @@ import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefresh
 import Hoard.Monitoring (Poll)
 import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
+import Hoard.Persistence (PeerSlotKey)
+import Hoard.Sentry (DuplicateBlockKey, PeerMarkedAsMalicious)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.BlockEviction qualified as BlockEviction
@@ -56,6 +57,7 @@ import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
 import Hoard.Persistence qualified as Persistence
+import Hoard.Sentry qualified as Sentry
 import Hoard.Server qualified as Server
 
 
@@ -87,7 +89,8 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . runTracingFromConfig
-        . runQuota @(ID Peer, Int64) 1
+        . runQuota @PeerSlotKey 1
+        . runQuota @DuplicateBlockKey 1
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound
         . runPubSub @RollBackward
@@ -101,6 +104,7 @@ main =
         . runPubSub @PeerSharingStarted
         . runPubSub @PeersReceived
         . runPubSub @PeerSharingFailed
+        . runPubSub @PeerMarkedAsMalicious
         . runPubSub @CullRequested
         . runPubSub @PeerRequested
         . runPubSub @PeerDisconnected
@@ -118,9 +122,11 @@ main =
         . runPeerRepo
         . runBlockRepo
         . runHoardStateRepo
+        . runPeerNoteRepo
         $ do
             runSystem
                 [ Core.component
+                , Sentry.component
                 , Server.component
                 , Persistence.component
                 , OrphanDetection.component

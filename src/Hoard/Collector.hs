@@ -14,7 +14,7 @@ import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Attr (..), Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyCardanoHeader)
@@ -40,9 +40,9 @@ collectFromPeer
     -> Connection
     -> Eff es (Maybe ConnectToError)
 collectFromPeer peer conn = withSpan "collector.collect_from_peer" $ do
-    addAttribute "peer.address" (show peer.address)
-    addAttribute "peer.id" (show peer.id)
-    addEvent "connecting" [("peer.address", show peer.address)]
+    addAttribute "peer.address" peer.address
+    addAttribute "peer.id" peer.id
+    addEvent "connecting" [("peer.address", peer.address)]
 
     Conc.fork_ $ listen (pickBlockFetchRequest peer.id)
 
@@ -59,8 +59,13 @@ collectFromPeer peer conn = withSpan "collector.collect_from_peer" $ do
     result <- tryReadMVar var
 
     case result of
-        Nothing -> addEvent "disconnected" [("peer.address", show peer.address)]
-        Just (ConnectToError errMsg) -> addEvent "connection_failed" [("peer.address", show peer.address), ("error", errMsg)]
+        Nothing -> addEvent "disconnected" [("peer.address", peer.address)]
+        Just (ConnectToError errMsg) ->
+            addEvent
+                "connection_failed"
+                [ ("peer.address", Attr peer.address)
+                , ("error", Attr errMsg)
+                ]
 
     pure result
 
@@ -80,7 +85,7 @@ pickBlockFetchRequest myPeerId event =
     unless (event.peer.id /= myPeerId)
         $ verifyCardanoHeader event.header >>= \case
             Left _invalidHeader -> do
-                addEvent "collector_invalid_header" [("hash", show $ blockHashFromHeader event.header)]
+                addEvent "collector_invalid_header" [("hash", blockHashFromHeader event.header)]
             Right validHeader -> do
                 let header = getVerified validHeader
                     hash = blockHashFromHeader header
@@ -89,9 +94,9 @@ pickBlockFetchRequest myPeerId event =
                 exists <- BlockRepo.blockExists hash
 
                 unless exists $ withSpan "request_block_fetch" $ do
-                    addAttribute "slot" (show slot)
-                    addAttribute "hash" (show hash)
-                    addAttribute "peer.id" (show event.peer.id)
+                    addAttribute "slot" $ fromIntegral @_ @Int64 slot
+                    addAttribute "hash" hash
+                    addAttribute "peer.id" event.peer.id
                     publish
                         BlockFetch.Request
                             { timestamp = event.timestamp

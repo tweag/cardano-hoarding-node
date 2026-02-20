@@ -16,7 +16,7 @@ import Prelude hiding (Reader, ask)
 import Data.Map.Strict qualified as Map
 import Effectful.Concurrent.STM qualified as STM
 
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent)
+import Hoard.Effects.Monitoring.Tracing (ToAttribute, Tracing, addAttribute, addEvent)
 
 
 -- | Singleflight cache effect for deduplicating concurrent computations
@@ -28,7 +28,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent)
 data Singleflight key value :: Effect where
     -- | Execute a computation with singleflight semantics
     -- If another computation for the same key is in-flight, wait for its result
-    WithCache :: (Ord key, Show key) => key -> m value -> Singleflight key value m value
+    WithCache :: (Ord key, ToAttribute key) => key -> m value -> Singleflight key value m value
     -- | Pre-populate the cache with known values
     -- Useful when values are already available to avoid redundant computation
     UpdateCache :: [(key, value)] -> Singleflight key value m ()
@@ -71,19 +71,19 @@ runSingleflight action = do
             case mResult of
                 Just (Right value) -> do
                     -- Cache hit with successful value
-                    addAttribute "cache.status" "hit"
-                    addEvent "cache_hit" [("cache_key", show key)]
+                    addAttribute @Text "cache.status" "hit"
+                    addEvent "cache_hit" [("cache_key", key)]
                     pure value
                 Just (Left exception) -> do
                     -- Cache hit but it's an exception - re-throw it
-                    addAttribute "cache.status" "hit_exception"
-                    addEvent "cache_hit_exception" [("cache_key", show key)]
+                    addAttribute @Text "cache.status" "hit_exception"
+                    addEvent "cache_hit_exception" [("cache_key", key)]
                     throwIO exception
                 Nothing
                     | isFirst -> do
                         -- We're the first request - execute computation
-                        addAttribute "cache.status" "miss"
-                        addEvent "cache_miss" [("cache_key", show key)]
+                        addAttribute @Text "cache.status" "miss"
+                        addEvent "cache_miss" [("cache_key", key)]
 
                         -- Execute computation and catch any exceptions
                         result <- unlift $ try @SomeException computation
@@ -114,10 +114,10 @@ runSingleflight action = do
                                 Right value -> pure value
                     | otherwise -> do
                         -- Another request is already executing, wait for it
-                        addAttribute "cache.status" "deduplicated"
-                        addEvent "computation_deduplicated_waiting" [("cache_key", show key)]
+                        addAttribute @Text "cache.status" "deduplicated"
+                        addEvent "computation_deduplicated_waiting" [("cache_key", key)]
                         result <- STM.atomically $ STM.readTMVar mvar
-                        addEvent "computation_deduplicated_received" [("cache_key", show key)]
+                        addEvent "computation_deduplicated_received" [("cache_key", key)]
 
                         -- Re-throw if it was an exception, otherwise return the value
                         case result of

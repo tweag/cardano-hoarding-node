@@ -60,7 +60,7 @@ miniProtocol conf unlift' codecs peer =
                         wrappedPeer = Peer.Effect $ unlift $ withExceptionLogging "PeerSharing" $ withSpan "peer_sharing_protocol" $ do
                             timestamp <- Clock.currentTime
                             publish $ PeerSharingStarted {peer, timestamp}
-                            addEvent "protocol_started" []
+                            addEvent @Int "protocol_started" []
                             pure (peerSharingClientPeer peerSharingClient)
                         tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
                     in  (tracer, codec, wrappedPeer)
@@ -87,7 +87,7 @@ client unlift conf peer = requestPeers withPeers
   where
     requestPeers = SendMsgShareRequest $ PeerSharingAmount $ fromIntegral conf.requestAmount
     withPeers peerAddrs = unlift do
-        addEvent "peer_sharing_response_received" [("peer_count", show $ length peerAddrs)]
+        addEvent "peer_sharing_response_received" [("peer_count", length peerAddrs)]
         timestamp <- Clock.currentTime
         publish
             $ PeersReceived
@@ -95,7 +95,7 @@ client unlift conf peer = requestPeers withPeers
                 , timestamp
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
-        addEvent "waiting_for_next_request" [("wait_seconds", show (conf.requestIntervalMicroseconds `div` 1_000_000))]
+        addEvent "waiting_for_next_request" [("wait_seconds", conf.requestIntervalMicroseconds `div` 1_000_000)]
         threadDelay conf.requestIntervalMicroseconds
-        addEvent "sending_next_request" []
+        addEvent @Int "sending_next_request" []
         pure $ requestPeers withPeers

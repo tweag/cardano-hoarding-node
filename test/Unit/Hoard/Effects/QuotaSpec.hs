@@ -194,5 +194,5 @@ checkStatus = withQuotaCheck @Int 1 $ \_ status -> pure status
 
 
 -- | Check the quota for a specific key and return the status
-checkStatusForKey :: (Hashable key, Ord key, Quota key :> es, Show key) => key -> Eff es MessageStatus
+checkStatusForKey :: (Hashable key, Ord key, Quota key :> es) => key -> Eff es MessageStatus
 checkStatusForKey key = withQuotaCheck key $ \_ status -> pure status
