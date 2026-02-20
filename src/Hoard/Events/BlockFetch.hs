@@ -39,7 +39,7 @@ data BlockReceived = BlockReceived
     , block :: CardanoBlock
     , requestId :: UUID
     }
-    deriving (Typeable)
+    deriving (Show, Typeable)
 
 
 data RequestFailed = RequestFailed
@@ -48,7 +48,7 @@ data RequestFailed = RequestFailed
     , header :: CardanoHeader
     , errorMessage :: Text
     }
-    deriving (Typeable)
+    deriving (Show, Typeable)
 
 
 data BatchCompleted = BatchCompleted

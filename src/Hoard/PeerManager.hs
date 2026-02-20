@@ -289,6 +289,7 @@ bracketCollector peer = withSpan "peer_manager.bracket_collector" do
 
 
 data PeerRequested = PeerRequested Word
+    deriving (Show, Typeable)
 
 
 data CullRequested = CullRequested
@@ -299,3 +300,4 @@ data PeerDisconnected = PeerDisconnected
     { peerId :: (ID Peer)
     , timestamp :: UTCTime
     }
+    deriving (Show, Typeable)

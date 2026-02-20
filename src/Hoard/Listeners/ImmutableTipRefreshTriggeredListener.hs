@@ -44,6 +44,7 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "im
 
 
 data ImmutableTipRefreshed = ImmutableTipRefreshed
+    deriving (Show, Typeable)
 
 
 -- | Persist the updated immutable tip to the database.
