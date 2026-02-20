@@ -285,6 +285,7 @@ bracketCollector peer = do
 
 
 data PeerRequested = PeerRequested Word
+    deriving (Show, Typeable)
 
 
 data CullRequested = CullRequested
@@ -295,3 +296,4 @@ data PeerDisconnected = PeerDisconnected
     { peerId :: (ID Peer)
     , timestamp :: UTCTime
     }
+    deriving (Show, Typeable)

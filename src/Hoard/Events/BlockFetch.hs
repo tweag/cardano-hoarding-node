@@ -38,7 +38,7 @@ data BlockReceived = BlockReceived
     , timestamp :: UTCTime
     , block :: CardanoBlock
     }
-    deriving (Typeable)
+    deriving (Show, Typeable)
 
 
 data RequestFailed = RequestFailed
@@ -47,7 +47,7 @@ data RequestFailed = RequestFailed
     , header :: CardanoHeader
     , errorMessage :: Text
     }
-    deriving (Typeable)
+    deriving (Show, Typeable)
 
 
 data BatchCompleted = BatchCompleted
