@@ -20,12 +20,12 @@ import Data.Traversable (for)
 import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.Exception (Handler (..), IOException, catches, throwIO)
+import Effectful.Exception (Handler (..), IOException, catches)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
-import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError, userError)
+import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError)
 import Network.Mux (Mode (..))
 import Network.Socket (SockAddr, Socket)
 import Ouroboros.Consensus.Config (TopLevelConfig (..))
@@ -255,7 +255,7 @@ runNodeToNode =
             _ -> do
                 addEvent "io_exception" [("type", "Unknown"), ("error", show e)]
                 setStatus $ Error errMsg
-                throwIO $ userError $ toString errMsg
+                pure $ ConnectToError errMsg
 
     handleMuxError :: Peer -> Mux.Error -> Eff es ConnectToError
     handleMuxError peer = \case
@@ -270,7 +270,7 @@ runNodeToNode =
             let errMsg = "Disconnected due to unknown ouroboros error: " <> show e
             addEvent "mux_error" [("type", "Unknown"), ("error", show e)]
             setStatus $ Error errMsg
-            throwIO $ userError $ toString errMsg
+            pure $ ConnectToError errMsg
 
     handleHandshakeProtocolError :: Peer -> HandshakeProtocolError NodeToNodeVersion -> Eff es ConnectToError
     handleHandshakeProtocolError peer e = do
