@@ -68,7 +68,6 @@ main =
         . runConcurrent
         . runTimeout
         . runChan
-        . runConc
         . loadOptions
         . runConfigPath
         . loadEnv
@@ -99,6 +98,7 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . Sentry.runDuplicateBlocksState
+        . runConc
         . runQuota @PeerSlotKey 1
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound

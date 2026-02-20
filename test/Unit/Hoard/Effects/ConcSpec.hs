@@ -8,6 +8,7 @@ import Prelude
 import Data.IORef qualified as IORef
 
 import Hoard.Effects.Conc (Conc, fork_, runConc, scoped)
+import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 
 
 spec_Conc :: Spec
@@ -81,5 +82,5 @@ spec_Conc = do
 -- Test Helpers
 --------------------------------------------------------------------------------
 
-runTest :: Eff '[Conc, Concurrent, IOE] a -> IO a
-runTest = runEff . runConcurrent . runConc
+runTest :: Eff '[Conc, Tracing, Concurrent, IOE] a -> IO a
+runTest = runEff . runConcurrent . runTracingNoOp . runConc

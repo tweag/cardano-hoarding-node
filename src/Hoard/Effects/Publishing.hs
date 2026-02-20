@@ -8,6 +8,7 @@ module Hoard.Effects.Publishing
     )
 where
 
+import Data.Typeable (typeOf)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, localSeqUnlift)
 import Effectful.TH (makeEffect)
@@ -15,8 +16,10 @@ import Effectful.Writer.Static.Shared (Writer, tell)
 import Prelude hiding (Reader, State, ask, modify, runState)
 
 import Hoard.Effects.Chan (Chan)
+import Hoard.Effects.Monitoring.Tracing (SpanContext, Tracing)
 
 import Hoard.Effects.Chan qualified as Chan
+import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 
 
 data Pub (event :: Type) :: Effect where
@@ -31,20 +34,38 @@ makeEffect ''Pub
 makeEffect ''Sub
 
 
+-- | Internal wrapper for events with trace context
+data TracedEvent event = TracedEvent
+    { event :: event
+    , publisherSpanContext :: Maybe SpanContext
+    }
+
+
 -- | Runs Pub and Sub effects with an internal channel for a specific event type.
-runPubSub :: forall event es a. (Chan :> es) => Eff (Pub event : Sub event : es) a -> Eff es a
+-- Automatically captures span context from the publisher and creates linked spans in listeners.
+runPubSub :: forall event es a. (Chan :> es, Tracing :> es, Typeable event) => Eff (Pub event : Sub event : es) a -> Eff es a
 runPubSub action = do
-    (inChan, _) <- Chan.newChan @event
+    (inChan, _) <- Chan.newChan @(TracedEvent event)
 
     let handlePub eff = interpretWith_ eff \case
-            Publish event -> Chan.writeChan inChan event
+            Publish event -> do
+                -- Capture the current span context from the publisher
+                publisherSpanContext <- Tracing.getSpanContext
+                Chan.writeChan inChan TracedEvent {event, publisherSpanContext}
 
         handleSub eff = interpretWith eff \env -> \case
             Listen listener -> localSeqUnlift env \unlift -> do
                 chan <- Chan.dupChan inChan
                 forever do
-                    event <- Chan.readChan chan
-                    unlift $ listener event
+                    TracedEvent {event, publisherSpanContext} <- Chan.readChan chan
+                    case publisherSpanContext of
+                        -- If we have a publisher span context, create a linked span
+                        Just ctx ->
+                            Tracing.withSpanLinked "pubsub.listen" [ctx] $ do
+                                Tracing.addAttribute "event.type" (show $ typeOf event :: Text)
+                                unlift $ listener event
+                        -- Otherwise just run the listener normally
+                        Nothing -> unlift $ listener event
 
     handleSub . handlePub $ action
 
