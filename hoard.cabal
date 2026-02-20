@@ -31,12 +31,14 @@ library
       Hoard.Data.Header
       Hoard.Data.ID
       Hoard.Data.Peer
+      Hoard.Data.PeerNote
       Hoard.Data.PoolID
       Hoard.DB.Schema
       Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.HoardState
+      Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
       Hoard.Effects
       Hoard.Effects.BlockRepo
@@ -65,6 +67,7 @@ library
       Hoard.Effects.NodeToNode.KeepAlive
       Hoard.Effects.NodeToNode.PeerSharing
       Hoard.Effects.Options
+      Hoard.Effects.PeerNoteRepo
       Hoard.Effects.PeerRepo
       Hoard.Effects.Publishing
       Hoard.Effects.Quota
@@ -90,6 +93,7 @@ library
       Hoard.PeerManager.Config
       Hoard.PeerManager.Peers
       Hoard.Persistence
+      Hoard.Sentry
       Hoard.Server
       Hoard.Triggers
       Hoard.Types.Cardano

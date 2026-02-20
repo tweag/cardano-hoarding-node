@@ -35,6 +35,7 @@ import Hoard.Effects.Verifier (Verifier)
 import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
+import Hoard.Sentry (PeerMarkedAsMalicious (..))
 import Hoard.Triggers (every)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -69,6 +70,7 @@ component
        , Sub CullRequested :> es
        , Sub KeepAlivePing :> es
        , Sub PeerDisconnected :> es
+       , Sub PeerMarkedAsMalicious :> es
        , Sub PeerRequested :> es
        , Tracing :> es
        , Verifier :> es
@@ -87,6 +89,7 @@ component =
                 , Sub.listen cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen replenishCollectors
+                , Sub.listen cullMaliciousPeers
                 ]
         , triggers =
             pure
@@ -159,6 +162,13 @@ cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
         histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
         addEvent "culling_collectors" [("count", show numOld)]
     for_ oldConnections signalTermination
+
+
+cullMaliciousPeers :: (Concurrent :> es, State Peers :> es) => PeerMarkedAsMalicious -> Eff es ()
+cullMaliciousPeers event = do
+    conn <- gets $ fmap snd . find ((event.peer.id ==) . fst) . Map.toList . (.peers)
+    _ <- traverse signalTermination conn
+    pure ()
 
 
 noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es) => PeerDisconnected -> Eff es ()

@@ -9,3 +9,4 @@
 005_create_headers_table 2025-12-09T00:00:00Z Christian Georgii <christian.georgii@moduscreate.com> # Add headers table for chain sync protocol headers
 006_create_hoard_state_table 2026-01-19T18:30:23Z rednaz <rednaz@nixos2> # Add hoard_state table for persisting parts of the HoardState across restarts
 007_add_block_classification [004_create_blocks_table] 2026-01-28T00:00:00Z Christian Georgii <christian.georgii@moduscreate.com> # Add classification for orphan detection
+008_create_peer_notes_table 2026-02-20T10:30:13Z Victor Nascimento Bakke <gipphe@argon> # Create table to track notable information about peers
