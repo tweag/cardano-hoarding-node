@@ -2,6 +2,7 @@
 
 module Hoard.Effects.NodeToClient
     ( NodeToClient
+    , NodeConnectionError
     , runNodeToClient
     , immutableTip
     , isOnChain
@@ -9,10 +10,7 @@ module Hoard.Effects.NodeToClient
     ) where
 
 import Cardano.Api
-    ( AnyCardanoEra (AnyCardanoEra)
-    , BabbageEraOnwards (BabbageEraOnwardsBabbage, BabbageEraOnwardsConway, BabbageEraOnwardsDijkstra)
-    , CardanoEra (AllegraEra, AlonzoEra, BabbageEra, ByronEra, ConwayEra, DijkstraEra, MaryEra, ShelleyEra)
-    , ConsensusModeParams (CardanoModeParams)
+    ( ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
     , EpochSize
     , Hash (HeaderHash, StakePoolKeyHash)
@@ -27,15 +25,15 @@ import Cardano.Api
     , LocalNodeConnectInfo (LocalNodeConnectInfo)
     , NetworkId (Mainnet, Testnet)
     , PoolDistribution (unPoolDistr)
-    , QueryInMode (QueryChainPoint)
+    , QueryInEra (QueryInShelleyBasedEra)
+    , QueryInMode (QueryChainPoint, QueryInEra)
+    , QueryInShelleyBasedEra (QueryPoolDistribution)
+    , ShelleyBasedEra (ShelleyBasedEraBabbage, ShelleyBasedEraConway, ShelleyBasedEraDijkstra)
     , ShelleyConfig (ShelleyConfig)
     , ShelleyGenesis (ShelleyGenesis)
     , Target (SpecificPoint)
     , connectToLocalNode
     , decodePoolDistribution
-    , executeLocalStateQueryExpr
-    , queryCurrentEra
-    , queryPoolDistribution
     , readShelleyGenesisConfig
     )
 import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
@@ -112,9 +110,19 @@ import Hoard.Effects.Log qualified as Log
 
 
 data NodeToClient :: Effect where
-    ImmutableTip :: NodeToClient m (Maybe ChainPoint)
-    IsOnChain :: ChainPoint -> NodeToClient m (Maybe Bool)
-    ValidateVrfSignature :: CardanoHeader -> NodeToClient m (Either (PraosValidationErr Crypto) ())
+    ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
+    IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
+    ValidateVrfSignature :: CardanoHeader -> NodeToClient m (Either NodeConnectionError (Either ElectionValidationError ()))
+
+
+data ElectionValidationError
+    = PraosValidationErr (PraosValidationErr Crypto)
+
+
+data NodeConnectionError = NodeConnectionError SomeException
+
+
+type (:+) = Either -- to do
 
 
 makeEffect ''NodeToClient
@@ -122,7 +130,7 @@ makeEffect ''NodeToClient
 
 data Connection
     = Connection
-    { localStateQueries :: InChan (Target C.ChainPoint, LocalStateQueryWithResultMVar)
+    { localStateQueries :: InChan (Target C.ChainPoint, LocalStateQueryWithResultMVar) -- to do. merge
     , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
     , dead :: MVar SomeException
     -- ^ used to signal that the connection died so queries can stop waiting for responses
@@ -156,66 +164,101 @@ runNodeToClient nodeToClient = do
                     Connection localStateQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan localStateQueries (C.ImmutableTip, LocalStateQueryWithResultMVar QueryChainPoint resultVar)
-                    rightToMaybe
-                        <$> race
-                            (readMVar dead)
-                            ( fmap ChainPoint
-                                $ fmap (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
-                                $ readMVar
-                                $ resultVar
-                            )
+                    race (NodeConnectionError <$> readMVar dead)
+                        $ fmap ChainPoint
+                        $ fmap (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
+                        $ readMVar
+                        $ resultVar
                 IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
-                    rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
-                ValidateVrfSignature header -> withSpan "node_query.validate_vrf_signature" $ do
-                    let headerView = case header of
-                            HeaderByron _ -> error "to do"
-                            HeaderShelley _ -> error "to do"
-                            HeaderAllegra _ -> error "to do"
-                            HeaderMary _ -> error "to do"
-                            HeaderAlonzo _ -> error "to do"
-                            HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                            HeaderConway (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                            HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) -> protocolHeaderView shelleyHeaderRaw
-                        blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
-                    let target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
-                    poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
-                        -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
-                        AnyCardanoEra (e :: CardanoEra era) <- fromRight (error "to do") <$> queryCurrentEra
-                        let
-                            era :: BabbageEraOnwards era
-                            era = case e of
-                                ByronEra -> error "to do. validation error"
-                                ShelleyEra -> error "to do. validation error"
-                                AllegraEra -> error "to do. validation error"
-                                MaryEra -> error "to do. validation error"
-                                AlonzoEra -> error "to do. validation error"
-                                BabbageEra -> BabbageEraOnwardsBabbage
-                                ConwayEra -> BabbageEraOnwardsConway
-                                DijkstraEra -> BabbageEraOnwardsDijkstra
-                        fmap SL.unPoolDistr
-                            $ fmap unPoolDistr
-                            $ fmap (fromRight $ error $ "to do")
-                            $ fmap (decodePoolDistribution $ convert $ era)
-                            $ fmap (fromRight $ error $ "to do")
-                            $ fmap (fromRight $ error $ "to do")
-                            -- to do. `Q.SendMsgQuery QueryPoolDistribution` using the existing connection instead of `queryPoolDistribution`.
-                            $ queryPoolDistribution era
-                            $ Just
-                            $ S.singleton
-                            $ StakePoolKeyHash
-                            $ blockIssuer
-                    let activeSlotsCoeff = undefined 0.05 -- to do. get from config
-                    pure
-                        $ runExcept
-                        $ doValidateVRFSignature
+                    race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
+                ValidateVrfSignature header ->
+                    case header of
+                        HeaderByron _ -> error "to do"
+                        HeaderShelley _ -> error "to do"
+                        HeaderAllegra _ -> error "to do"
+                        HeaderMary _ -> error "to do"
+                        HeaderAlonzo _ -> error "to do"
+                        HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) ->
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraBabbage
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
+                        HeaderConway (ShelleyHeader {shelleyHeaderRaw}) ->
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraConway
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
+                        HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) ->
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraDijkstra
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
+            )
+
+
+validateVrfSignaturePraos
+    :: ( Conc :> es
+       , Concurrent :> es
+       , IOE :> es
+       , Labeled "nodeToClient" WithSocket :> es
+       , Log :> es
+       , Reader Config :> es
+       , State (Either SomeException Connection) :> es
+       , Tracing :> es
+       )
+    => ShelleyBasedEra era
+    -> CardanoHeader
+    -> HeaderView Crypto
+    -> Eff es (Either NodeConnectionError (Either ElectionValidationError ()))
+validateVrfSignaturePraos era header headerView =
+    withSpan "node_query.validate_vrf_signature"
+        $
+        --  runErrorNoCallStack @NodeConnectionError $
+        --  runErrorNoCallStack @ElectionValidationError $
+        do
+            Connection localStateQueries _ dead <- ensureConnection
+            let
+                target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
+                blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
+                -- poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
+                -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
+                -- AnyCardanoEra (e :: CardanoEra era) <- fromRight (error "to do") <$> queryCurrentEra -- to do. remove
+                -- let
+                --     era :: BabbageEraOnwards era
+                --     era = case e of
+                --         ByronEra -> error "to do. validation error"
+                --         ShelleyEra -> error "to do. validation error"
+                --         AllegraEra -> error "to do. validation error"
+                --         MaryEra -> error "to do. validation error"
+                --         AlonzoEra -> error "to do. validation error"
+                --         BabbageEra -> BabbageEraOnwardsBabbage
+                --         ConwayEra -> BabbageEraOnwardsConway
+                --         DijkstraEra -> BabbageEraOnwardsDijkstra
+                activeSlotsCoeff = undefined 0.05 -- to do. get from config
+            resultVar <- newEmptyMVar
+            liftIO $ writeChan localStateQueries (target, flip LocalStateQueryWithResultMVar resultVar $ QueryInEra $ QueryInShelleyBasedEra (convert era) $ QueryPoolDistribution $ Just $ S.singleton $ StakePoolKeyHash $ blockIssuer)
+            race (NodeConnectionError <$> readMVar dead)
+                $ (fmap . first) PraosValidationErr
+                $ fmap runExcept
+                $ fmap
+                    ( \poolDistribution ->
+                        doValidateVRFSignature
                             (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
                             poolDistribution
                             activeSlotsCoeff
                             headerView
-            )
+                    )
+                $ fmap SL.unPoolDistr
+                $ fmap unPoolDistr
+                $ fmap (fromRight $ error $ "to do")
+                $ fmap (decodePoolDistribution era)
+                $ fmap (fromRight $ error $ "to do")
+                $ fmap (fromRight $ error $ "to do")
+                $ readMVar
+                $ resultVar
 
 
 newConnection
