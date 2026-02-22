@@ -199,19 +199,19 @@ runNodeToClient nodeToClient = do
                         HeaderMary _ -> error "to do"
                         HeaderAlonzo _ -> error "to do"
                         HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) ->
-                            _
+                            fmap _
                                 $ validateVrfSignaturePraos
                                     ShelleyBasedEraBabbage
                                     header
                                     (protocolHeaderView shelleyHeaderRaw)
                         HeaderConway (ShelleyHeader {shelleyHeaderRaw}) ->
-                            _
+                            fmap _
                                 $ validateVrfSignaturePraos
                                     ShelleyBasedEraConway
                                     header
                                     (protocolHeaderView shelleyHeaderRaw)
                         HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) ->
-                            _
+                            fmap _
                                 $ validateVrfSignaturePraos
                                     ShelleyBasedEraDijkstra
                                     header
@@ -274,7 +274,6 @@ validateVrfSignaturePraos era header headerView =
                 $ (fmap . fmap . fmap) unPoolDistr
                 $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
                 $ (fmap . fmap . fmap) (decodePoolDistribution era)
-                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
                 $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
                 $ executeLocalStateQuery
                     ( SpecificPoint
