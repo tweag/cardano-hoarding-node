@@ -130,7 +130,7 @@ makeEffect ''NodeToClient
 
 data Connection
     = Connection
-    { localStateQueries :: InChan (Target C.ChainPoint, LocalStateQueryWithResultMVar) -- to do. merge
+    { localStateQueries :: InChan LocalStateQueryWithResultMVar -- to do. merge
     , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
     , dead :: MVar SomeException
     -- ^ used to signal that the connection died so queries can stop waiting for responses
@@ -138,7 +138,7 @@ data Connection
 
 
 data LocalStateQueryWithResultMVar where
-    LocalStateQueryWithResultMVar :: QueryInMode result -> MVar (Either AcquireFailure result) -> LocalStateQueryWithResultMVar
+    LocalStateQueryWithResultMVar :: MVar (Either AcquireFailure result) -> Target C.ChainPoint -> QueryInMode result -> LocalStateQueryWithResultMVar
 
 
 -- to do. use `Hoard.Effects.Chan`,...
@@ -163,7 +163,7 @@ runNodeToClient nodeToClient = do
                 ImmutableTip -> withSpan "node_query.immutable_tip" $ do
                     Connection localStateQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
-                    liftIO $ writeChan localStateQueries (C.ImmutableTip, LocalStateQueryWithResultMVar QueryChainPoint resultVar)
+                    liftIO $ writeChan localStateQueries $ LocalStateQueryWithResultMVar resultVar C.ImmutableTip QueryChainPoint
                     race (NodeConnectionError <$> readMVar dead)
                         $ fmap ChainPoint
                         $ fmap (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
@@ -221,8 +221,6 @@ validateVrfSignaturePraos era header headerView =
         do
             Connection localStateQueries _ dead <- ensureConnection
             let
-                target = SpecificPoint $ C.ChainPoint (blockSlot header) (HeaderHash $ toShortRawHash (Proxy @CardanoBlock) $ headerHash $ header)
-                blockIssuer = coerceKeyRole $ hashKey $ hvVK $ headerView
                 -- poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
                 -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
                 -- AnyCardanoEra (e :: CardanoEra era) <- fromRight (error "to do") <$> queryCurrentEra -- to do. remove
@@ -239,7 +237,28 @@ validateVrfSignaturePraos era header headerView =
                 --         DijkstraEra -> BabbageEraOnwardsDijkstra
                 activeSlotsCoeff = undefined 0.05 -- to do. get from config
             resultVar <- newEmptyMVar
-            liftIO $ writeChan localStateQueries (target, flip LocalStateQueryWithResultMVar resultVar $ QueryInEra $ QueryInShelleyBasedEra (convert era) $ QueryPoolDistribution $ Just $ S.singleton $ StakePoolKeyHash $ blockIssuer)
+            liftIO
+                $ writeChan localStateQueries
+                $ LocalStateQueryWithResultMVar
+                    resultVar
+                    ( SpecificPoint
+                        $ C.ChainPoint (blockSlot header)
+                        $ HeaderHash
+                        $ toShortRawHash (Proxy @CardanoBlock)
+                        $ headerHash
+                        $ header
+                    )
+                $ QueryInEra
+                $ QueryInShelleyBasedEra (convert era)
+                $ QueryPoolDistribution
+                $ Just
+                $ S.singleton
+                -- block issuer
+                $ StakePoolKeyHash
+                $ coerceKeyRole
+                $ hashKey
+                $ hvVK
+                $ headerView
             race (NodeConnectionError <$> readMVar dead)
                 $ (fmap . first) PraosValidationErr
                 $ fmap runExcept
@@ -263,7 +282,7 @@ validateVrfSignaturePraos era header headerView =
 
 newConnection
     :: (Concurrent :> es, IOE :> es)
-    => Eff es (Connection, (OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar), OutChan (ChainPoint, MVar Bool), MVar SomeException))
+    => Eff es (Connection, (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException))
 newConnection =
     do
         (localStateQueriesIn, localStateQueriesOut) <- liftIO newChan
@@ -281,7 +300,7 @@ initializeConnection
        , Reader Config :> es
        , State (Either SomeException Connection) :> es
        )
-    => (OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar), OutChan (ChainPoint, MVar Bool), MVar SomeException)
+    => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException)
     -> Eff es (Thread ())
 initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
     config <- ask
@@ -332,7 +351,7 @@ ensureConnection = do
 
 localNodeClient
     :: LocalNodeConnectInfo
-    -> OutChan (Target C.ChainPoint, LocalStateQueryWithResultMVar)
+    -> OutChan LocalStateQueryWithResultMVar
     -> OutChan (ChainPoint, MVar Bool)
     -> IO ()
 localNodeClient connectionInfo localStateQueries isOnChainQueries =
@@ -347,7 +366,7 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
   where
     localStateQuery :: IO (Q.ClientStIdle block C.ChainPoint QueryInMode IO void)
     localStateQuery = do
-        (target, LocalStateQueryWithResultMVar query resultVar) <- readChan localStateQueries
+        LocalStateQueryWithResultMVar resultVar target query <- readChan localStateQueries
         pure
             . Q.SendMsgAcquire target
             $ Q.ClientStAcquiring
