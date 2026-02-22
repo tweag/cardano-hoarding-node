@@ -141,6 +141,26 @@ data LocalStateQueryWithResultMVar where
     LocalStateQueryWithResultMVar :: MVar (Either AcquireFailure result) -> Target C.ChainPoint -> QueryInMode result -> LocalStateQueryWithResultMVar
 
 
+executeLocalStateQuery
+    :: ( Conc :> es
+       , Concurrent :> es
+       , IOE :> es
+       , Labeled "nodeToClient" WithSocket :> es
+       , Log :> es
+       , Reader Config :> es
+       , State (Either SomeException Connection) :> es
+       )
+    => Target C.ChainPoint
+    -> QueryInMode result
+    -> Eff es (Either NodeConnectionError (Either AcquireFailure result))
+executeLocalStateQuery target localStateQuery =
+    do
+        Connection localStateQueries _ dead <- ensureConnection
+        resultVar <- newEmptyMVar
+        liftIO $ writeChan localStateQueries $ LocalStateQueryWithResultMVar resultVar target localStateQuery
+        race (NodeConnectionError <$> readMVar dead) (readMVar resultVar)
+
+
 -- to do. use `Hoard.Effects.Chan`,...
 runNodeToClient
     :: ( Conc :> es
@@ -160,15 +180,12 @@ runNodeToClient nodeToClient = do
         interpretWith_
             (inject nodeToClient)
             ( \case
-                ImmutableTip -> withSpan "node_query.immutable_tip" $ do
-                    Connection localStateQueries _ dead <- ensureConnection
-                    resultVar <- newEmptyMVar
-                    liftIO $ writeChan localStateQueries $ LocalStateQueryWithResultMVar resultVar C.ImmutableTip QueryChainPoint
-                    race (NodeConnectionError <$> readMVar dead)
-                        $ fmap ChainPoint
-                        $ fmap (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
-                        $ readMVar
-                        $ resultVar
+                ImmutableTip ->
+                    withSpan "node_query.immutable_tip"
+                        $ (fmap . fmap) ChainPoint
+                        $ (fmap . fmap) (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
+                        $ executeLocalStateQuery C.ImmutableTip
+                        $ QueryChainPoint
                 IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
@@ -182,20 +199,23 @@ runNodeToClient nodeToClient = do
                         HeaderMary _ -> error "to do"
                         HeaderAlonzo _ -> error "to do"
                         HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraBabbage
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
+                            _
+                                $ validateVrfSignaturePraos
+                                    ShelleyBasedEraBabbage
+                                    header
+                                    (protocolHeaderView shelleyHeaderRaw)
                         HeaderConway (ShelleyHeader {shelleyHeaderRaw}) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraConway
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
+                            _
+                                $ validateVrfSignaturePraos
+                                    ShelleyBasedEraConway
+                                    header
+                                    (protocolHeaderView shelleyHeaderRaw)
                         HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraDijkstra
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
+                            _
+                                $ validateVrfSignaturePraos
+                                    ShelleyBasedEraDijkstra
+                                    header
+                                    (protocolHeaderView shelleyHeaderRaw)
             )
 
 
@@ -212,14 +232,18 @@ validateVrfSignaturePraos
     => ShelleyBasedEra era
     -> CardanoHeader
     -> HeaderView Crypto
-    -> Eff es (Either NodeConnectionError (Either ElectionValidationError ()))
+    -> Eff
+        es
+        ( Either
+            NodeConnectionError
+            (Either AcquireFailure (Either ElectionValidationError ()))
+        )
 validateVrfSignaturePraos era header headerView =
     withSpan "node_query.validate_vrf_signature"
         $
         --  runErrorNoCallStack @NodeConnectionError $
         --  runErrorNoCallStack @ElectionValidationError $
         do
-            Connection localStateQueries _ dead <- ensureConnection
             let
                 -- poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
                 -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
@@ -236,11 +260,23 @@ validateVrfSignaturePraos era header headerView =
                 --         ConwayEra -> BabbageEraOnwardsConway
                 --         DijkstraEra -> BabbageEraOnwardsDijkstra
                 activeSlotsCoeff = undefined 0.05 -- to do. get from config
-            resultVar <- newEmptyMVar
-            liftIO
-                $ writeChan localStateQueries
-                $ LocalStateQueryWithResultMVar
-                    resultVar
+            (fmap . fmap . fmap . first) PraosValidationErr
+                $ (fmap . fmap . fmap) runExcept
+                $ (fmap . fmap . fmap)
+                    ( \poolDistribution ->
+                        doValidateVRFSignature
+                            (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                            poolDistribution
+                            activeSlotsCoeff
+                            headerView
+                    )
+                $ (fmap . fmap . fmap) SL.unPoolDistr
+                $ (fmap . fmap . fmap) unPoolDistr
+                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
+                $ (fmap . fmap . fmap) (decodePoolDistribution era)
+                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
+                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
+                $ executeLocalStateQuery
                     ( SpecificPoint
                         $ C.ChainPoint (blockSlot header)
                         $ HeaderHash
@@ -259,25 +295,6 @@ validateVrfSignaturePraos era header headerView =
                 $ hashKey
                 $ hvVK
                 $ headerView
-            race (NodeConnectionError <$> readMVar dead)
-                $ (fmap . first) PraosValidationErr
-                $ fmap runExcept
-                $ fmap
-                    ( \poolDistribution ->
-                        doValidateVRFSignature
-                            (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
-                            poolDistribution
-                            activeSlotsCoeff
-                            headerView
-                    )
-                $ fmap SL.unPoolDistr
-                $ fmap unPoolDistr
-                $ fmap (fromRight $ error $ "to do")
-                $ fmap (decodePoolDistribution era)
-                $ fmap (fromRight $ error $ "to do")
-                $ fmap (fromRight $ error $ "to do")
-                $ readMVar
-                $ resultVar
 
 
 newConnection
