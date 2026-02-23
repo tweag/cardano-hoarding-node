@@ -13,6 +13,7 @@ import Cardano.Api
     ( ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
     , EpochSize
+    , EraMismatch
     , Hash (HeaderHash, StakePoolKeyHash)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
@@ -62,7 +63,7 @@ import Effectful.Concurrent.MVar
     , readMVar
     )
 import Effectful.Dispatch.Dynamic (interpretWith_)
-import Effectful.Exception (handleSync)
+import Effectful.Exception (handleSync, throwIO)
 import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
@@ -112,7 +113,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature :: CardanoHeader -> NodeToClient m (Either NodeConnectionError (Either ElectionValidationError ()))
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
 
 
 data ElectionValidationError
@@ -122,10 +123,15 @@ data ElectionValidationError
 data NodeConnectionError = NodeConnectionError SomeException
 
 
+infixr 6 :+
 type (:+) = Either -- to do
 
 
 makeEffect ''NodeToClient
+
+
+validateVrfSignature :: (NodeToClient :> es) => CardanoHeader -> Eff es (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
+validateVrfSignature = validateVrfSignature_
 
 
 data Connection
@@ -191,7 +197,7 @@ runNodeToClient nodeToClient = do
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
                     race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
-                ValidateVrfSignature header ->
+                ValidateVrfSignature_ header ->
                     case header of
                         HeaderByron _ -> error "to do"
                         HeaderShelley _ -> error "to do"
@@ -199,23 +205,20 @@ runNodeToClient nodeToClient = do
                         HeaderMary _ -> error "to do"
                         HeaderAlonzo _ -> error "to do"
                         HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) ->
-                            fmap _
-                                $ validateVrfSignaturePraos
-                                    ShelleyBasedEraBabbage
-                                    header
-                                    (protocolHeaderView shelleyHeaderRaw)
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraBabbage
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
                         HeaderConway (ShelleyHeader {shelleyHeaderRaw}) ->
-                            fmap _
-                                $ validateVrfSignaturePraos
-                                    ShelleyBasedEraConway
-                                    header
-                                    (protocolHeaderView shelleyHeaderRaw)
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraConway
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
                         HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) ->
-                            fmap _
-                                $ validateVrfSignaturePraos
-                                    ShelleyBasedEraDijkstra
-                                    header
-                                    (protocolHeaderView shelleyHeaderRaw)
+                            validateVrfSignaturePraos
+                                ShelleyBasedEraDijkstra
+                                header
+                                (protocolHeaderView shelleyHeaderRaw)
             )
 
 
@@ -232,12 +235,7 @@ validateVrfSignaturePraos
     => ShelleyBasedEra era
     -> CardanoHeader
     -> HeaderView Crypto
-    -> Eff
-        es
-        ( Either
-            NodeConnectionError
-            (Either AcquireFailure (Either ElectionValidationError ()))
-        )
+    -> Eff es (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
 validateVrfSignaturePraos era header headerView =
     withSpan "node_query.validate_vrf_signature"
         $
@@ -245,24 +243,10 @@ validateVrfSignaturePraos era header headerView =
         --  runErrorNoCallStack @ElectionValidationError $
         do
             let
-                -- poolDistribution <- liftIO $ fmap (fromRight $ error $ "to do") $ executeLocalStateQueryExpr undefined target $ do
-                -- to do. `Q.SendMsgQuery QueryCurrentEra` using the existing connection instead of `queryCurrentEra`.
-                -- AnyCardanoEra (e :: CardanoEra era) <- fromRight (error "to do") <$> queryCurrentEra -- to do. remove
-                -- let
-                --     era :: BabbageEraOnwards era
-                --     era = case e of
-                --         ByronEra -> error "to do. validation error"
-                --         ShelleyEra -> error "to do. validation error"
-                --         AllegraEra -> error "to do. validation error"
-                --         MaryEra -> error "to do. validation error"
-                --         AlonzoEra -> error "to do. validation error"
-                --         BabbageEra -> BabbageEraOnwardsBabbage
-                --         ConwayEra -> BabbageEraOnwardsConway
-                --         DijkstraEra -> BabbageEraOnwardsDijkstra
                 activeSlotsCoeff = undefined 0.05 -- to do. get from config
-            (fmap . fmap . fmap . first) PraosValidationErr
-                $ (fmap . fmap . fmap) runExcept
-                $ (fmap . fmap . fmap)
+            (fmap . fmap . fmap . fmap . first) PraosValidationErr
+                $ (fmap . fmap . fmap . fmap) runExcept
+                $ (fmap . fmap . fmap . fmap)
                     ( \poolDistribution ->
                         doValidateVRFSignature
                             (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
@@ -270,11 +254,11 @@ validateVrfSignaturePraos era header headerView =
                             activeSlotsCoeff
                             headerView
                     )
-                $ (fmap . fmap . fmap) SL.unPoolDistr
-                $ (fmap . fmap . fmap) unPoolDistr
-                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
-                $ (fmap . fmap . fmap) (decodePoolDistribution era)
-                $ (fmap . fmap . fmap) (fromRight $ error $ "to do")
+                $ (fmap . fmap . fmap . fmap) SL.unPoolDistr
+                $ (fmap . fmap . fmap . fmap) unPoolDistr
+                $ (=<<) (either throwIO pure)
+                $ (fmap . traverse . traverse . traverse) id
+                $ (fmap . fmap . fmap . fmap) (decodePoolDistribution era)
                 $ executeLocalStateQuery
                     ( SpecificPoint
                         $ C.ChainPoint (blockSlot header)
