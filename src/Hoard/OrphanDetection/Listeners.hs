@@ -140,7 +140,7 @@ immutableTipUpdatedAger _event = do
     addAttribute "immutable.slot" (show newSlot)
     addAttribute "being_classified.count" (show $ Set.size beingClassified)
 
-    -- Get up to 1 unclassified blocks that are not currently being classified
+    -- Get up to 1000 unclassified blocks that are not currently being classified
     unclassifiedBlocks <- BlockRepo.getUnclassifiedBlocksBeforeSlot newSlot 1000 beingClassified
 
     let blocksToAge = length unclassifiedBlocks
