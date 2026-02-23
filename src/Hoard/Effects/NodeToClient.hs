@@ -63,6 +63,7 @@ import Effectful.Concurrent.MVar
     , readMVar
     )
 import Effectful.Dispatch.Dynamic (interpretWith_)
+import Effectful.Error.Static (Error, throwError)
 import Effectful.Exception (handleSync, throwIO)
 import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask)
@@ -113,30 +114,41 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+
+
+data NodeConnectionError
+    = NodeConnectionError SomeException
+    deriving (Show)
 
 
 data ElectionValidationError
     = PraosValidationErr (PraosValidationErr Crypto)
-
-
-data NodeConnectionError = NodeConnectionError SomeException
+    | EraMismatch EraMismatch
 
 
 infixr 6 :+
-type (:+) = Either -- to do
+type (:+) = Either
 
 
 makeEffect ''NodeToClient
 
 
-validateVrfSignature :: (NodeToClient :> es) => CardanoHeader -> Eff es (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
-validateVrfSignature = validateVrfSignature_
+validateVrfSignature
+    :: ( Error AcquireFailure :> es
+       , Error NodeConnectionError :> es
+       , NodeToClient :> es
+       )
+    => CardanoHeader -> Eff es (Either ElectionValidationError ())
+validateVrfSignature =
+    (=<<) (either throwError pure)
+        . (=<<) (either throwError pure)
+        . validateVrfSignature_
 
 
 data Connection
     = Connection
-    { localStateQueries :: InChan LocalStateQueryWithResultMVar -- to do. merge
+    { localStateQueries :: InChan LocalStateQueryWithResultMVar
     , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
     , dead :: MVar SomeException
     -- ^ used to signal that the connection died so queries can stop waiting for responses
@@ -235,49 +247,44 @@ validateVrfSignaturePraos
     => ShelleyBasedEra era
     -> CardanoHeader
     -> HeaderView Crypto
-    -> Eff es (NodeConnectionError :+ AcquireFailure :+ EraMismatch :+ ElectionValidationError :+ ())
-validateVrfSignaturePraos era header headerView =
-    withSpan "node_query.validate_vrf_signature"
-        $
-        --  runErrorNoCallStack @NodeConnectionError $
-        --  runErrorNoCallStack @ElectionValidationError $
-        do
-            let
-                activeSlotsCoeff = undefined 0.05 -- to do. get from config
-            (fmap . fmap . fmap . fmap . first) PraosValidationErr
-                $ (fmap . fmap . fmap . fmap) runExcept
-                $ (fmap . fmap . fmap . fmap)
-                    ( \poolDistribution ->
-                        doValidateVRFSignature
-                            (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
-                            poolDistribution
-                            activeSlotsCoeff
-                            headerView
-                    )
-                $ (fmap . fmap . fmap . fmap) SL.unPoolDistr
-                $ (fmap . fmap . fmap . fmap) unPoolDistr
-                $ (=<<) (either throwIO pure)
-                $ (fmap . traverse . traverse . traverse) id
-                $ (fmap . fmap . fmap . fmap) (decodePoolDistribution era)
-                $ executeLocalStateQuery
-                    ( SpecificPoint
-                        $ C.ChainPoint (blockSlot header)
-                        $ HeaderHash
-                        $ toShortRawHash (Proxy @CardanoBlock)
-                        $ headerHash
-                        $ header
-                    )
-                $ QueryInEra
-                $ QueryInShelleyBasedEra (convert era)
-                $ QueryPoolDistribution
-                $ Just
-                $ S.singleton
-                -- block issuer
-                $ StakePoolKeyHash
-                $ coerceKeyRole
-                $ hashKey
-                $ hvVK
-                $ headerView
+    -> Eff es (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+validateVrfSignaturePraos era header headerView = withSpan "node_query.validate_vrf_signature" $ do
+    let
+        activeSlotsCoeff = undefined 0.05 -- to do. get from config
+    (fmap . fmap . fmap . (=<<))
+        ( \poolDistribution ->
+            first PraosValidationErr -- wrap `PraosValidationErr` into an `ElectionValidationError`
+                $ runExcept
+                $ doValidateVRFSignature
+                    (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                    poolDistribution
+                    activeSlotsCoeff
+                    headerView
+        )
+        $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+        $ (fmap . fmap . fmap . fmap) (SL.unPoolDistr . unPoolDistr)
+        $ (=<<) (either throwIO pure) -- throw `DecoderError` from `Either` into `IO`
+        $ (fmap . traverse . traverse . traverse) id -- shuffle the `Either DecoderError` to the top most `Either` level
+        $ (fmap . fmap . fmap . fmap) (decodePoolDistribution era)
+        $ executeLocalStateQuery
+            ( SpecificPoint
+                $ C.ChainPoint (blockSlot header)
+                $ HeaderHash
+                $ toShortRawHash (Proxy @CardanoBlock)
+                $ headerHash
+                $ header
+            )
+        $ QueryInEra
+        $ QueryInShelleyBasedEra (convert era)
+        $ QueryPoolDistribution
+        $ Just
+        $ S.singleton
+        -- block issuer
+        $ StakePoolKeyHash
+        $ coerceKeyRole
+        $ hashKey
+        $ hvVK
+        $ headerView
 
 
 newConnection

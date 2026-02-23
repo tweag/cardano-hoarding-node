@@ -34,9 +34,9 @@ immutableTipRefreshTriggeredListener
     => ImmutableTipRefreshTriggered -> Eff es ()
 immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "immutable_tip.refresh" do
     NodeToClient.immutableTip >>= \case
-        Nothing ->
+        Left _ ->
             setStatus $ Error "Fetch failed: connection may be down"
-        Just tip -> do
+        Right tip -> do
             setStatus Ok
             modifyM $ \hoardState ->
                 if hoardState.immutableTip < tip then
