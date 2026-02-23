@@ -39,12 +39,17 @@ module Hoard.Effects.Monitoring.Tracing
     , runTracingFromConfig
     , runTracingNoOp
 
+      -- * Configuration
+    , TracingConfig (..)
+
       -- * Re-exports
     , SpanStatus (..)
     , SpanContext
     ) where
 
 import Control.Tracer (Tracer (..))
+import Data.Aeson (FromJSON)
+import Data.Default (Default (..))
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Exception (onException)
@@ -58,9 +63,32 @@ import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace qualified as OT
 import OpenTelemetry.Trace.Core qualified as OT
 
-import Hoard.Types.Environment (Config (..), TracingConfig (..))
+-- ConfigPath no longer needed - using runConfig pattern instead
+import Hoard.Types.QuietSnake (QuietSnake (..))
 
 import Hoard.Effects.Monitoring.Tracing.Provider qualified as Provider
+
+
+-- | Tracing configuration for OpenTelemetry
+data TracingConfig = TracingConfig
+    { enabled :: Bool
+    -- ^ Enable tracing
+    , serviceName :: Text
+    -- ^ Service name for traces
+    , otlpEndpoint :: Text
+    -- ^ OTLP endpoint (e.g., "http://localhost:4318")
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake TracingConfig
+
+
+instance Default TracingConfig where
+    def =
+        TracingConfig
+            { enabled = False
+            , serviceName = "hoard"
+            , otlpEndpoint = "http://localhost:4318"
+            }
 
 
 -- | Span status for indicating success or failure
@@ -195,13 +223,13 @@ runTracing enabled serviceName otlpEndpoint action
 
 -- | Run the Tracing effect with config from Reader
 --
--- Convenience wrapper that reads TracingConfig from the environment.
+-- Convenience wrapper that reads TracingConfig from the Reader effect.
 runTracingFromConfig
-    :: (IOE :> es, Reader Config :> es)
+    :: (IOE :> es, Reader TracingConfig :> es)
     => Eff (Tracing : es) a
     -> Eff es a
 runTracingFromConfig action = do
-    Config {tracing = TracingConfig {enabled, serviceName, otlpEndpoint}} <- ask
+    TracingConfig {enabled, serviceName, otlpEndpoint} <- ask
     runTracing enabled serviceName otlpEndpoint action
 
 

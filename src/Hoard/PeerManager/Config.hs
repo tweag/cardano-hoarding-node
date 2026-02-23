@@ -1,9 +1,10 @@
-module Hoard.PeerManager.Config (Config (..)) where
+module Hoard.PeerManager.Config
+    ( Config (..)
+    ) where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
-import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
 import Hoard.Types.QuietSnake (QuietSnake (..))
 

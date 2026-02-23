@@ -1,7 +1,5 @@
 module Hoard.Effects.Environment
     ( loadEnv
-    , runConfigReader
-    , runHandlesReader
     , loadNodeConfig
     , loadProtocolInfo
     , loadTopology
@@ -9,51 +7,32 @@ module Hoard.Effects.Environment
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
-import Data.Default (def)
 import Effectful (Eff, IOE, withSeqEffToIO, (:>))
 import Effectful.Exception (throwIO)
-import Effectful.Reader.Static (Reader, ask, asks, runReader)
+import Effectful.Reader.Static (Reader, ask, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
-import Prelude hiding (Reader, ask, asks, runReader)
+import Prelude hiding (Reader, ask, runReader)
 
 import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
-    ( CardanoNodeIntegrationConfig
-    , Config (..)
-    , Env (..)
-    , Handles (..)
-    , NodeSocketsConfig
-    , PeerSnapshotFile (..)
-    , ServerConfig (..)
+    ( PeerSnapshotFile (..)
     , Topology (..)
-    , TracingConfig
     )
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Quota.Config qualified as Quota
-import Hoard.PeerManager.Config qualified as PeerManager
 
-
--- | Top-level config file structure (YAML)
+-- | Top-level config file structure (YAML) — only the fields needed to bootstrap
+-- the application environment. Component-specific configs are loaded separately.
 data ConfigFile = ConfigFile
-    { server :: ServerConfig
-    , database :: DatabaseConfigFile
+    { database :: DatabaseConfigFile
     , secretsFile :: ConfigPath
     , protocolConfigPath :: FilePath
-    , nodeSockets :: NodeSocketsConfig
-    , logging :: LoggingConfig
-    , tracing :: TracingConfig
-    , maxFileDescriptors :: Maybe Word32
-    , cardanoNodeIntegration :: CardanoNodeIntegrationConfig
-    , peerManager :: PeerManager.Config
-    , quota :: Quota.Config
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ConfigFile
@@ -164,34 +143,43 @@ toDBConfig dbCfg credentials =
         }
 
 
-data LoggingConfig = LoggingConfig
-    { minimumSeverity :: Log.Severity
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake LoggingConfig
+lookupNonEmpty :: (MonadIO m) => Text -> m (Maybe Text)
+lookupNonEmpty n =
+    lookupEnv (toString n) <&> \case
+        Just [] -> Nothing
+        s -> toText <$> s
 
 
-loadLoggingConfig :: (IOE :> es) => ConfigFile -> Eff es Log.Config
-loadLoggingConfig configFile = do
-    log <- (>>= readMaybe) <$> lookupEnv "LOG"
-    logging <- (>>= readMaybe) <$> lookupEnv "LOGGING"
-    debug <-
-        (>>= \x -> if x == "0" then Nothing else Just Log.DEBUG)
-            <$> lookupEnv "DEBUG"
-    let minimumSeverity = fromMaybe configFile.logging.minimumSeverity $ debug <|> logging <|> log
-    pure $ def {Log.minimumSeverity}
+-- | Load the full application environment for a given deployment.
+-- Loads both the public config YAML and the secrets YAML file,
+-- then acquires all necessary runtime handles.
+--
+-- Provides individual Reader effects for:
+-- - IOManager (network IO manager)
+-- - ProtocolInfo CardanoBlock (Cardano protocol info)
+-- - NodeConfig (Cardano node config)
+-- - PeerSnapshotFile (bootstrap peer snapshot)
+-- - DBPools (database connection pools)
+loadEnv
+    :: ( IOE :> es
+       , Reader ConfigPath :> es
+       )
+    => Eff (Reader IOManager : Reader (ProtocolInfo CardanoBlock) : Reader NodeConfig : Reader PeerSnapshotFile : Reader DBPools : es) a
+    -> Eff es a
+loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
+    configPath <- ask @ConfigPath
+    putTextLn $ "Loading configuration from: " <> show configPath
+    configFile <- loadYaml @ConfigFile configPath
+    secrets <- loadYaml @SecretConfig $ configFile.secretsFile
+    nodeConfig <- loadNodeConfig configFile.protocolConfigPath
+    protocolInfo <- loadProtocolInfo nodeConfig
+    (_, peerSnapshot) <- loadTopology configFile.protocolConfigPath
 
-
--- | Acquire runtime handles
-acquireHandles :: (IOE :> es) => IOManager -> ConfigFile -> SecretConfig -> Eff es Handles
-acquireHandles ioManager configFile secrets = do
     databaseHost <- lookupNonEmpty "DB_HOST"
     databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
     databaseName <- lookupNonEmpty "DB_NAME"
-    -- Resolve relative paths to absolute for Unix socket connections
     resolvedHost <- liftIO $ makeAbsolute $ toString $ fromMaybe configFile.database.host databaseHost
-    let
-        database =
+    let database =
             DatabaseConfigFile
                 { host = toText resolvedHost
                 , port = fromMaybe configFile.database.port databasePort
@@ -202,75 +190,9 @@ acquireHandles ioManager configFile secrets = do
     let writerConfig = toDBConfig database secrets.database.users.writer
     dbPools <- liftIO $ acquireDatabasePools readerConfig writerConfig
 
-    pure
-        Handles
-            { ioManager
-            , dbPools
-            }
-
-
-lookupNonEmpty :: (MonadIO m) => Text -> m (Maybe Text)
-lookupNonEmpty n =
-    lookupEnv (toString n) <&> \case
-        Just [] -> Nothing
-        s -> toText <$> s
-
-
--- | Load the full application environment for a given deployment
--- Loads both the public config YAML and the secrets YAML file,
--- then acquires all necessary runtime handles
-loadEnv
-    :: ( IOE :> es
-       , Reader ConfigPath :> es
-       )
-    => Eff (Reader Env : es) a
-    -> Eff es a
-loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
-    configPath <- ask @ConfigPath
-    putTextLn $ "Loading configuration from: " <> show configPath
-    configFile <- loadYaml @ConfigFile configPath
-    secrets <- loadYaml @SecretConfig $ configFile.secretsFile
-    nodeConfig <- loadNodeConfig configFile.protocolConfigPath
-    protocolInfo <- loadProtocolInfo nodeConfig
-    (topology, peerSnapshot) <- loadTopology configFile.protocolConfigPath
-    logging <- loadLoggingConfig configFile
-    handles <- acquireHandles ioManager configFile secrets
-
-    let config =
-            Config
-                { server = configFile.server
-                , protocolInfo
-                , nodeConfig
-                , nodeSockets = configFile.nodeSockets
-                , logging
-                , tracing = configFile.tracing
-                , maxFileDescriptors = configFile.maxFileDescriptors
-                , topology
-                , peerSnapshot
-                , peerManager = configFile.peerManager
-                , cardanoNodeIntegration = configFile.cardanoNodeIntegration
-                , quota = configFile.quota
-                }
-        env = Env {config, handles}
-
-    runReader env eff
-
-
-runConfigReader
-    :: (Reader Env :> es)
-    => Eff (Reader Quota.Config : Reader NodeConfig : Reader PeerManager.Config : Reader Log.Config : Reader Config : es) a
-    -> Eff es a
-runConfigReader eff = do
-    cfg <- asks config
-    runReader cfg
-        . runReader cfg.logging
-        . runReader cfg.peerManager
-        . runReader cfg.nodeConfig
-        . runReader cfg.quota
+    runReader dbPools
+        . runReader peerSnapshot
+        . runReader nodeConfig
+        . runReader protocolInfo
+        . runReader ioManager
         $ eff
-
-
-runHandlesReader :: (Reader Env :> es) => Eff (Reader DBPools : es) a -> Eff es a
-runHandlesReader eff = do
-    handles <- asks handles
-    runReader handles.dbPools eff

@@ -21,6 +21,7 @@ library
       Hoard.BlockEviction
       Hoard.BlockEviction.Config
       Hoard.Bootstrap
+      Hoard.CardanoNode.Config
       Hoard.Collector
       Hoard.Component
       Hoard.Control.Exception
@@ -91,6 +92,7 @@ library
       Hoard.PeerManager.Peers
       Hoard.Persistence
       Hoard.Server
+      Hoard.Server.Config
       Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.DBConfig

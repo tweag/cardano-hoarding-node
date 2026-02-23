@@ -34,9 +34,10 @@ tracing:
   service_name: "hoard"
   otlp_endpoint: "http://localhost:4318"
 
-# Maximum number of file descriptors
-# Increase this to support many concurrent peer connections
-max_file_descriptors: 16384
+setup:
+  # Maximum number of file descriptors
+  # Increase this to support many concurrent peer connections
+  max_file_descriptors: 16384
 
 peer_manager:
   # Cooldown period after a peer failure before retrying (in seconds)

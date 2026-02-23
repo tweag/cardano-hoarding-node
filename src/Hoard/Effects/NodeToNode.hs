@@ -34,6 +34,7 @@ import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
 import Ouroboros.Consensus.Node (ProtocolInfo (..))
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
+import Ouroboros.Network.IOManager (IOManager)
 import Ouroboros.Network.Mux
     ( OuroborosApplication (..)
     , OuroborosApplicationWithMinimalCtx
@@ -75,7 +76,6 @@ import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, Rol
 import Hoard.Events.KeepAlive (KeepAlivePing)
 import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
-import Hoard.Types.Environment (Config (..), Env (..), Handles (..))
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
@@ -133,7 +133,8 @@ runNodeToNode
        , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Pub RollBackward :> es
-       , Reader Env :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
+       , Reader IOManager :> es
        , Reader NodeToNodeConfig :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
@@ -149,19 +150,20 @@ runNodeToNode =
             addAttribute "peer.id" (show peer.id)
             addAttribute "peer.address" (show peer.address)
 
-            env <- ask @Env
+            ioManager <- ask @IOManager
+            protocolInfo <- ask @(ProtocolInfo CardanoBlock)
             nodeToNode <- ask @NodeToNodeConfig
             let addr = IP.toSockAddr (peer.address.host.getNodeIP, fromIntegral peer.address.port)
                 snocket =
                     withConnectionTimeout nodeToNode.connectionTimeoutSeconds
-                        $ socketSnocket env.handles.ioManager
-                networkMagic = getNetworkMagic $ env.config.protocolInfo.pInfoConfig.topLevelConfigBlock
+                        $ socketSnocket ioManager
+                networkMagic = getNetworkMagic $ protocolInfo.pInfoConfig.topLevelConfigBlock
                 supportedVersions = Map.toList $ supportedNodeToNodeVersions (Proxy :: Proxy CardanoBlock)
 
                 mkCodecs version blockVersion =
                     hoistCodecs liftIO
                         $ defaultCodecs
-                            env.config.protocolInfo.pInfoConfig.topLevelConfigCodec
+                            protocolInfo.pInfoConfig.topLevelConfigCodec
                             blockVersion
                             encodeRemoteAddress
                             (\v -> decodeRemoteAddress v)
