@@ -12,7 +12,6 @@ module Hoard.Effects.NodeToClient
 import Cardano.Api
     ( ConsensusModeParams (CardanoModeParams)
     , Convert (convert)
-    , EpochSize
     , EraMismatch
     , Hash (HeaderHash, StakePoolKeyHash)
     , LocalChainSyncClient (LocalChainSyncClient)
@@ -30,15 +29,13 @@ import Cardano.Api
     , QueryInMode (QueryChainPoint, QueryInEra)
     , QueryInShelleyBasedEra (QueryPoolDistribution)
     , ShelleyBasedEra (ShelleyBasedEraBabbage, ShelleyBasedEraConway, ShelleyBasedEraDijkstra)
-    , ShelleyConfig (ShelleyConfig)
-    , ShelleyGenesis (ShelleyGenesis)
+    , ShelleyConfig
     , Target (SpecificPoint)
     , connectToLocalNode
     , decodePoolDistribution
-    , readShelleyGenesisConfig
     )
 import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
-import Cardano.Ledger.BaseTypes (mkNonceFromOutputVRF)
+import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff, mkNonceFromOutputVRF)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Control.Concurrent.Chan.Unagi
     ( InChan
@@ -66,7 +63,7 @@ import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Exception (handleSync, throwIO)
 import Effectful.Labeled (Labeled, labeled)
-import Effectful.Reader.Static (Reader, ask)
+import Effectful.Reader.Static (Reader, ask, asks)
 import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Block (ConvertRawHash (toShortRawHash), blockSlot, headerHash)
@@ -90,7 +87,7 @@ import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK, hvVrfRes))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
-import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
+import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.State qualified as SL
@@ -105,7 +102,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, ChainPoint (ChainPoint), Crypto)
 import Hoard.Types.Environment
-    ( Config (Config, nodeConfig, protocolInfo)
+    ( Config (protocolInfo)
     )
 
 import Hoard.Effects.Log qualified as Log
@@ -166,6 +163,7 @@ executeLocalStateQuery
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
        , Reader Config :> es
+       , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
     => Target C.ChainPoint
@@ -187,6 +185,7 @@ runNodeToClient
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
        , Reader Config :> es
+       , Reader ShelleyConfig :> es
        , Tracing :> es
        )
     => Eff (NodeToClient : es) a
@@ -241,6 +240,7 @@ validateVrfSignaturePraos
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
        , Reader Config :> es
+       , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        , Tracing :> es
        )
@@ -249,8 +249,7 @@ validateVrfSignaturePraos
     -> HeaderView Crypto
     -> Eff es (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
 validateVrfSignaturePraos era header headerView = withSpan "node_query.validate_vrf_signature" $ do
-    let
-        activeSlotsCoeff = undefined 0.05 -- to do. get from config
+    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
     (fmap . fmap . fmap . (=<<))
         ( \poolDistribution ->
             first PraosValidationErr -- wrap `PraosValidationErr` into an `ElectionValidationError`
@@ -305,13 +304,14 @@ initializeConnection
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
        , Reader Config :> es
+       , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
     => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException)
     -> Eff es (Thread ())
 initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
-    config <- ask
-    epochSize <- loadEpochSize config
+    config <- ask @Config
+    epochSize <- asks @ShelleyConfig (.scConfig.sgEpochLength)
     nodeToClientSocket <- labeled @"nodeToClient" getSocket
     fork
         . handleSync
@@ -340,6 +340,7 @@ ensureConnection
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
        , Reader Config :> es
+       , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
     => Eff es Connection
@@ -393,15 +394,6 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
                 { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
                 , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain
                 }
-
-
-loadEpochSize :: (IOE :> es) => Config -> Eff es EpochSize
-loadEpochSize Config {nodeConfig} = do
-    genesisConfigResult <- runExceptT $ readShelleyGenesisConfig nodeConfig
-    ShelleyConfig {scConfig = ShelleyGenesis {sgEpochLength}} <- case genesisConfigResult of
-        Left err -> error $ "Failed to read shelley genesis config: " <> show err
-        Right cfg -> pure cfg
-    pure sgEpochLength
 
 
 -- | Convert a NetworkMagic to a NetworkId.
