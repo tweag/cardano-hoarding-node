@@ -127,7 +127,7 @@ client unlift cfg peer =
         reqs <- readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
 
         addEvent "block_fetch_requests_received" [("count", show $ length reqs)]
-        requestId <- show <$> UUID.gen
+        requestId <- UUID.gen
         let points = headerPoint . (.header) <$> reqs
             start = minimum points
             end = maximum points
@@ -136,7 +136,7 @@ client unlift cfg peer =
         addAttribute "range.end" (show end)
         addEvent
             "block_fetch_requests_received"
-            [ ("request.id", requestId)
+            [ ("request.id", show requestId)
             , ("range.count", show $ length reqs)
             , ("range.start", show start)
             , ("range.end", show end)
@@ -150,13 +150,13 @@ client unlift cfg peer =
     handleResponse requestId requestedHashes reqs =
         BlockFetch.BlockFetchResponse
             { handleStartBatch = do
-                unlift $ addEvent "block_fetch_request_start" [("request.id", requestId)]
+                unlift $ addEvent "block_fetch_request_start" [("request.id", show requestId)]
                 pure $ blockReceiver requestId requestedHashes 0
             , handleNoBlocks = unlift $ do
                 recordBlockFetchFailure
                 addEvent
                     "no_blocks_returned"
-                    [ ("request.id", requestId)
+                    [ ("request.id", show requestId)
                     , ("request.count", show $ length reqs)
                     ]
                 timestamp <- Clock.currentTime
@@ -181,11 +181,12 @@ client unlift cfg peer =
                             { peer
                             , timestamp
                             , block
+                            , requestId
                             }
                 else
                     addEvent
                         "block_fetch_received_unrequested_block"
-                        [ ("request.id", requestId)
+                        [ ("request.id", show requestId)
                         , ("block.hash", show (blockHashFromHeader $ getHeader block))
                         ]
                 pure $ blockReceiver requestId requestedHashes $ blockCount + 1

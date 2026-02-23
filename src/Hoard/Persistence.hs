@@ -11,12 +11,14 @@ import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.PeerNote (NoteType (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockReceived, recordHeaderReceived)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Quota (MessageStatus (..), Quota)
@@ -24,8 +26,10 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
+import Hoard.Sentry (AdversarialBehavior (..))
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Effects.Quota qualified as Quota
@@ -35,8 +39,10 @@ component
     :: ( BlockRepo :> es
        , HeaderRepo :> es
        , Metrics :> es
+       , PeerNoteRepo :> es
        , PeerRepo :> es
        , Quota (ID Peer, Int64) :> es
+       , Sub AdversarialBehavior :> es
        , Sub BlockReceived :> es
        , Sub HeaderReceived :> es
        , Sub PeersReceived :> es
@@ -52,6 +58,7 @@ component =
                 [ Sub.listen headerReceived
                 , Sub.listen blockReceived
                 , Sub.listen peersReceived
+                , Sub.listen noteAdversarialBehavior
                 ]
         }
 
@@ -124,6 +131,12 @@ peersReceived event = withSpan "peers_received" $ do
         addEvent "peer_address" [("host", show addr.host), ("port", show addr.port)]
     void $ PeerRepo.upsertPeers event.peerAddresses event.peer.address event.timestamp
     addEvent "peers_persisted" []
+
+
+noteAdversarialBehavior :: (PeerNoteRepo :> es, Tracing :> es) => AdversarialBehavior -> Eff es ()
+noteAdversarialBehavior event = withSpan "note_adversarial_behavior" do
+    _ <- PeerNoteRepo.saveNote event.peer.id Adversarial "Peer exceeded duplicate block warning threshold"
+    pure ()
 
 
 extractHeaderData :: HeaderReceived -> Header
