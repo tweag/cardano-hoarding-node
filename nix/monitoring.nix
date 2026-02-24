@@ -220,14 +220,73 @@ let
     echo "$TEMPO_DATA/tempo.yaml"
   '';
 
+  # Loki configuration script that generates config with runtime paths
+  lokiConfigScript = pkgs.writeShellScript "loki-config" ''
+    CONFIG_FILE="''${CONFIG_FILE:-${config}}"
+    LOKI_DATA="''${LOKI_DATA:-$PWD/loki-data}"
+    mkdir -p "$LOKI_DATA/chunks" "$LOKI_DATA/index" "$LOKI_DATA/boltdb-shipper-active" "$LOKI_DATA/boltdb-shipper-cache" "$LOKI_DATA/wal"
+
+    HTTP_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
+    RETENTION_PERIOD=$(${yq} eval '.monitoring.loki.retention_period' "$CONFIG_FILE")
+
+    cat > "$LOKI_DATA/loki.yaml" <<EOF
+    auth_enabled: false
+
+    server:
+      http_listen_port: $HTTP_PORT
+      grpc_listen_port: 0
+
+    common:
+      path_prefix: $LOKI_DATA
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+
+    schema_config:
+      configs:
+        - from: "2020-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    storage_config:
+      filesystem:
+        directory: $LOKI_DATA/chunks
+      tsdb_shipper:
+        active_index_directory: $LOKI_DATA/boltdb-shipper-active
+        cache_location: $LOKI_DATA/boltdb-shipper-cache
+
+    limits_config:
+      retention_period: $RETENTION_PERIOD
+
+    compactor:
+      working_directory: $LOKI_DATA/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
+    EOF
+
+    echo "$LOKI_DATA/loki.yaml"
+  '';
+
   # Service startup scripts (reusable)
   startNodeExporter = pkgs.writeShellScript "start-node-exporter" ''
     export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
     PORT=$(${yq} eval '.monitoring.node_exporter.port' "$CONFIG_FILE")
 
+    EXTRA_ARGS=()
+    # WSL2 has duplicate /run/user tmpfs mounts that cause duplicate metric errors
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+      EXTRA_ARGS+=(--collector.filesystem.mount-points-exclude="^/run/user$")
+    fi
+
     echo "Starting Node Exporter on port $PORT..."
     exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
-      --web.listen-address=:$PORT
+      --web.listen-address=:$PORT \
+      "''${EXTRA_ARGS[@]}"
   '';
 
   startTempo = pkgs.writeShellScript "start-tempo" ''
@@ -237,6 +296,57 @@ let
 
     echo "Starting Tempo..."
     exec ${pkgs.tempo}/bin/tempo -config.file="$TEMPO_CONFIG"
+  '';
+
+  startLoki = pkgs.writeShellScript "start-loki" ''
+    export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
+    export LOKI_DATA="$PWD/loki-data"
+    LOKI_CONFIG=$(${lokiConfigScript})
+
+    echo "Starting Loki..."
+    exec ${pkgs.grafana-loki}/bin/loki -config.file="$LOKI_CONFIG"
+  '';
+
+  # Promtail configuration script that generates config with runtime paths
+  promtailConfigScript = pkgs.writeShellScript "promtail-config" ''
+    CONFIG_FILE="''${CONFIG_FILE:-${config}}"
+    PROMTAIL_DATA="''${PROMTAIL_DATA:-$PWD/promtail-data}"
+    mkdir -p "$PROMTAIL_DATA"
+
+    LOKI_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
+    LOG_FILE="$PWD/log.out"
+
+    cat > "$PROMTAIL_DATA/promtail.yaml" <<EOF
+    server:
+      http_listen_port: 0
+      grpc_listen_port: 0
+
+    positions:
+      filename: $PROMTAIL_DATA/positions.yaml
+
+    clients:
+      - url: http://localhost:$LOKI_PORT/loki/api/v1/push
+
+    scrape_configs:
+      - job_name: hoard
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: hoard
+              __path__: $LOG_FILE
+    EOF
+
+    echo "$PROMTAIL_DATA/promtail.yaml"
+  '';
+
+  startPromtail = pkgs.writeShellScript "start-promtail" ''
+    export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
+    export PROMTAIL_DATA="$PWD/promtail-data"
+    PROMTAIL_CONFIG=$(${promtailConfigScript})
+
+    echo "Starting Promtail (tailing $PWD/log.out)..."
+    exec ${pkgs.grafana-loki}/bin/promtail -config.file="$PROMTAIL_CONFIG"
   '';
 
   startPrometheus = pkgs.writeShellScript "start-prometheus" ''
@@ -334,6 +444,7 @@ let
 
     PROMETHEUS_PORT=$(${yq} eval '.monitoring.prometheus.port' "$CONFIG_FILE")
     TEMPO_PORT=$(${yq} eval '.monitoring.tempo.http_port' "$CONFIG_FILE")
+    LOKI_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
 
     cat > "$OUTPUT_FILE" <<EOF
     apiVersion: 1
@@ -359,6 +470,13 @@ let
         jsonData:
           nodeGraph:
             enabled: true
+
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://localhost:$LOKI_PORT
+        uid: loki
+        editable: false
     EOF
   '';
 
@@ -1556,6 +1674,25 @@ in
       ''}";
     };
 
+    # Loki for log aggregation
+    loki = {
+      type = "app";
+      program = "${pkgs.writeShellScript "loki-app" ''
+        set -e
+        export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
+        HTTP_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
+
+        echo "Starting Loki..."
+        echo "  HTTP: http://localhost:$HTTP_PORT"
+        echo "  Push endpoint: http://localhost:$HTTP_PORT/loki/api/v1/push"
+        echo ""
+        echo "Press Ctrl+C to stop"
+        echo ""
+
+        exec ${startLoki}
+      ''}";
+    };
+
     # All-in-one monitoring stack
     monitoring = {
       type = "app";
@@ -1571,6 +1708,7 @@ in
         GRAFANA_ADMIN_USER=$(${yq} eval '.monitoring.grafana.admin_user' "$CONFIG_FILE")
         GRAFANA_ADMIN_PASSWORD=$(${yq} eval '.monitoring.grafana.admin_password' "$CONFIG_FILE")
         TEMPO_PORT=$(${yq} eval '.monitoring.tempo.http_port' "$CONFIG_FILE")
+        LOKI_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
         NODE_EXPORTER_PORT=$(${yq} eval '.monitoring.node_exporter.port' "$CONFIG_FILE")
         HOARD_TARGET=$(${yq} eval '.monitoring.prometheus.targets.hoard' "$CONFIG_FILE")
 
@@ -1581,6 +1719,8 @@ in
         echo "  2. Grafana (visualization & dashboards)"
         echo "  3. Node Exporter (system metrics)"
         echo "  4. Tempo (distributed tracing)"
+        echo "  5. Loki (log aggregation)"
+        echo "  6. Promtail (log shipper, tailing ./log.out)"
         echo ""
         echo "Make sure Hoard is running on http://$HOARD_TARGET"
         echo ""
@@ -1602,6 +1742,12 @@ in
         ${startTempo} &
         sleep 2
 
+        ${startLoki} &
+        sleep 2
+
+        ${startPromtail} &
+        sleep 1
+
         ${startPrometheus} &
         sleep 3
 
@@ -1614,7 +1760,8 @@ in
         echo "  📊 Grafana:    http://$GRAFANA_HOST:$GRAFANA_PORT ($GRAFANA_ADMIN_USER/$GRAFANA_ADMIN_PASSWORD)"
         echo "  📈 Prometheus: http://localhost:$PROMETHEUS_PORT"
         echo "  🔍 Tempo:      http://localhost:$TEMPO_PORT"
-        echo "  🖥️  Node Exp:   http://localhost:$NODE_EXPORTER_PORT/metrics"
+        echo "  📝 Loki:       http://localhost:$LOKI_PORT"
+        echo "  🖥️ Node Exp:   http://localhost:$NODE_EXPORTER_PORT/metrics"
         echo ""
         echo "Dashboards:"
         echo "  → Hoard Performance"
