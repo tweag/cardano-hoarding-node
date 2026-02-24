@@ -91,6 +91,9 @@ monitoring:
     http_port: 3200
     block_retention: "24h"
     max_block_duration: "5m"
+  loki:
+    http_port: 3100
+    retention_period: "24h"
   node_exporter:
     port: 9100
 
