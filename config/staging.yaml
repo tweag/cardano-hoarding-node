@@ -46,6 +46,11 @@ peer_manager:
   max_collector_lifetime_seconds: 3000 # 50 minutes
   max_concurrent_collectors: 100
 
+sentry:
+  duplicate_blocks:
+    warning_threshold: 1
+    critical_threshold: 20
+
 node_to_node:
   # Timeout for TCP connection handshake (in seconds)
   # This only affects the initial connection, not established connections
@@ -66,7 +71,6 @@ cardano_protocols:
     maximum_ingress_queue: 393216 # 384 KiB
   chain_sync:
     maximum_ingress_queue: 1200
-
 
 cardano_protocol_handles:
   block_fetch:
