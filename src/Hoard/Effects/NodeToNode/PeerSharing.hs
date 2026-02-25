@@ -32,7 +32,6 @@ import Hoard.Events.PeerSharing (PeerSharingStarted (..), PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Log qualified as Log
 
 
 miniProtocol
@@ -63,9 +62,7 @@ miniProtocol conf unlift codecs peer =
                         wrappedPeer = Peer.Effect
                             $ unlift
                             $ withExceptionLogging "PeerSharing"
-                            $ Log.withNamespace "PeerSharing"
                             $ do
-                                Log.debug $ "Started PeerSharing for " <> show peer.address
                                 timestamp <- Clock.currentTime
                                 publish $ PeerSharingStarted {peer, timestamp}
                                 pure (peerSharingClientPeer peerSharingClient)

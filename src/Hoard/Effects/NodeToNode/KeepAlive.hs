@@ -29,7 +29,6 @@ import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Log qualified as Log
 
 
 miniProtocol
@@ -59,9 +58,7 @@ miniProtocol conf unlift codecs peer =
                             Peer.Effect
                                 $ unlift
                                 $ withExceptionLogging "KeepAlive"
-                                $ Log.withNamespace "KeepAlive"
                                 $ do
-                                    Log.debug $ "Started KeepAlive for " <> show peer.address
                                     pure $ keepAliveClientPeer $ client unlift conf peer
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
