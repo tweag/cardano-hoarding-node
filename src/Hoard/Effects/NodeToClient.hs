@@ -171,6 +171,7 @@ executeLocalStateQuery
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
+       , Tracing :> es
        )
     => Target C.ChainPoint
     -> QueryInMode result
@@ -204,17 +205,17 @@ runNodeToClient nodeToClient = do
             (inject nodeToClient)
             ( \case
                 ImmutableTip ->
-                    withSpan "node_query.immutable_tip"
+                    withSpan "node_to_client.immutable_tip"
                         $ (fmap . fmap) ChainPoint
                         $ (fmap . fmap) (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
                         $ executeLocalStateQuery C.ImmutableTip
                         $ QueryChainPoint
-                IsOnChain point -> withSpan "node_query.is_on_chain" $ do
+                IsOnChain point -> withSpan "node_to_client.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
                     race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
-                ValidateVrfSignature_ header -> withSpan "node_query.validate_vrf_signature"
+                ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature"
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
@@ -261,6 +262,7 @@ validateVrfSignaturePraos
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
+       , Tracing :> es
        )
     => ShelleyBasedEra era
     -> CardanoHeader
@@ -343,10 +345,11 @@ initializeConnection
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
+       , Tracing :> es
        )
     => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException)
     -> Eff es (Thread ())
-initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
+initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = withSpan "node_to_client.initialize_connection" $ do
     protocolInfo <- ask @(ProtocolInfo CardanoBlock)
     epochSize <- asks @ShelleyConfig (.scConfig.sgEpochLength)
     nodeToClientSocket <- labeled @"nodeToClient" getSocket
@@ -379,9 +382,10 @@ ensureConnection
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
+       , Tracing :> es
        )
     => Eff es Connection
-ensureConnection = do
+ensureConnection = withSpan "node_to_client.ensure_connection" $ do
     (connection, newConnectionHandlesMaybe) <-
         stateM
             ( \case
