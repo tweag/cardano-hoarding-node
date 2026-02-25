@@ -10,9 +10,12 @@ module Hoard.Effects.NodeToClient
     ) where
 
 import Cardano.Api
-    ( ConsensusModeParams (CardanoModeParams)
+    ( ChainDepState
+    , ConsensusModeParams (CardanoModeParams)
+    , ConsensusProtocol
     , Convert (convert)
     , EraMismatch
+    , FromCBOR
     , Hash (HeaderHash, StakePoolKeyHash)
     , LocalChainSyncClient (LocalChainSyncClient)
     , LocalNodeClientProtocols
@@ -27,16 +30,16 @@ import Cardano.Api
     , PoolDistribution (unPoolDistr)
     , QueryInEra (QueryInShelleyBasedEra)
     , QueryInMode (QueryChainPoint, QueryInEra)
-    , QueryInShelleyBasedEra (QueryPoolDistribution)
+    , QueryInShelleyBasedEra (QueryPoolDistribution, QueryProtocolState)
     , ShelleyBasedEra (ShelleyBasedEraBabbage, ShelleyBasedEraConway, ShelleyBasedEraDijkstra)
     , ShelleyConfig
     , Target (SpecificPoint)
     , connectToLocalNode
     , decodePoolDistribution
+    , decodeProtocolState
     )
 import Cardano.Binary (DecoderError)
-import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
-import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff, mkNonceFromOutputVRF)
+import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Control.Concurrent.Chan.Unagi
     ( InChan
@@ -61,7 +64,7 @@ import Effectful.Concurrent.MVar
     , readMVar
     )
 import Effectful.Dispatch.Dynamic (interpretWith_)
-import Effectful.Error.Static (Error, throwError)
+import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
 import Effectful.Exception (handleSync, throwIO)
 import Effectful.Labeled (Labeled, labeled)
 import Effectful.Reader.Static (Reader, ask, asks)
@@ -84,7 +87,7 @@ import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr, doValidateVRFSignature)
-import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK, hvVrfRes))
+import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
@@ -92,7 +95,9 @@ import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, p
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.State qualified as SL
+import Data.ByteString.Lazy qualified as BSL
 import Data.Set qualified as S
+import Ouroboros.Consensus.Protocol.Praos.Common qualified as Consensus
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 import Prelude qualified as P
@@ -109,7 +114,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m ((BSL.ByteString, DecoderError) :+ NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError
@@ -120,6 +125,7 @@ data NodeConnectionError
 data ElectionValidationError
     = PraosValidationErr (PraosValidationErr Crypto)
     | EraMismatch EraMismatch
+    deriving (Show)
 
 
 infixr 6 :+
@@ -137,8 +143,9 @@ validateVrfSignature
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
 validateVrfSignature =
     (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
-        . (=<<) (either throwError pure)
-        . (=<<) (either throwError pure)
+        . (=<<) leftToError
+        . (=<<) leftToError
+        . (=<<) (either (throwIO . snd) pure) -- `decodeProtocolState` should never fail to decode the pool distribution, should it?
         . validateVrfSignature_
 
 
@@ -208,6 +215,11 @@ runNodeToClient nodeToClient = do
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
                     race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
                 ValidateVrfSignature_ header -> withSpan "node_query.validate_vrf_signature"
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
                     $ case header of
                         HeaderByron _ -> error "to do"
                         HeaderShelley _ -> error "to do"
@@ -233,8 +245,16 @@ runNodeToClient nodeToClient = do
 
 
 validateVrfSignaturePraos
-    :: ( Conc :> es
+    :: forall era es
+     . ( Conc :> es
        , Concurrent :> es
+       , Consensus.PraosProtocolSupportsNode (ConsensusProtocol era)
+       , Error (BSL.ByteString, DecoderError) :> es
+       , Error AcquireFailure :> es
+       , Error DecoderError :> es
+       , Error ElectionValidationError :> es
+       , Error NodeConnectionError :> es
+       , FromCBOR (ChainDepState (ConsensusProtocol era))
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
@@ -245,30 +265,47 @@ validateVrfSignaturePraos
     => ShelleyBasedEra era
     -> CardanoHeader
     -> HeaderView Crypto
-    -> Eff es (NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
+    -> Eff es ()
 validateVrfSignaturePraos era header headerView = do
-    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
-    (fmap . fmap . fmap . fmap . (=<<))
-        ( \poolDistribution ->
-            first PraosValidationErr -- wrap `PraosValidationErr` into an `ElectionValidationError`
-                $ runExcept
-                $ doValidateVRFSignature
-                    (mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView) -- to do. or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
-                    poolDistribution
-                    activeSlotsCoeff
-                    headerView
-        )
-        $ (fmap . fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-        $ (fmap . fmap . fmap . fmap . fmap) (SL.unPoolDistr . unPoolDistr)
-        $ (fmap . fmap . fmap . traverse) (decodePoolDistribution era)
-        $ executeLocalStateQuery
-            ( SpecificPoint
+    let target =
+            SpecificPoint
                 $ C.ChainPoint (blockSlot header)
                 $ HeaderHash
                 $ toShortRawHash (Proxy @CardanoBlock)
                 $ headerHash
                 $ header
-            )
+    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
+    epochNonce <-
+        fmap (Consensus.epochNonce . Consensus.getPraosNonces (Proxy @(ConsensusProtocol era)))
+            $ (=<<) leftToError
+            $ fmap decodeProtocolState
+            $ (=<<) leftToError
+            $ (=<<) leftToError
+            $ (=<<) leftToError
+            $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+            $ executeLocalStateQuery target
+            $ QueryInEra
+            $ QueryInShelleyBasedEra (convert era)
+            $ QueryProtocolState
+    (=<<)
+        ( \poolDistribution ->
+            either throwError pure
+                $ first PraosValidationErr -- wrap `PraosValidationErr` into an `ElectionValidationError`
+                $ runExcept
+                $ doValidateVRFSignature
+                    epochNonce -- or `mkNonceFromOutputVRF $ certifiedOutput $ hvVrfRes $ headerView` or `slotToNonce`? however, in `doValidateVRFSignature`, this is not used for calling `checkLeaderNatValue`. so we could inline the definition of `doValidateVRFSignature`. we have to inline a variation of the definition of `doValidateVRFSignature` anyway for `TPraos`.
+                    poolDistribution
+                    activeSlotsCoeff
+                    headerView
+        )
+        $ fmap (SL.unPoolDistr . unPoolDistr)
+        $ (=<<) leftToError
+        $ fmap (decodePoolDistribution era)
+        $ (=<<) leftToError
+        $ (=<<) leftToError
+        $ (=<<) leftToError
+        $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+        $ executeLocalStateQuery target
         $ QueryInEra
         $ QueryInShelleyBasedEra (convert era)
         $ QueryPoolDistribution
@@ -280,6 +317,10 @@ validateVrfSignaturePraos era header headerView = do
         $ hashKey
         $ hvVK
         $ headerView
+
+
+leftToError :: (Error e :> es, Show e) => Either e a -> Eff es a
+leftToError = either throwError pure
 
 
 newConnection
