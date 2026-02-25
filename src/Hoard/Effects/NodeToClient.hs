@@ -38,7 +38,6 @@ import Cardano.Api
     , decodePoolDistribution
     , decodeProtocolState
     )
-import Cardano.Binary (DecoderError)
 import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Control.Concurrent.Chan.Unagi
@@ -95,7 +94,6 @@ import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, p
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.State qualified as SL
-import Data.ByteString.Lazy qualified as BSL
 import Data.Set qualified as S
 import Ouroboros.Consensus.Protocol.Praos.Common qualified as Consensus
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
@@ -114,7 +112,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m ((BSL.ByteString, DecoderError) :+ NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError
@@ -141,12 +139,7 @@ validateVrfSignature
        , NodeToClient :> es
        )
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
-validateVrfSignature =
-    (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
-        . (=<<) leftToError
-        . (=<<) leftToError
-        . (=<<) (either (throwIO . snd) pure) -- `decodeProtocolState` should never fail to decode the protocol state, should it?
-        . validateVrfSignature_
+validateVrfSignature = (=<<) leftToError . (=<<) leftToError . validateVrfSignature_
 
 
 data Connection
@@ -219,8 +212,6 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
-                    $ runErrorNoCallStack
-                    $ runErrorNoCallStack
                     $ case header of
                         HeaderByron _ -> error "to do"
                         HeaderShelley _ -> error "to do"
@@ -250,9 +241,7 @@ validateVrfSignaturePraos
      . ( Conc :> es
        , Concurrent :> es
        , Consensus.PraosProtocolSupportsNode (ConsensusProtocol era)
-       , Error (BSL.ByteString, DecoderError) :> es
        , Error AcquireFailure :> es
-       , Error DecoderError :> es
        , Error ElectionValidationError :> es
        , Error NodeConnectionError :> es
        , FromCBOR (ChainDepState (ConsensusProtocol era))
@@ -279,7 +268,7 @@ validateVrfSignaturePraos era header headerView = do
     activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
     epochNonce <-
         fmap (Consensus.epochNonce . Consensus.getPraosNonces (Proxy @(ConsensusProtocol era)))
-            $ (=<<) leftToError
+            $ (=<<) (either (throwIO . snd) pure) -- `decodeProtocolState` should never fail to decode the protocol state, should it?
             $ fmap decodeProtocolState
             $ (=<<) leftToError
             $ (=<<) leftToError
@@ -301,7 +290,7 @@ validateVrfSignaturePraos era header headerView = do
                     headerView
         )
         $ fmap (SL.unPoolDistr . unPoolDistr)
-        $ (=<<) leftToError
+        $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         $ fmap (decodePoolDistribution era)
         $ (=<<) leftToError
         $ (=<<) leftToError
