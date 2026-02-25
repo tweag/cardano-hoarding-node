@@ -109,12 +109,12 @@ runNodeToClient nodeToClient = do
         interpretWith_
             (inject nodeToClient)
             ( \case
-                ImmutableTip -> withSpan "node_to_client.immutable_tip" do
+                ImmutableTip -> withSpan "node_query.immutable_tip" $ do
                     Connection immutableTipQueries _ dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan immutableTipQueries resultVar
                     rightToMaybe <$> race (readMVar dead) (readMVar resultVar)
-                IsOnChain point -> withSpan "node_to_client.is_on_chain" do
+                IsOnChain point -> withSpan "node_query.is_on_chain" $ do
                     Connection _ isOnChainQueries dead <- ensureConnection
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
@@ -122,37 +122,18 @@ runNodeToClient nodeToClient = do
             )
 
 
-newConnection
-    :: (Concurrent :> es, IOE :> es)
-    => Eff
-        es
-        ( Connection
-        , ( OutChan (MVar ChainPoint)
-          , OutChan (ChainPoint, MVar Bool)
-          , MVar SomeException
-          )
-        )
-newConnection = do
-    (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
-    (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
-    dead <- newEmptyMVar
-    pure (Connection immutableTipQueriesIn isOnChainQueriesIn dead, (immutableTipQueriesOut, isOnChainQueriesOut, dead))
+newConnection :: (Concurrent :> es, IOE :> es) => Eff es (Connection, (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException))
+newConnection =
+    do
+        (immutableTipQueriesIn, immutableTipQueriesOut) <- liftIO newChan
+        (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
+        dead <- newEmptyMVar
+        pure (Connection immutableTipQueriesIn isOnChainQueriesIn dead, (immutableTipQueriesOut, isOnChainQueriesOut, dead))
 
 
-initializeConnection
-    :: ( Conc :> es
-       , Concurrent :> es
-       , IOE :> es
-       , Labeled "nodeToClient" WithSocket :> es
-       , Log :> es
-       , Reader (ProtocolInfo CardanoBlock) :> es
-       , Reader NodeConfig :> es
-       , State (Either SomeException Connection) :> es
-       , Tracing :> es
-       )
-    => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
+initializeConnection :: (Conc :> es, Concurrent :> es, IOE :> es, Labeled "nodeToClient" WithSocket :> es, Log :> es, Reader (ProtocolInfo CardanoBlock) :> es, Reader NodeConfig :> es, State (Either SomeException Connection) :> es) => (OutChan (MVar ChainPoint), OutChan (ChainPoint, MVar Bool), MVar SomeException) -> Eff es (Thread ())
 initializeConnection =
-    ( \(immutableTipQueriesOut, isOnChainQueriesOut, dead) -> withSpan "node_to_client.initialize_connection" do
+    ( \(immutableTipQueriesOut, isOnChainQueriesOut, dead) -> do
         protocolInfo <- ask @(ProtocolInfo CardanoBlock)
         nodeConfig <- ask @NodeConfig
         epochSize <- loadEpochSize nodeConfig
@@ -188,10 +169,9 @@ ensureConnection
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader NodeConfig :> es
        , State (Either SomeException Connection) :> es
-       , Tracing :> es
        )
     => Eff es Connection
-ensureConnection = withSpan "node_to_client.ensure_connection" do
+ensureConnection = do
     (connection, newConnectionHandlesMaybe) <-
         stateM
             ( \case
