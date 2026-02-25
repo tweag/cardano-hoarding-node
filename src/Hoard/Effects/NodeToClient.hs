@@ -34,6 +34,7 @@ import Cardano.Api
     , connectToLocalNode
     , decodePoolDistribution
     )
+import Cardano.Binary (DecoderError)
 import Cardano.Crypto.VRF (CertifiedVRF (certifiedOutput))
 import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff, mkNonceFromOutputVRF)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
@@ -108,7 +109,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError
@@ -135,7 +136,8 @@ validateVrfSignature
        )
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
 validateVrfSignature =
-    (=<<) (either throwError pure)
+    (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
+        . (=<<) (either throwError pure)
         . (=<<) (either throwError pure)
         . validateVrfSignature_
 
@@ -205,8 +207,8 @@ runNodeToClient nodeToClient = do
                     resultVar <- newEmptyMVar
                     liftIO $ writeChan isOnChainQueries (point, resultVar)
                     race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
-                ValidateVrfSignature_ header ->
-                    case header of
+                ValidateVrfSignature_ header -> withSpan "node_query.validate_vrf_signature"
+                    $ case header of
                         HeaderByron _ -> error "to do"
                         HeaderShelley _ -> error "to do"
                         HeaderAllegra _ -> error "to do"
@@ -239,15 +241,14 @@ validateVrfSignaturePraos
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
-       , Tracing :> es
        )
     => ShelleyBasedEra era
     -> CardanoHeader
     -> HeaderView Crypto
-    -> Eff es (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
-validateVrfSignaturePraos era header headerView = withSpan "node_query.validate_vrf_signature" $ do
+    -> Eff es (NodeConnectionError :+ AcquireFailure :+ DecoderError :+ ElectionValidationError :+ ())
+validateVrfSignaturePraos era header headerView = do
     activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
-    (fmap . fmap . fmap . (=<<))
+    (fmap . fmap . fmap . fmap . (=<<))
         ( \poolDistribution ->
             first PraosValidationErr -- wrap `PraosValidationErr` into an `ElectionValidationError`
                 $ runExcept
@@ -257,11 +258,9 @@ validateVrfSignaturePraos era header headerView = withSpan "node_query.validate_
                     activeSlotsCoeff
                     headerView
         )
-        $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-        $ (fmap . fmap . fmap . fmap) (SL.unPoolDistr . unPoolDistr)
-        $ (=<<) (either throwIO pure) -- throw `DecoderError` from `Either` into `IO`
-        $ (fmap . traverse . traverse . traverse) id -- shuffle the `Either DecoderError` to the top most `Either` level
-        $ (fmap . fmap . fmap . fmap) (decodePoolDistribution era)
+        $ (fmap . fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+        $ (fmap . fmap . fmap . fmap . fmap) (SL.unPoolDistr . unPoolDistr)
+        $ (fmap . fmap . fmap . traverse) (decodePoolDistribution era)
         $ executeLocalStateQuery
             ( SpecificPoint
                 $ C.ChainPoint (blockSlot header)

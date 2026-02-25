@@ -58,6 +58,7 @@ library:
     - time
     - bytestring
     - cardano-api
+    - cardano-binary
     - cardano-crypto-class
     - cardano-ledger-binary
     - cardano-ledger-byron
