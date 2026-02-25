@@ -145,7 +145,7 @@ validateVrfSignature =
     (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         . (=<<) leftToError
         . (=<<) leftToError
-        . (=<<) (either (throwIO . snd) pure) -- `decodeProtocolState` should never fail to decode the pool distribution, should it?
+        . (=<<) (either (throwIO . snd) pure) -- `decodeProtocolState` should never fail to decode the protocol state, should it?
         . validateVrfSignature_
 
 
