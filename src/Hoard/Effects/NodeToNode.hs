@@ -147,8 +147,8 @@ runNodeToNode
 runNodeToNode =
     interpret_ \case
         ConnectToPeer peer -> withSpan "node_to_node.connect_to_peer" do
-            addAttribute "peer.id" (show peer.id)
-            addAttribute "peer.address" (show peer.address)
+            addAttribute "peer.id" peer.id
+            addAttribute "peer.address" peer.address
 
             ioManager <- ask @IOManager
             protocolInfo <- ask @(ProtocolInfo CardanoBlock)
@@ -183,8 +183,8 @@ runNodeToNode =
                 vs <-
                     for supportedVersions \(version, blockVersion) ->
                         withSpan "create_protocol_version" do
-                            addAttribute "node_to_node_version" $ show version
-                            addAttribute "block_node_to_node_version" $ show blockVersion
+                            addAttribute "node_to_node_version" $ show @Text version
+                            addAttribute "block_node_to_node_version" $ show @Text blockVersion
 
                             app <-
                                 withSpan "create_application"
@@ -218,12 +218,12 @@ runNodeToNode =
     handleResult :: Peer -> Either SomeException (Either () Void) -> Eff es ConnectToError
     handleResult peer = \case
         Left err -> do
-            addEvent "connection_failed" [("error", show err)]
+            addEvent "connection_failed" [("error", show @Text err)]
             let errMsg = "Failed to connect to peer " <> show peer <> ": " <> show err
             setStatus $ Error errMsg
             pure $ ConnectToError errMsg
         Right (Left ()) -> do
-            addEvent "connection_closed" []
+            addEvent @Text "connection_closed" []
             setStatus $ Error "Connection closed unexpectedly"
             pure $ ConnectToError "Connection closed unexpectedly"
         Right (Right v) -> do
@@ -251,11 +251,11 @@ runNodeToNode =
                 setStatus $ Error errMsg
                 pure $ ConnectToError errMsg
             TimeExpired -> do
-                addEvent "io_exception" [("type", "TimeExpired")]
+                addEvent @Text "io_exception" [("type", "TimeExpired")]
                 setStatus $ Error errMsg
                 pure $ ConnectToError errMsg
             _ -> do
-                addEvent "io_exception" [("type", "Unknown"), ("error", show e)]
+                addEvent "io_exception" [("type", "Unknown"), ("error", show @Text e)]
                 setStatus $ Error errMsg
                 pure $ ConnectToError errMsg
 
@@ -270,21 +270,21 @@ runNodeToNode =
             pure $ ConnectToError errMsg
         e -> do
             let errMsg = "Disconnected due to unknown ouroboros error: " <> show e
-            addEvent "mux_error" [("type", "Unknown"), ("error", show e)]
+            addEvent "mux_error" [("type", "Unknown"), ("error", show @Text e)]
             setStatus $ Error errMsg
             pure $ ConnectToError errMsg
 
     handleHandshakeProtocolError :: Peer -> HandshakeProtocolError NodeToNodeVersion -> Eff es ConnectToError
     handleHandshakeProtocolError peer e = do
         let errMsg = "Handshake failed: reason (" <> show e <> "), peer (" <> show peer.address <> ")"
-        addEvent "handshake_error" [("error", show e)]
+        addEvent "handshake_error" [("error", show @Text e)]
         setStatus $ Error errMsg
         pure $ ConnectToError errMsg
 
     handleProtocolLimitFailure :: Peer -> ProtocolLimitFailure -> Eff es ConnectToError
     handleProtocolLimitFailure peer e = do
         let errMsg = "Protocol limit exceeded: " <> show e <> ", peer (" <> show peer.address <> ")"
-        addEvent "protocol_limit_error" [("error", show e)]
+        addEvent "protocol_limit_error" [("error", show @Text e)]
         setStatus $ Error errMsg
         pure $ ConnectToError errMsg
 

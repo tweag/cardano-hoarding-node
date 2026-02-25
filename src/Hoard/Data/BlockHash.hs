@@ -13,13 +13,15 @@ import Rel8 (DBEq, DBOrd, DBType)
 import Data.ByteString.Base16 qualified as B16
 import Data.Text.Encoding qualified as Text
 
+import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
 -- | Newtype wrapper for block hash
 newtype BlockHash = BlockHash Text
     deriving stock (Eq, Generic, Ord, Show)
-    deriving newtype (DBEq, DBOrd, DBType, FromJSON, Hashable, ToJSON)
+    deriving (DBEq, DBOrd, DBType, FromJSON, Hashable, ToJSON) via Text
+    deriving (ToAttribute) via ToAttributeShow BlockHash
 
 
 blockHashFromHeader :: CardanoHeader -> BlockHash

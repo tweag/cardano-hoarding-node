@@ -15,6 +15,7 @@ import Data.IP qualified as IP
 import Text.Show qualified as Show
 
 import Hoard.Data.ID (ID)
+import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
 
@@ -39,6 +40,7 @@ data PeerAddress = PeerAddress
     }
     deriving (FromJSON, ToJSON)
     deriving stock (Eq, Generic, Ord)
+    deriving (ToAttribute) via (ToAttributeShow PeerAddress)
 
 
 instance Show PeerAddress where

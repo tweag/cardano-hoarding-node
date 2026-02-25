@@ -6,6 +6,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Rel8 (DBEq, DBType, ReadShow (..))
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 
+import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
@@ -18,6 +19,7 @@ data BlockClassification
     deriving (Eq, Read, Show)
     deriving (FromJSON, ToJSON) via (JsonReadShow BlockClassification)
     deriving (DBEq, DBType) via (ReadShow BlockClassification)
+    deriving (ToAttribute) via (ToAttributeShow BlockClassification)
 
 
 -- | HTTP API instances for Servant

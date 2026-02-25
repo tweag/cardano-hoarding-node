@@ -66,7 +66,7 @@ component =
         , start = do
             -- Trigger initial immutable tip refresh now that listeners are registered
             publish ImmutableTipRefreshTriggered
-            addEvent "initial_tip_refresh_triggered" []
+            addEvent @Int "initial_tip_refresh_triggered" []
         }
 
 
@@ -122,4 +122,8 @@ setFileDescriptorLimit = withSpan "set_file_descriptor_limit" $ do
     -- Only update if different from current
     when (newSoftLimit /= softLimit) $ do
         liftIO $ setResourceLimit ResourceOpenFiles ResourceLimits {softLimit = newSoftLimit, hardLimit}
-        addEvent "file_descriptor_limit_updated" [("new_soft_limit", show newSoftLimit), ("old_soft_limit", show softLimit)]
+        addEvent @Text
+            "file_descriptor_limit_updated"
+            [ ("new_soft_limit", show newSoftLimit)
+            , ("old_soft_limit", show softLimit)
+            ]

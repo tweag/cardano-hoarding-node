@@ -28,7 +28,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Attr (..), Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
@@ -82,9 +82,9 @@ component =
     defaultComponent
         { name = "PeerManager"
         , setup = withSpan "peer_manager:setup" $ do
-            addEvent "bootstrapping_peers" []
+            addEvent @Int "bootstrapping_peers" []
             void bootstrapPeers
-            addEvent "peers_bootstrapped" []
+            addEvent @Int "peers_bootstrapped" []
         , listeners =
             pure
                 [ Sub.listen updatePeerConnectionState
@@ -157,12 +157,12 @@ cullOldCollectors CullRequested = withSpan "cull_old_collectors" do
     oldConnections <- gets $ filter (isOldConnection) . toList . (.peers)
 
     let numOld = length oldConnections
-    addAttribute "old_collectors.count" (show numOld)
+    addAttribute "old_collectors.count" numOld
     if numOld <= 0 then
-        addEvent "no_collectors_to_cull" []
+        addEvent @Int "no_collectors_to_cull" []
     else do
         histogramObserve metricPeerManagerCullBatches $ fromIntegral numOld
-        addEvent "culling_collectors" [("count", show numOld)]
+        addEvent "culling_collectors" [("count", numOld)]
     for_ oldConnections signalTermination
 
 
@@ -199,16 +199,16 @@ replenishCollectors
     => PeerRequested
     -> Eff es ()
 replenishCollectors (PeerRequested n) = withSpan "replenish_collectors" do
-    addAttribute "requested.count" (show n)
-    addEvent "replenishing" [("requested", show n)]
+    addAttribute "requested.count" $ fromIntegral @_ @Int n
+    addEvent "replenishing" [("requested", fromIntegral @_ @Int n)]
     cooldown <- asks (.peerFailureCooldownSeconds)
     connectedIds <- gets $ Map.keysSet . (.peers)
     potentialPeers <- PeerRepo.getEligiblePeers cooldown connectedIds n
     let actualCount = Set.size potentialPeers
-    addAttribute "eligible.count" (show actualCount)
+    addAttribute "eligible.count" actualCount
     histogramObserve metricPeerManagerReplenishedCollector $ fromIntegral actualCount
     for_ potentialPeers \p -> do
-        addEvent "starting_collector" [("peer", show p.address)]
+        addEvent "starting_collector" [("peer", p.address)]
         bracketCollector p
 
 
@@ -249,7 +249,7 @@ bracketCollector peer = do
     pure ()
   where
     connect = do
-        addEvent "adding_peer" [("peer", show peer.address)]
+        addEvent "adding_peer" [("peer", peer.address)]
         conn <- mkConnection
         modify $ coerce $ Map.insert peer.id conn
         pure conn
@@ -261,20 +261,20 @@ bracketCollector peer = do
                 unless (isGracefulShutdown e) do
                     timestamp <- Clock.currentTime
                     updatePeerFailure peer timestamp
-                addEvent "collector_exception" [("peer", show peer.address), ("error", show e)]
+                addEvent "collector_exception" [("peer", Attr peer.address), ("error", Attr $ show @Text e)]
             ExitCaseAbort -> do
                 timestamp <- Clock.currentTime
                 updatePeerFailure peer timestamp
-                addEvent "collector_aborted" [("peer", show peer.address)]
+                addEvent "collector_aborted" [("peer", peer.address)]
             ExitCaseSuccess (Just (ConnectToError errorMessage)) -> do
                 timestamp <- Clock.currentTime
                 updatePeerFailure peer timestamp
-                addEvent "collector_error" [("peer", show peer.address), ("error", errorMessage)]
+                addEvent "collector_error" [("peer", Attr peer.address), ("error", Attr errorMessage)]
             ExitCaseSuccess Nothing ->
-                addEvent "collector_terminated_normally" [("peer", show peer.address)]
+                addEvent "collector_terminated_normally" [("peer", peer.address)]
 
         signalTermination conn
-        addEvent "removing_peer" [("peer", show peer.address)]
+        addEvent "removing_peer" [("peer", peer.address)]
         modify $ Peers . Map.delete peer.id . (.peers)
         timestamp <- Clock.currentTime
         publish
