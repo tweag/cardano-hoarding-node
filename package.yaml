@@ -37,6 +37,7 @@ dependencies:
 - cardano-api
 - cardano-protocol-tpraos
 - cardano-crypto-class
+- cardano-binary
 - cborg
 - contra-tracer
 - ouroboros-network
