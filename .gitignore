@@ -5,6 +5,8 @@ dist-newstyle/
 *.hp
 *.prof
 *.hspp
+*.aux
+*.ps
 build.log
 postgres-data/
 grafana-data/

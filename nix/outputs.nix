@@ -75,6 +75,7 @@ let
   secretsApps = import ./secrets.nix { inherit pkgs; };
   cardanoNode = import ./cardano-node.nix { inherit pkgs inputs system; };
   monitoringApps = import ./monitoring.nix { inherit pkgs lib; };
+  profiling = import ./profiling.nix { inherit inputs pkgs; };
 in
 {
   # Expose packages built by haskell.nix
@@ -84,7 +85,9 @@ in
       default = projectFlake.packages."hoard:exe:hoard-exe";
     }
     # Merge in cardano-node packages (mithril-client-cli, etc.)
-    // cardanoNode.packages;
+    // cardanoNode.packages
+    # Merge in profiling package
+    // profiling.packages;
 
   # Development shell
   devShells.default = import ./shell.nix {
@@ -98,6 +101,12 @@ in
 
   # Custom apps
   apps = {
+    # Default app: run hoard executable
+    default = {
+      type = "app";
+      program = "${projectFlake.packages."hoard:exe:hoard-exe"}/bin/hoard-exe";
+    };
+
     # Weeder: detects unused code
     weeder = {
       type = "app";
@@ -130,7 +139,9 @@ in
   # Import cardano-node and Mithril apps from separate module
   // cardanoNode.apps
   # Import monitoring apps (Prometheus, Grafana, node_exporter)
-  // monitoringApps.apps;
+  // monitoringApps.apps
+  # Import profiling apps (hoard-profiling, profile-heap, etc.)
+  // profiling.apps;
 
   # Checks
   checks = projectFlake.checks // {
