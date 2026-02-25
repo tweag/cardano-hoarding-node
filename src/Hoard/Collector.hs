@@ -44,19 +44,24 @@ collectFromPeer
 collectFromPeer peer conn = do
     Log.info $ "Collecting from " <> show peer.address
 
-    Conc.fork_ $ listen $ filterHeaderReceived peer.id
-
     var <- newEmptyMVar
-    _ <- Conc.fork do
-        res <- connectToPeer peer
-        -- If we reach this point, the connection closed unexpectedly, so we
-        -- have to signal to the main collector thread that we have to shut
-        -- down.
-        putMVar var res
-        signalTermination conn
 
-    awaitTermination conn
-    result <- tryReadMVar var
+    -- Use scoped to ensure listener and connection threads are cleaned up
+    -- when the connection terminates (either normally or exceptionally)
+    result <- Conc.scoped $ do
+        _ <- Conc.fork_ do
+            listen $ filterHeaderReceived peer.id
+
+        _ <- Conc.fork do
+            res <- connectToPeer peer
+            -- If we reach this point, the connection closed unexpectedly, so we
+            -- have to signal to the main collector thread that we have to shut
+            -- down.
+            putMVar var res
+            signalTermination conn
+
+        awaitTermination conn
+        tryReadMVar var
 
     case result of
         Nothing -> do

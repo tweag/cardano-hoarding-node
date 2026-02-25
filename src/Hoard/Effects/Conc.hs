@@ -7,6 +7,7 @@ module Hoard.Effects.Conc
     , await
     , awaitAll
     , forkTry
+    , scoped
 
       -- * Interpreters
     , runConc
@@ -31,7 +32,7 @@ import Effectful.Dispatch.Static
     , unsafeEff
     , unsafeSeqUnliftIO
     )
-import Effectful.Dispatch.Static.Primitive (getEnv)
+import Effectful.Dispatch.Static.Primitive (getEnv, putEnv)
 import Ki (Scope, Thread)
 
 import Ki qualified
@@ -90,6 +91,33 @@ forkTry action = unsafeEff \env -> do
     Conc scope <- getEnv env
     concUnliftIO env Persistent (Limited 1) \unlift ->
         Ki.forkTry scope $ unlift action
+
+
+-- | Run an action in a new nested scope. When the action completes (either
+-- successfully or with an exception), all threads forked within the nested
+-- scope are automatically killed.
+--
+-- This is useful for scoping the lifetime of background threads to a particular
+-- operation, such as a connection lifecycle. Threads forked with 'fork' or
+-- 'fork_' within the nested scope will be cleaned up when the scope exits.
+--
+-- Example:
+-- @
+-- scoped $ do
+--     fork_ $ forever $ processEvents  -- This thread will be killed when scoped exits
+--     handleConnection conn
+-- @
+scoped :: (Conc :> es) => Eff es a -> Eff es a
+scoped action = unsafeEff \env -> do
+    Conc oldScope <- getEnv env
+    Ki.scoped \newScope -> do
+        -- Run the action with the new scope
+        putEnv env (Conc newScope)
+        result <- concUnliftIO env Ephemeral Unlimited \unlift -> unlift action
+
+        -- Restore the old scope
+        putEnv env (Conc oldScope)
+        pure result
 
 
 -- | Run a `Conc` effect with `Ki`.

@@ -317,6 +317,7 @@ test-suite hoard-test
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.Cache.SingleflightSpec
+      Unit.Hoard.Effects.ConcSpec
       Unit.Hoard.Effects.LogSpec
       Unit.Hoard.Effects.PublishingSpec
       Unit.Hoard.Effects.QuotaSpec
