@@ -101,9 +101,6 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, ChainPoint (ChainPoint), Crypto)
-import Hoard.Types.Environment
-    ( Config (protocolInfo)
-    )
 
 import Hoard.Effects.Log qualified as Log
 
@@ -162,7 +159,7 @@ executeLocalStateQuery
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
@@ -184,7 +181,7 @@ runNodeToClient
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , Tracing :> es
        )
@@ -239,7 +236,7 @@ validateVrfSignaturePraos
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        , Tracing :> es
@@ -303,14 +300,14 @@ initializeConnection
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
     => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException)
     -> Eff es (Thread ())
 initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
-    config <- ask @Config
+    protocolInfo <- ask @(ProtocolInfo CardanoBlock)
     epochSize <- asks @ShelleyConfig (.scConfig.sgEpochLength)
     nodeToClientSocket <- labeled @"nodeToClient" getSocket
     fork
@@ -325,7 +322,7 @@ initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = do
             ( LocalNodeConnectInfo
                 { localConsensusModeParams = CardanoModeParams $ coerce $ epochSize
                 , localNodeNetworkId =
-                    toNetworkId $ getNetworkMagic $ configBlock $ pInfoConfig $ config.protocolInfo
+                    toNetworkId $ getNetworkMagic $ configBlock $ pInfoConfig $ protocolInfo
                 , localNodeSocketPath = nodeToClientSocket
                 }
             )
@@ -339,7 +336,7 @@ ensureConnection
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
-       , Reader Config :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
        , State (Either SomeException Connection) :> es
        )
