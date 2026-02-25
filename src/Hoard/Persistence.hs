@@ -13,20 +13,19 @@ import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer (..), PeerAddress (..))
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Data.PeerNote (NoteType (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockReceived, recordHeaderReceived)
 import Hoard.Effects.Monitoring.Tracing
-    ( Attr (..)
-    , ToAttribute
+    ( ToAttribute
     , ToAttributeShow (..)
     , Tracing
     , addAttribute
-    , addEvent
     , withSpan
     )
 import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
@@ -40,6 +39,7 @@ import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Sentry (AdversarialBehavior (..))
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
@@ -49,6 +49,7 @@ import Hoard.Effects.Quota qualified as Quota
 component
     :: ( BlockRepo :> es
        , HeaderRepo :> es
+       , Log :> es
        , Metrics :> es
        , PeerNoteRepo :> es
        , PeerRepo :> es
@@ -81,86 +82,65 @@ newtype PeerSlotKey = PeerSlotKey (ID Peer, Int64)
 
 
 headerReceived :: (HeaderRepo :> es, Metrics :> es, Tracing :> es) => HeaderReceived -> Eff es ()
-headerReceived event = withSpan "header_received" $ do
+headerReceived event = withSpan "persistence.header_received" do
     recordHeaderReceived
     let header = extractHeaderData event
-    addAttribute "header.hash" header.hash
-    addAttribute "header.slot" $ fromIntegral @_ @Int64 header.slotNumber
-    addAttribute "header.block_number" $ fromIntegral @_ @Int64 header.blockNumber
-    addEvent "header_received" [("hash", header.hash)]
     upsertHeader header event.peer event.timestamp
-    addEvent "header_persisted" [("hash", header.hash)]
 
 
 blockReceived
     :: ( BlockRepo :> es
+       , Log :> es
        , Metrics :> es
        , Quota PeerSlotKey :> es
        , Tracing :> es
        , Verifier :> es
        )
     => BlockReceived -> Eff es ()
-blockReceived event = withSpan "block_received" $ do
+blockReceived event = withSpan "persistence.block_received" do
     let block = extractBlockData event
         quotaKey = PeerSlotKey (event.peer.id, block.slotNumber)
 
-    addAttribute "block.hash" block.hash
-    addAttribute "block.slot" block.slotNumber
-    addAttribute "peer.id" event.peer.id
-    addEvent
-        "block_received"
-        [ ("slot", Attr block.slotNumber)
-        , ("hash", Attr block.hash)
-        , ("peer_address", Attr event.peer.address)
-        ]
-
-    verifyBlock block >>= \case
+    res <- verifyBlock block
+    case res of
         Left _invalidBlock ->
-            addEvent "block_invalid" [("slot", Attr block.slotNumber), ("hash", Attr block.hash)]
+            addAttribute "block.valid" False
         Right validBlock -> do
-            addEvent "block_valid" [("hash", block.hash)]
-            addAttribute "peer.id" event.peer.id
+            addAttribute "block.valid" True
 
-            Quota.withQuotaCheck quotaKey $ \count status -> do
-                case status of
-                    Accepted -> do
-                        recordBlockReceived
-                        BlockRepo.insertBlocks [validBlock]
-                        addEvent "block_persisted" [("hash", block.hash)]
-                    Overflow 1 -> do
-                        addAttribute "quota.exceeded" True
-                        -- TODO: Mark the block as equivocating
-                        addEvent
-                            "quota_exceeded_first"
-                            [ ("peer_id", Attr event.peer.id)
-                            , ("slot", Attr block.slotNumber)
-                            , ("count", Attr count)
-                            ]
-                    Overflow _ -> do
-                        addAttribute "quota.overflow" True
-                        addEvent
-                            "quota_overflow"
-                            [ ("peer_id", Attr event.peer.id)
-                            , ("slot", Attr block.slotNumber)
-                            , ("count", Attr count)
+            Quota.withQuotaCheck quotaKey \_ -> \case
+                Accepted -> do
+                    recordBlockReceived
+                    BlockRepo.insertBlocks [validBlock]
+                Overflow overflowCount -> do
+                    addAttribute "quota.exceeded" True
+                    Log.warn
+                        $ mconcat
+                            [ "Received equivocating block from "
+                            , show event.peer.address
+                            , " for slot "
+                            , show block.slotNumber
+                            , " "
+                            , show overflowCount
+                            , " times"
                             ]
 
 
 peersReceived :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
-peersReceived event = withSpan "peers_received" $ do
-    addAttribute "peers.count" $ length event.peerAddresses
-    addAttribute "source.peer" event.peer.address
-    addEvent "persisting_peers" [("count", length event.peerAddresses)]
-    forM_ event.peerAddresses $ \addr ->
-        addEvent "peer_address" [("host", Attr $ show @Text addr.host), ("port", Attr addr.port)]
-    void $ PeerRepo.upsertPeers event.peerAddresses event.peer.address event.timestamp
-    addEvent @Int "peers_persisted" []
+peersReceived event =
+    withSpan "persistence.peers_received"
+        $ void
+        $ PeerRepo.upsertPeers
+            event.peerAddresses
+            event.peer.address
+            event.timestamp
 
 
 noteAdversarialBehavior :: (PeerNoteRepo :> es, Tracing :> es) => AdversarialBehavior -> Eff es ()
-noteAdversarialBehavior event = withSpan "note_adversarial_behavior" do
-    _ <- PeerNoteRepo.saveNote event.peer.id Adversarial "Peer exceeded duplicate block warning threshold"
-    pure ()
+noteAdversarialBehavior event =
+    withSpan "persistence.note_adversarial_behavior"
+        $ void
+        $ PeerNoteRepo.saveNote event.peer.id Adversarial "Peer exceeded duplicate block warning threshold"
 
 
 extractHeaderData :: HeaderReceived -> Header

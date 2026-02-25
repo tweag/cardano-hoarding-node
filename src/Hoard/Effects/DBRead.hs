@@ -18,7 +18,7 @@ import Hasql.Session qualified as Session
 
 import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc, withHistogramTiming)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricDBQueries, metricDBQueryDuration, metricDBQueryErrors)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, addEvent, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 
 import Hoard.Types.DBConfig qualified as DB
@@ -40,7 +40,7 @@ runDBRead
 runDBRead eff = do
     pool <- asks $ DB.readerPool
     interpretWith_ eff \case
-        RunQuery queryName stmt -> withSpan "db.query" $ do
+        RunQuery queryName stmt -> withSpan "db.query" do
             addAttribute @Text "db.operation" "read"
             addAttribute "db.query.name" queryName
             counterInc metricDBQueries
@@ -49,7 +49,6 @@ runDBRead eff = do
                 case result of
                     Left err -> do
                         counterInc metricDBQueryErrors
-                        addEvent "query_failed" [("query", queryName), ("error", show err)]
                         setStatus $ Error $ "Query failed: " <> show err
                         throwError $ "Query failed: " <> queryName <> " - " <> show err
                     Right value -> do

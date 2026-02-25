@@ -59,41 +59,42 @@ makeEffect ''BlockRepo
 runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepo action = do
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
-        InsertBlocks blocks -> withSpan "block_repo.insert_blocks" $ do
-            addAttribute "blocks.count" (length blocks)
+        InsertBlocks blocks -> withSpan "block_repo.insert_blocks" do
+            addAttribute "blocks.count" $ length blocks
             runTransaction "insert-blocks"
                 $ insertBlocksTrans
                 $ getVerified <$> blocks
             -- Pre-populate cache: we know these blocks exist after insertion
             Singleflight.updateCache (map ((,True) . (.hash) . getVerified) blocks)
-        GetBlock header -> withSpan "block_repo.get_block" $ do
-            let hash = blockHashFromHeader header
-            addAttribute "block.hash" hash
-            runQuery "get-block" $ getBlockQuery header
-        BlockExists blockHash -> withSpan "block_repo.block_exists" $ do
-            addAttribute "block.hash" blockHash
-            Singleflight.withCache blockHash (runQuery "block-exists" $ blockExistsQuery blockHash)
-        ClassifyBlock blockHash classification timestamp -> withSpan "block_repo.classify_block" $ do
-            addAttribute "block.hash" blockHash
-            addAttribute "block.classification" classification
-            runTransaction "classify-block"
+        GetBlock header ->
+            withSpan "block_repo.get_block"
+                $ runQuery "get-block"
+                $ getBlockQuery header
+        BlockExists blockHash ->
+            withSpan "block_repo.block_exists"
+                $ Singleflight.withCache blockHash
+                $ runQuery "block-exists"
+                $ blockExistsQuery blockHash
+        ClassifyBlock blockHash classification timestamp ->
+            withSpan "block_repo.classify_block"
+                $ runTransaction "classify-block"
                 $ classifyBlockTrans blockHash classification timestamp
-        GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> withSpan "block_repo.get_unclassified_blocks" $ do
-            addAttribute "slot" slot
-            addAttribute "limit" limit
-            addAttribute "exclude.count" (Set.size excludeHashes)
+        GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> withSpan "block_repo.get_unclassified_blocks" do
+            addAttribute "blocks.until_slot" slot
+            addAttribute "blocks.limit" limit
+            addAttribute "exclude.count" $ Set.size excludeHashes
             runQuery "get-unclassified-blocks"
                 $ getUnclassifiedBlocksQuery slot limit excludeHashes
-        GetViolations mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" $ do
+        GetViolations mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" do
             traverse_ (addAttribute "filter.min_slot") mbMinSlot
             traverse_ (addAttribute "filter.max_slot") mbMaxSlot
             (parseErrors, disputes) <- runQuery "get-violations" $ getViolationsQuery mbMinSlot mbMaxSlot
 
             -- Log parsing errors before discarding them
-            addAttribute "parse.errors.count" (show @Text $ length parseErrors)
-            forM_ parseErrors $ \err -> addEvent "parse_error" [("error", err)]
+            forM_ parseErrors $ \err ->
+                addEvent "parse_error" [("error", err)]
             pure disputes
-        EvictBlocks -> withSpan "block_repo.evict_blocks" $ do
+        EvictBlocks -> withSpan "block_repo.evict_blocks" do
             hashes <- runTransaction "evict-blocks" evictUninterestingBlocksTrans
             -- Remove evicted blocks from cache so future lookups hit the DB
             Singleflight.removeFromCache hashes

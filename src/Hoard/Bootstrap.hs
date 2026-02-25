@@ -13,6 +13,7 @@ import Network.Socket qualified as Socket
 
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
 import Hoard.Types.Environment
     ( BootstrapPeerDomain (..)
@@ -28,8 +29,15 @@ import Hoard.Effects.Clock qualified as Clock
 -- | Bootstrap peers from the peer snapshot configuration.
 -- Extracts all relays from bigLedgerPools, resolves their addresses,
 -- and upserts them to the database.
-bootstrapPeers :: (Clock :> es, IOE :> es, PeerRepo :> es, Reader PeerSnapshotFile :> es) => Eff es (Set Peer)
-bootstrapPeers = do
+bootstrapPeers
+    :: ( Clock :> es
+       , IOE :> es
+       , PeerRepo :> es
+       , Reader PeerSnapshotFile :> es
+       , Tracing :> es
+       )
+    => Eff es (Set Peer)
+bootstrapPeers = withSpan "bootstrap.bootstrap_peers" do
     -- Get peer snapshot from config
     peerSnapshot <- ask
 
@@ -37,9 +45,10 @@ bootstrapPeers = do
     let allRelays = concatMap (.relays) peerSnapshot.bigLedgerPools
 
     -- Resolve all relay addresses to PeerAddress
-    addresses <- fmap (S.fromList . catMaybes) $ forM allRelays $ \relay -> case relay of
-        Left domain -> resolveDomain domain
-        Right ipRelay -> resolveIPAddress ipRelay
+    addresses <- fmap (S.fromList . catMaybes) $ forM allRelays $ \relay ->
+        withSpan "bootstrap.resolve_address" $ case relay of
+            Left domain -> resolveDomain domain
+            Right ipRelay -> resolveIPAddress ipRelay
 
     -- Use the first address as the bootstrap source for all peers
     -- (In reality, each peer is discovered from the network, but for initial bootstrap

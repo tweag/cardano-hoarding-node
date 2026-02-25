@@ -28,7 +28,7 @@ component =
             cfg <- ask
             let interval = cfg.evictionIntervalSeconds
             pure
-                [ every interval $ withSpan "block_eviction.evict" $ do
+                [ every interval $ withSpan "block_eviction.evict" do
                     count <- BlockRepo.evictBlocks
                     addAttribute "evicted.count" count
                 ]

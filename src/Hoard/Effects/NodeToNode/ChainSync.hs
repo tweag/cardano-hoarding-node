@@ -26,9 +26,10 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Clock (Clock)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addEvent, withSpan)
+import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.ChainSync
@@ -41,12 +42,14 @@ import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, C
 import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Effects.Clock qualified as Clock
+import Hoard.Effects.Log qualified as Log
 
 
 -- | ChainSync mini-protocol (pipelined)
 miniProtocol
     :: forall es
      . ( Clock :> es
+       , Log :> es
        , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -87,6 +90,7 @@ miniProtocol conf unlift codecs peer =
 client
     :: forall es
      . ( Clock :> es
+       , Log :> es
        , Metrics :> es
        , Pub ChainSyncIntersectionFound :> es
        , Pub ChainSyncStarted :> es
@@ -103,13 +107,11 @@ client unlift peer =
         $ Effect
         $ unlift
         $ withExceptionLogging "ChainSync"
-        $ withSpan "chain_sync_protocol"
+        $ Log.withNamespace "ChainSync"
         $ do
-            -- Publish started event
+            Log.debug $ "Started ChainSync for " <> show peer.address
             timestamp <- Clock.currentTime
             publish $ ChainSyncStarted {peer, timestamp}
-            addEvent @Int "protocol_started" []
-            addEvent @Int "finding_intersection" []
             initialPoints <-
                 fmap List.singleton
                     . fmap toConsensusPointHF
@@ -121,11 +123,12 @@ client unlift peer =
     findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect initialPoints =
         Yield (ChainSync.MsgFindIntersect initialPoints) $ Await $ \case
-            ChainSync.MsgIntersectNotFound {} -> Effect $ unlift $ do
-                addEvent @Int "intersection_not_found" []
-                pure requestNext
-            ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ do
-                addEvent @Text "intersection_found" [("point", show point), ("tip", show tip)]
+            ChainSync.MsgIntersectNotFound _ ->
+                Effect
+                    $ unlift
+                    $ withSpan "chain_sync.intersection_not_found"
+                    $ pure requestNext
+            ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ withSpan "chain_sync.intersection_found" do
                 timestamp <- Clock.currentTime
                 publish
                     $ ChainSyncIntersectionFound
@@ -139,7 +142,7 @@ client unlift peer =
     requestNext :: forall c. Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     requestNext =
         Yield ChainSync.MsgRequestNext $ Await $ \case
-            ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+            ChainSync.MsgRollForward header tip -> Effect $ unlift $ withSpan "chain_sync.rollforward" do
                 recordChainSyncRollforward
                 timestamp <- Clock.currentTime
                 let event =
@@ -151,9 +154,8 @@ client unlift peer =
                             }
                 publish event
                 pure requestNext
-            ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+            ChainSync.MsgRollBackward point tip -> Effect $ unlift $ withSpan "chain_sync.rollback" do
                 recordChainSyncRollback
-                addEvent @Text "rollback" [("point", show point), ("tip", show tip)]
                 timestamp <- Clock.currentTime
                 publish
                     $ RollBackward
@@ -164,7 +166,7 @@ client unlift peer =
                         }
                 pure requestNext
             ChainSync.MsgAwaitReply -> Await $ \case
-                ChainSync.MsgRollForward header tip -> Effect $ unlift $ do
+                ChainSync.MsgRollForward header tip -> Effect $ unlift $ withSpan "chain_sync.rollforward_after_await" do
                     recordChainSyncRollforward
                     timestamp <- Clock.currentTime
                     publish
@@ -175,9 +177,8 @@ client unlift peer =
                             , tip
                             }
                     pure requestNext
-                ChainSync.MsgRollBackward point tip -> Effect $ unlift $ do
+                ChainSync.MsgRollBackward point tip -> Effect $ unlift $ withSpan "chain_sync.rollback_after_await" do
                     recordChainSyncRollback
-                    addEvent @Text "rollback_after_await" [("point", show point), ("tip", show tip)]
                     timestamp <- Clock.currentTime
                     publish
                         $ RollBackward

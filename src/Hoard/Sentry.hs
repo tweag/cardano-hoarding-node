@@ -86,7 +86,6 @@ duplicateBlockGuard
        )
     => BlockReceived -> Eff es ()
 duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
-    addAttribute "peer.id" event.peer.id
     addAttribute "peer.address" event.peer.address
     addAttribute "request.id" $ show @Text event.requestId
     let blockHash = blockHashFromHeader $ getHeader event.block

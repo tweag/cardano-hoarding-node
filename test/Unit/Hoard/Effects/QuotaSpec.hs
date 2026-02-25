@@ -11,6 +11,7 @@ import Data.IORef qualified as IORef
 
 import Hoard.Effects.Clock (Clock, runClock)
 import Hoard.Effects.Conc (Conc, runConc)
+import Hoard.Effects.Log (Log, runLogNoOp)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.Effects.Quota (Config (..), MessageStatus (..), Quota, runQuota, withQuotaCheck)
 
@@ -171,10 +172,11 @@ spec_Quota = do
 --------------------------------------------------------------------------------
 
 -- | Run a quota test with the given max messages
-runQuotaTest :: Int -> Eff '[Quota Int, Reader Config, Clock, Conc, Tracing, Concurrent, IOE] a -> IO a
+runQuotaTest :: Int -> Eff '[Quota Int, Reader Config, Clock, Conc, Tracing, Log, Concurrent, IOE] a -> IO a
 runQuotaTest maxMessages action =
     runEff
         . runConcurrent
+        . runLogNoOp
         . runTracingNoOp
         . runConc
         . runClock

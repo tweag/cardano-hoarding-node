@@ -15,7 +15,7 @@ import Prelude hiding (evalState, execState)
 
 import Data.UUID qualified as UUID
 
-import Hoard.Collector (pickBlockFetchRequest)
+import Hoard.Collector (filterHeaderReceived)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID (..))
@@ -84,7 +84,7 @@ testPeer =
 
 spec_Collector :: Spec
 spec_Collector = do
-    describe "pickBlockFetchRequest" do
+    describe "filterHeaderReceived" do
         it "should not issue request for existing block" do
             let reqs = runEff [dbBlock]
             reqs `shouldBe` []
@@ -110,5 +110,5 @@ spec_Collector = do
                     . evalState db
                     . runBlockRepoState
                     . runAllValidVerifier
-                    $ pickBlockFetchRequest testPeer.id headerReceived
+                    $ filterHeaderReceived testPeer.id headerReceived
         in  events

@@ -86,6 +86,7 @@ main =
         . runConfig @"tracing" @TracingConfig
         . runConfig @"sentry" @Sentry.Config
         . runLog
+        . runTracingFromConfig
         . runClock
         . runFileSystem
         . runTemporary
@@ -98,7 +99,6 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . Sentry.runDuplicateBlocksState
-        . runTracingFromConfig
         . runQuota @PeerSlotKey 1
         . runPubSub @ChainSyncStarted
         . runPubSub @ChainSyncIntersectionFound

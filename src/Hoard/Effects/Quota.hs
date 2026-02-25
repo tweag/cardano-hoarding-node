@@ -52,10 +52,11 @@ import StmContainers.Map qualified as Map
 
 import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Monitoring.Tracing (Attr (..), ToAttribute, Tracing, addAttribute, addEvent, withSpan)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Quota.Config
 
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
 
 
 -- | Status of a message with respect to quota limits
@@ -100,7 +101,13 @@ data QuotaState = QuotaState
 -- A background thread periodically evicts expired entries based on TTL.
 runQuota
     :: forall key es a
-     . (Clock :> es, Conc :> es, Concurrent :> es, Hashable key, Reader Config :> es, ToAttribute key, Tracing :> es)
+     . ( Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Hashable key
+       , Log :> es
+       , Reader Config :> es
+       )
     => Int
     -- ^ Maximum number of messages allowed per key
     -> Eff (Quota key : es) a
@@ -112,28 +119,21 @@ runQuota maxMessages action = do
 
     store <- STM.atomically Map.new
 
-    Conc.fork_ $ forever $ do
+    Conc.fork_ $ forever $ Log.withNamespace "Quota" do
         threadDelay intervalMicros
         now <- currentTime
         evicted <- STM.atomically $ evictExpiredEntries store ttl now
+
         when (evicted > 0)
-            $ addEvent "quota_cleanup" [("evicted.count", evicted)]
+            $ Log.debug
+            $ "Evicted " <> show evicted <> " entries"
 
     interpretWith action $ \env -> \case
-        WithQuotaCheck key continuation -> localSeqUnlift env $ \unlift ->
-            withSpan "quota_check" $ do
-                now <- currentTime
-                (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
+        WithQuotaCheck key continuation -> localSeqUnlift env $ \unlift -> do
+            now <- currentTime
+            (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
 
-                case status of
-                    Accepted -> do
-                        addAttribute @Text "quota.status" "accepted"
-                        addEvent "quota_check" [("key", Attr key), ("count", Attr count), ("status", Attr @Text "accepted")]
-                    Overflow n -> do
-                        addAttribute @Text "quota.status" "overflow"
-                        addEvent "quota_exceeded" [("key", Attr key), ("overflow_count", Attr n), ("limit", Attr maxMessages)]
-
-                unlift $ continuation count status
+            unlift $ continuation count status
 
 
 -- | Atomically check and update quota state for a key

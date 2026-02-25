@@ -51,7 +51,7 @@ spec_Monitoring = withCleanTestDatabase $ do
                             }
                     . evalState peers
                     $ Monitoring.listener Monitoring.Poll
-            logs `shouldBe` [(INFO, "Currently connected to 1 peers | 2 peer connections pending | Immutable tip slot: genesis | Blocks in DB: 0 | Unclassified: 0 | Being classified: 0")]
+            logs `shouldBe` [(INFO, "Current peer connections: 1 | Pending peer connections: 2 | Immutable tip slot: genesis | Blocks in DB: 0 | Unclassified blocks: 0 | Blocks being classified: 0")]
 
 
 mkPeers :: (Concurrent :> es) => UTCTime -> Int -> Eff es Peers
