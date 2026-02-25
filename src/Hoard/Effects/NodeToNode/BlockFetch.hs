@@ -50,7 +50,6 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, Ca
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.UUID qualified as UUID
 
 
@@ -89,9 +88,7 @@ miniProtocol conf unlift codecs peer =
                     Peer.Effect
                         $ unlift
                         $ withExceptionLogging "BlockFetch"
-                        $ Log.withNamespace "BlockFetch"
                         $ do
-                            Log.debug $ "Started BlockFetch for " <> show peer.address
                             pure $ blockFetchClientPeer blockFetchClient
             in  (tracer, codec, wrappedPeer)
         }

@@ -42,7 +42,6 @@ import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, C
 import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Log qualified as Log
 
 
 -- | ChainSync mini-protocol (pipelined)
@@ -107,9 +106,7 @@ client unlift peer =
         $ Effect
         $ unlift
         $ withExceptionLogging "ChainSync"
-        $ Log.withNamespace "ChainSync"
         $ do
-            Log.debug $ "Started ChainSync for " <> show peer.address
             timestamp <- Clock.currentTime
             publish $ ChainSyncStarted {peer, timestamp}
             initialPoints <-
