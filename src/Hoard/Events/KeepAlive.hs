@@ -1,5 +1,5 @@
 module Hoard.Events.KeepAlive
-    ( KeepAlivePing (..)
+    ( Ping (..)
     ) where
 
 import Data.Time (UTCTime)
@@ -7,7 +7,7 @@ import Data.Time (UTCTime)
 import Hoard.Data.Peer (Peer)
 
 
-data KeepAlivePing = KeepAlivePing
+data Ping = Ping
     { timestamp :: UTCTime
     , peer :: Peer
     }

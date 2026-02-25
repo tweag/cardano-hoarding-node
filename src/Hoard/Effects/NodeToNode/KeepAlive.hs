@@ -25,7 +25,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Events.KeepAlive (KeepAlivePing (..))
+import Hoard.Events.KeepAlive (Ping (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -36,7 +36,7 @@ miniProtocol
      . ( Clock :> es
        , Concurrent :> es
        , Log :> es
-       , Pub KeepAlivePing :> es
+       , Pub Ping :> es
        , Tracing :> es
        )
     => KeepAliveConfig
@@ -58,8 +58,9 @@ miniProtocol conf unlift codecs peer =
                             Peer.Effect
                                 $ unlift
                                 $ withExceptionLogging "KeepAlive"
-                                $ do
-                                    pure $ keepAliveClientPeer $ client unlift conf peer
+                                $ pure
+                                $ keepAliveClientPeer
+                                $ client unlift conf peer
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
         }
@@ -73,7 +74,7 @@ miniProtocol conf unlift codecs peer =
 client
     :: ( Clock :> es
        , Concurrent :> es
-       , Pub KeepAlivePing :> es
+       , Pub Ping :> es
        )
     => (forall x. Eff es x -> IO x)
     -> KeepAliveConfig
@@ -83,9 +84,11 @@ client unlift conf peer = KeepAliveClient sendFirst
   where
     sendFirst = unlift do
         timestamp <- Clock.currentTime
-        publish KeepAlivePing {timestamp, peer}
+        publish Ping {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
         threadDelay conf.intervalMicroseconds
+        timestamp <- Clock.currentTime
+        publish Ping {timestamp, peer}
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

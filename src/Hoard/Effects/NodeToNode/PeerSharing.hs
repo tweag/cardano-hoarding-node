@@ -28,7 +28,7 @@ import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Hoard.Effects.NodeToNode.Config (PeerSharingConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Events.PeerSharing (PeerSharingStarted (..), PeersReceived (..))
+import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -39,7 +39,6 @@ miniProtocol
      . ( Clock :> es
        , Concurrent :> es
        , Log :> es
-       , Pub PeerSharingStarted :> es
        , Pub PeersReceived :> es
        , Tracing :> es
        )
@@ -57,15 +56,14 @@ miniProtocol conf unlift codecs peer =
             InitiatorProtocolOnly
                 $ mkMiniProtocolCbFromPeer
                 $ \_ ->
-                    let peerSharingClient = client unlift conf peer
-                        codec = cPeerSharingCodec codecs
-                        wrappedPeer = Peer.Effect
-                            $ unlift
-                            $ withExceptionLogging "PeerSharing"
-                            $ do
-                                timestamp <- Clock.currentTime
-                                publish $ PeerSharingStarted {peer, timestamp}
-                                pure (peerSharingClientPeer peerSharingClient)
+                    let codec = cPeerSharingCodec codecs
+                        wrappedPeer =
+                            Peer.Effect
+                                $ unlift
+                                $ withExceptionLogging "PeerSharing"
+                                $ pure
+                                $ peerSharingClientPeer
+                                $ client unlift conf peer
                         tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
                     in  (tracer, codec, wrappedPeer)
         }

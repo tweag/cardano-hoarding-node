@@ -73,9 +73,6 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.Effects.UUID (GenUUID)
-import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, RollBackward)
-import Hoard.Events.KeepAlive (KeepAlivePing)
-import Hoard.Events.PeerSharing (PeerSharingStarted, PeersReceived)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -87,6 +84,8 @@ import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive
 import Hoard.Effects.NodeToNode.PeerSharing qualified as NodeToNode.PeerSharing
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
+import Hoard.Events.KeepAlive qualified as KeepAlive
+import Hoard.Events.PeerSharing qualified as PeerSharing
 
 
 --------------------------------------------------------------------------------
@@ -129,12 +128,10 @@ runNodeToNode
        , Pub BlockFetch.RequestFailed :> es
        , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSyncStarted :> es
-       , Pub KeepAlivePing :> es
-       , Pub PeerSharingStarted :> es
-       , Pub PeersReceived :> es
-       , Pub RollBackward :> es
+       , Pub ChainSync.IntersectionFound :> es
+       , Pub ChainSync.RollBackward :> es
+       , Pub KeepAlive.Ping :> es
+       , Pub PeerSharing.PeersReceived :> es
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader IOManager :> es
        , Reader NodeToNodeConfig :> es
@@ -277,12 +274,10 @@ mkApplication
        , Pub BlockFetch.RequestFailed :> es
        , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSyncStarted :> es
-       , Pub KeepAlivePing :> es
-       , Pub PeerSharingStarted :> es
-       , Pub PeersReceived :> es
-       , Pub RollBackward :> es
+       , Pub ChainSync.IntersectionFound :> es
+       , Pub ChainSync.RollBackward :> es
+       , Pub KeepAlive.Ping :> es
+       , Pub PeerSharing.PeersReceived :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
        , Sub BlockFetch.Request :> es

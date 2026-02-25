@@ -82,15 +82,14 @@ miniProtocol conf unlift codecs peer =
         , miniProtocolStart = StartEagerly
         , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
             let codec = cBlockFetchCodec codecs
-                blockFetchClient = client unlift conf peer
-                tracer = nullTracer
                 wrappedPeer =
                     Peer.Effect
                         $ unlift
                         $ withExceptionLogging "BlockFetch"
-                        $ do
-                            pure $ blockFetchClientPeer blockFetchClient
-            in  (tracer, codec, wrappedPeer)
+                        $ pure
+                        $ blockFetchClientPeer
+                        $ client unlift conf peer
+            in  (nullTracer, codec, wrappedPeer)
         }
 
 
