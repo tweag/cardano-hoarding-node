@@ -38,8 +38,12 @@ import Cardano.Api
     , decodePoolDistribution
     , decodeProtocolState
     )
+import Cardano.Crypto.VRF (CertifiedVRF (CertifiedVRF, certifiedOutput), VRFAlgorithm)
 import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff)
 import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
+import Cardano.Ledger.State (IndividualPoolStake (individualPoolStake))
+import Cardano.Protocol.Crypto (VRF)
+import Cardano.Protocol.TPraos.BHeader
 import Control.Concurrent.Chan.Unagi
     ( InChan
     , OutChan
@@ -94,6 +98,7 @@ import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, p
 
 import Cardano.Api qualified as C
 import Cardano.Ledger.State qualified as SL
+import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Ouroboros.Consensus.Protocol.Praos.Common qualified as Consensus
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
@@ -236,6 +241,58 @@ runNodeToClient nodeToClient = do
             )
 
 
+validateVrfSignatureTPraos
+    :: ( Conc :> es
+       , Concurrent :> es
+       , Error AcquireFailure :> es
+       , Error ElectionValidationError :> es
+       , Error NodeConnectionError :> es
+       , IOE :> es
+       , Labeled "nodeToClient" WithSocket :> es
+       , Log :> es
+       , Reader (ProtocolInfo CardanoBlock) :> es
+       , Reader ShelleyConfig :> es
+       , State (Either SomeException Connection) :> es
+       , Tracing :> es
+       , VRFAlgorithm (VRF c)
+       )
+    => ShelleyBasedEra era -> CardanoHeader -> BHBody c -> Eff es b
+validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput}}) = do
+    let target =
+            SpecificPoint
+                $ C.ChainPoint (blockSlot header)
+                $ HeaderHash
+                $ toShortRawHash (Proxy @CardanoBlock)
+                $ headerHash
+                $ header
+    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
+    (=<<)
+        ( \stakePoolStake ->
+            checkLeaderValue certifiedOutput stakePoolStake activeSlotsCoeff
+        )
+        $ fmap individualPoolStake
+        $ fmap (fromMaybe $ error $ "to do")
+        $ fmap (M.lookup (coerceKeyRole $ hashKey $ bheaderVk))
+        $ fmap (SL.unPoolDistr . unPoolDistr)
+        $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
+        $ fmap (decodePoolDistribution era)
+        $ (=<<) leftToError
+        $ (=<<) leftToError
+        $ (=<<) leftToError
+        $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+        $ executeLocalStateQuery target
+        $ QueryInEra
+        $ QueryInShelleyBasedEra (convert era)
+        $ QueryPoolDistribution
+        $ Just
+        $ S.singleton
+        -- block issuer
+        $ StakePoolKeyHash
+        $ coerceKeyRole
+        $ hashKey
+        $ bheaderVk
+
+
 validateVrfSignaturePraos
     :: forall era es
      . ( Conc :> es
@@ -244,7 +301,7 @@ validateVrfSignaturePraos
        , Error AcquireFailure :> es
        , Error ElectionValidationError :> es
        , Error NodeConnectionError :> es
-       , FromCBOR (ChainDepState (ConsensusProtocol era))
+       , FromCBOR (ChainDepState (ConsensusProtocol era)) -- to do
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
