@@ -12,22 +12,14 @@
 --         -- ... do work ...
 --         setStatus Ok
 -- @
---
--- == Database Instrumentation
---
--- @
--- runQuery :: (Tracing :> es, Metrics :> es, Clock :> es) => Eff es Result
--- runQuery = do
---     withDBSpan "users.select" $ do
---         -- Query execution with automatic timing and tracing
---         executeQuery
--- @
 module Hoard.Effects.Monitoring.Tracing
     ( -- * Effect
       Tracing
 
       -- * Span Operations
     , withSpan
+    , withSpanAsChild
+    , withSpanLinked
     , addAttribute
     , addEvent
     , setStatus
@@ -55,7 +47,7 @@ import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
 import Effectful (Eff, Effect, IOE, (:>))
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
-import Effectful.Exception (onException)
+import Effectful.Exception (bracket, onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Prelude hiding (Reader, ask)
@@ -66,7 +58,6 @@ import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace qualified as OT
 import OpenTelemetry.Trace.Core qualified as OT
 
--- ConfigPath no longer needed - using runConfig pattern instead
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 import Hoard.Effects.Monitoring.Tracing.Provider qualified as Provider
@@ -109,6 +100,11 @@ type SpanContext = OT.SpanContext
 data Tracing :: Effect where
     -- | Execute an action within a named span (bracket-style, automatic cleanup)
     WithSpan :: Text -> m a -> Tracing m a
+    -- | Execute an action within a named span as a child of an explicit parent context.
+    -- Useful for preserving trace hierarchy across thread boundaries
+    WithSpanAsChild :: Text -> SpanContext -> m a -> Tracing m a
+    -- | Execute an action within a named span with links to other span contexts
+    WithSpanLinked :: Text -> [SpanContext] -> m a -> Tracing m a
     -- | Add an attribute to the current span
     AddAttribute :: (OT.ToAttribute attr) => Text -> attr -> Tracing m ()
     -- | Add an event to the current span
@@ -120,7 +116,6 @@ data Tracing :: Effect where
 
 
 -- | Useful to create a heterogeneous list of attribute values. These two are equivalent:
---
 --
 -- @
 -- addEvent "foo" [OT.toAttribute 1, OT.toAttribute "foo"]
@@ -149,10 +144,9 @@ instance (Show a) => OT.ToAttribute (ToAttributeShow a)
 makeEffect ''Tracing
 
 
--- | Create a Tracer that emits protocol messages as trace events
+-- | Create a Tracer that emits protocol messages as trace events.
 --
--- This is useful for integrating ouroboros-network protocol tracers with OpenTelemetry.
--- Protocol messages are emitted as trace events within the current span.
+-- Useful for integrating ouroboros-network protocol tracers with OpenTelemetry.
 asTracer :: (Tracing :> es) => (forall x. Eff es x -> m x) -> Text -> Tracer m String
 asTracer unlift eventName =
     Tracer $ \msg -> unlift $ addEvent eventName [("message", toText msg)]
@@ -173,82 +167,97 @@ runTracing
     -> Eff es a
 runTracing enabled serviceName otlpEndpoint action
     | not enabled = runTracingNoOp action
-    | otherwise = do
-        -- Initialize tracing state
-        tracingState <- liftIO $ Provider.initTracingState serviceName otlpEndpoint
+    | otherwise =
+        bracket
+            (liftIO $ Provider.initTracingState serviceName otlpEndpoint)
+            (\tracingState -> liftIO $ Provider.shutdownTracingState tracingState)
+            $ \tracingState -> interpretWith action $ \env -> \case
+                WithSpan spanName innerAction -> localSeqUnlift env $ \unlift -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    newSpan <- liftIO $ OT.createSpan tracingState.tracer currentCtx spanName OT.defaultSpanArguments
+                    let newCtx = Context.insertSpan newSpan currentCtx
+                    oldCtx <- liftIO $ ThreadLocal.attachContext newCtx
+                    innerResult <-
+                        unlift innerAction `onException` do
+                            liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
+                    -- Restore the old context
+                    liftIO $ void $ case oldCtx of
+                        Just ctx -> ThreadLocal.attachContext ctx
+                        Nothing -> ThreadLocal.detachContext
+                    liftIO $ OT.endSpan newSpan Nothing
+                    pure innerResult
+                WithSpanAsChild spanName parentSpanContext innerAction -> localSeqUnlift env $ \unlift -> do
+                    -- wrapSpanContext creates a non-recording span from the SpanContext,
+                    -- allowing child span creation across thread boundaries
+                    let parentSpan = OT.wrapSpanContext parentSpanContext
+                    let parentCtx = Context.insertSpan parentSpan Context.empty
+                    newSpan <- liftIO $ OT.createSpan tracingState.tracer parentCtx spanName OT.defaultSpanArguments
+                    let newCtx = Context.insertSpan newSpan parentCtx
+                    oldCtx <- liftIO $ ThreadLocal.attachContext newCtx
+                    innerResult <-
+                        unlift innerAction `onException` do
+                            liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
 
-        result <- interpretWith action $ \env -> \case
-            WithSpan spanName innerAction -> localSeqUnlift env $ \unlift -> do
-                -- Get current context (contains parent span if any)
-                currentCtx <- liftIO ThreadLocal.getContext
+                    -- Restore the old context
+                    liftIO $ void $ case oldCtx of
+                        Just ctx -> ThreadLocal.attachContext ctx
+                        Nothing -> ThreadLocal.detachContext
+                    liftIO $ OT.endSpan newSpan Nothing
+                    pure innerResult
+                WithSpanLinked spanName linkedContexts innerAction -> localSeqUnlift env $ \unlift -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    let spanArgs =
+                            OT.defaultSpanArguments
+                                { OT.links = map (\ctx -> OT.NewLink ctx mempty) linkedContexts
+                                }
+                    newSpan <- liftIO $ OT.createSpan tracingState.tracer currentCtx spanName spanArgs
+                    let newCtx = Context.insertSpan newSpan currentCtx
+                    oldCtx <- liftIO $ ThreadLocal.attachContext newCtx
+                    innerResult <-
+                        unlift innerAction `onException` do
+                            liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
 
-                -- Create a new span with the current context as parent
-                newSpan <- liftIO $ OT.createSpan tracingState.tracer currentCtx spanName OT.defaultSpanArguments
-
-                -- Insert the new span into context
-                let newCtx = Context.insertSpan newSpan currentCtx
-
-                -- Attach the new context
-                oldCtx <- liftIO $ ThreadLocal.attachContext newCtx
-
-                -- Run the inner action with exception handling
-                innerResult <-
-                    unlift innerAction `onException` do
-                        -- On exception, mark span as error
-                        liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
-
-                -- Restore the old context
-                liftIO $ void $ case oldCtx of
-                    Just ctx -> ThreadLocal.attachContext ctx
-                    Nothing -> ThreadLocal.detachContext
-
-                -- End the span
-                liftIO $ OT.endSpan newSpan Nothing
-
-                pure innerResult
-            AddAttribute key value -> do
-                -- Get current span from thread-local context
-                currentCtx <- liftIO ThreadLocal.getContext
-                case Context.lookupSpan currentCtx of
-                    Just currentSpan ->
-                        liftIO $ OT.addAttribute currentSpan key (OT.toAttribute value)
-                    Nothing ->
-                        -- No active span, ignore
-                        pure ()
-            AddEvent eventName attributes -> do
-                currentCtx <- liftIO ThreadLocal.getContext
-                case Context.lookupSpan currentCtx of
-                    Just currentSpan -> do
-                        -- Convert list of attributes to AttributeMap (HashMap Text Attribute)
-                        let attrMap = HashMap.fromList $ map (\(k, v) -> (k, OT.toAttribute v)) attributes
-                        -- Create NewEvent with name, attributes, and no explicit timestamp
-                        let event = OT.NewEvent eventName attrMap Nothing
-                        liftIO $ OT.addEvent currentSpan event
-                    Nothing ->
-                        -- No active span, ignore
-                        pure ()
-            SetStatus status -> do
-                currentCtx <- liftIO ThreadLocal.getContext
-                case Context.lookupSpan currentCtx of
-                    Just currentSpan ->
-                        liftIO $ case status of
-                            Ok -> OT.setStatus currentSpan OT.Ok
-                            Error msg -> OT.setStatus currentSpan (OT.Error msg)
-                    Nothing ->
-                        -- No active span, ignore
-                        pure ()
-            GetSpanContext -> do
-                currentCtx <- liftIO ThreadLocal.getContext
-                case Context.lookupSpan currentCtx of
-                    Just currentSpan -> do
-                        spanCtx <- liftIO $ OT.getSpanContext currentSpan
-                        pure $ Just spanCtx
-                    Nothing -> pure Nothing
-
-        -- Cleanup
-        liftIO $ Provider.shutdownTracingState tracingState
-
-        pure result
+                    -- Restore the old context
+                    liftIO $ void $ case oldCtx of
+                        Just ctx -> ThreadLocal.attachContext ctx
+                        Nothing -> ThreadLocal.detachContext
+                    liftIO $ OT.endSpan newSpan Nothing
+                    pure innerResult
+                AddAttribute key value -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    case Context.lookupSpan currentCtx of
+                        Just currentSpan ->
+                            liftIO $ OT.addAttribute currentSpan key (OT.toAttribute value)
+                        Nothing ->
+                            -- No active span, ignore
+                            pure ()
+                AddEvent eventName attributes -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    case Context.lookupSpan currentCtx of
+                        Just currentSpan -> do
+                            let attrMap = HashMap.fromList $ map (\(k, v) -> (k, OT.toAttribute v)) attributes
+                            let event = OT.NewEvent eventName attrMap Nothing
+                            liftIO $ OT.addEvent currentSpan event
+                        Nothing ->
+                            -- No active span, ignore
+                            pure ()
+                SetStatus status -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    case Context.lookupSpan currentCtx of
+                        Just currentSpan ->
+                            liftIO $ case status of
+                                Ok -> OT.setStatus currentSpan OT.Ok
+                                Error msg -> OT.setStatus currentSpan (OT.Error msg)
+                        Nothing ->
+                            -- No active span, ignore
+                            pure ()
+                GetSpanContext -> do
+                    currentCtx <- liftIO ThreadLocal.getContext
+                    case Context.lookupSpan currentCtx of
+                        Just currentSpan -> do
+                            spanCtx <- liftIO $ OT.getSpanContext currentSpan
+                            pure $ Just spanCtx
+                        Nothing -> pure Nothing
 
 
 -- | Run the Tracing effect with config from Reader
@@ -267,6 +276,8 @@ runTracingFromConfig action = do
 runTracingNoOp :: Eff (Tracing : es) a -> Eff es a
 runTracingNoOp = interpret $ \env -> \case
     WithSpan _ act -> localSeqUnlift env $ \unlift -> unlift act
+    WithSpanAsChild _ _ act -> localSeqUnlift env $ \unlift -> unlift act
+    WithSpanLinked _ _ act -> localSeqUnlift env $ \unlift -> unlift act
     AddAttribute _ _ -> pure ()
     AddEvent _ _ -> pure ()
     SetStatus _ -> pure ()

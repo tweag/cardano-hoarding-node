@@ -88,11 +88,11 @@ runEffectStackTest eff = liftIO $ do
         runEff
             . runFileSystem
             . runChan
+            . runTracingNoOp
             . runConc
             . runReader (def :: Log.Config)
             . runLog
             . runClockConst testTime
-            . runTracingNoOp
             . runMetrics
             . runState @[Block] []
             . runBlockRepoState
@@ -106,11 +106,11 @@ type TestAppEffs =
     , BlockRepo
     , State [Block]
     , Metrics
-    , Tracing
     , Clock
     , Log
     , Reader Log.Config
     , Conc
+    , Tracing
     , Chan
     , FileSystem
     , IOE

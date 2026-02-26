@@ -7,122 +7,158 @@ module Hoard.Effects.Conc
     , await
     , awaitAll
     , forkTry
+
+      -- * Scope
+    , Scope
     , scoped
 
       -- * Interpreters
     , runConc
+
+      -- * Unlift Strategy
+    , concStrat
     )
 where
 
-import Effectful
-    ( Dispatch (..)
-    , DispatchOf
-    , Eff
-    , Effect
-    , IOE
-    , Limit (..)
-    , Persistence (..)
-    , (:>)
-    )
-import Effectful.Dispatch.Static
-    ( SideEffects (..)
-    , StaticRep
-    , concUnliftIO
-    , evalStaticRep
-    , unsafeEff
-    , unsafeSeqUnliftIO
-    )
-import Effectful.Dispatch.Static.Primitive (getEnv, putEnv)
-import Ki (Scope, Thread)
+import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), raise, withEffToIO, (:>))
+import Effectful.Concurrent.STM (atomically, runConcurrent)
+import Effectful.Dispatch.Dynamic (EffectHandler, interpose, interpret, localLend, localUnlift, localUnliftIO)
+import Effectful.TH (makeEffect)
+import Prelude hiding (atomically)
 
 import Ki qualified
+import OpenTelemetry.Context qualified as Context
+import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
+import OpenTelemetry.Trace.Core qualified as OT
+
+import Hoard.Effects.Monitoring.Tracing (Tracing)
+
+import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 
 
-data Conc :: Effect
-type instance DispatchOf Conc = Static WithSideEffects
-newtype instance StaticRep Conc = Conc Scope
+data Conc :: Effect where
+    Fork :: m a -> Conc m (Thread a)
+    Fork_ :: m Void -> Conc m ()
+    Await :: Thread a -> Conc m a
+    AwaitAll :: Conc m ()
+    ForkTry :: (Exception e) => m a -> Conc m (Thread (Either e a))
+    Scoped :: m a -> Conc m a
 
 
--- | Fork a computation into a distinct thread and immediately return a
--- reference to said thread.
-fork :: (Conc :> es) => Eff es a -> Eff es (Thread a)
-fork action = unsafeEff \env -> do
-    Conc scope <- getEnv env
-    concUnliftIO env Persistent (Limited 1) \unlift ->
-        Ki.fork scope $ unlift action
+newtype Scope = Scope Ki.Scope
 
 
--- | Fork a computation that blocks indefinitely and immediately return. Since
--- the computation is expected to block indefinitely, there is no use to
--- `await` the thread, and thus we don't need a thread reference, so this
--- function does not return one.
-fork_ :: (Conc :> es) => Eff es Void -> Eff es ()
-fork_ action = unsafeEff \env -> do
-    Conc scope <- getEnv env
-    concUnliftIO env Persistent (Limited 1) \unlift ->
-        Ki.fork_ scope $ unlift action
+newtype Thread a = Thread (Ki.Thread a)
 
 
--- | Await a forked thread, blocking the current thread until the awaited
--- thread terminates.
-await :: (Conc :> es) => Thread a -> Eff es a
-await thread = unsafeEff \env -> do
-    -- We don't use the scope here, but we should use `getStaticRep` here to
-    -- ensure we require `Conc` in the context. Otherwise, this function would
-    -- hide the use of `IO` in `unsafeEff_` a bit too well, and its behavior
-    -- might seem unintuitive.
-    Conc _ <- getEnv env
-    atomically $ Ki.await thread
+makeEffect ''Conc
 
 
--- | Await all forked threads in the current scope.
-awaitAll :: (Conc :> es) => Eff es ()
-awaitAll = unsafeEff \env -> do
-    Conc scope <- getEnv env
-    atomically $ Ki.awaitAll scope
-
-
--- | Fork a computation and catch all exceptions in an `Either e a`. This will
--- not catch:
--- - Synchronous exceptions that do not match `e`
--- - Asynchronous exceptions
-forkTry :: forall e a es. (Conc :> es, Exception e) => Eff es a -> Eff es (Thread (Either e a))
-forkTry action = unsafeEff \env -> do
-    Conc scope <- getEnv env
-    concUnliftIO env Persistent (Limited 1) \unlift ->
-        Ki.forkTry scope $ unlift action
-
-
--- | Run an action in a new nested scope. When the action completes (either
--- successfully or with an exception), all threads forked within the nested
--- scope are automatically killed.
+-- | Run Conc effect with automatic trace context propagation in a new scope.
 --
--- This is useful for scoping the lifetime of background threads to a particular
--- operation, such as a connection lifecycle. Threads forked with 'fork' or
--- 'fork_' within the nested scope will be cleaned up when the scope exits.
+-- Combines the convenience of `runConcNewScope` with automatic trace context
+-- propagation from `runConcTraced`.
+runConc :: (IOE :> es, Tracing :> es) => Eff (Conc : es) a -> Eff es a
+runConc eff = withEffToIO concStrat $ \unlift ->
+    Ki.scoped $ \scope ->
+        unlift $ runConcTraced (Scope scope) eff
+
+
+-- | Run Conc effect with automatic trace context propagation.
 --
--- Example:
+-- When forking threads, span context is automatically captured from the parent
+-- thread and propagated to the forked thread via OpenTelemetry's thread-local
+-- context storage. This means any `withSpan` calls in forked threads will
+-- automatically become children of the parent thread's current span.
+--
+-- == Example
+--
 -- @
--- scoped $ do
---     fork_ $ forever $ processEvents  -- This thread will be killed when scoped exits
---     handleConnection conn
+-- runConcTraced $ do
+--     withSpan "parent" $ do
+--         fork_ $ do
+--             -- This span will automatically be a child of "parent"
+--             withSpan "child" $ doWork
 -- @
-scoped :: (Conc :> es) => Eff es a -> Eff es a
-scoped action = unsafeEff \env -> do
-    Conc oldScope <- getEnv env
-    Ki.scoped \newScope -> do
-        -- Run the action with the new scope
-        putEnv env (Conc newScope)
-        result <- concUnliftIO env Ephemeral Unlimited \unlift -> unlift action
+runConcTraced :: forall es a. (IOE :> es, Tracing :> es) => Scope -> Eff (Conc : es) a -> Eff es a
+runConcTraced (Scope scope0) = interpret $ handler @es scope0
+  where
+    handler :: forall es'. (IOE :> es', Tracing :> es') => Ki.Scope -> EffectHandler Conc es'
+    handler scope env = \case
+        Fork action -> do
+            -- Capture parent span context
+            parentCtx <- Tracing.getSpanContext
+            localUnliftIO env concStrat $ \unlift ->
+                fmap Thread
+                    . liftIO
+                    . Ki.fork scope
+                    $ propagateContext parentCtx (unlift action)
+        Fork_ action -> do
+            -- Capture parent span context
+            parentCtx <- Tracing.getSpanContext
+            localUnliftIO env concStrat $ \unlift ->
+                liftIO
+                    . Ki.fork_ scope
+                    $ propagateContext parentCtx (unlift action)
+        Await (Thread thread) ->
+            runConcurrent
+                . atomically
+                $ Ki.await thread
+        AwaitAll ->
+            runConcurrent
+                . atomically
+                $ Ki.awaitAll scope
+        ForkTry action -> do
+            -- Capture parent span context
+            parentCtx <- Tracing.getSpanContext
+            localUnliftIO env concStrat $ \unlift ->
+                fmap Thread
+                    . liftIO
+                    . Ki.forkTry scope
+                    $ propagateContext parentCtx (unlift action)
+        Scoped m ->
+            -- Unlift the contained `m` action (of type `Eff localEs a`) to run it in `Eff es a`.
+            localUnlift env concStrat \unliftEff ->
+                -- Lend `es`' `IOE` and `Tracing` effects to the `localEs` effect stack.
+                localLend @'[Tracing, IOE] env concStrat \lend ->
+                    -- Unlift `Eff` into `IO` because that's what `Ki` expects.
+                    withEffToIO concStrat \unliftIO ->
+                        Ki.scoped \subScope ->
+                            -- Temporarily step into `IO` for `Ki.scoped`'s sake.
+                            unliftIO
+                                -- Resolve `localEs` to `es`.
+                                . unliftEff
+                                -- Lend the `IOE` and `Tracing` effects to the inner (recursive) handler.
+                                . lend
+                                -- Resolve `m`'s `Conc` effect using this handler.
+                                . interpose (handler subScope)
+                                -- Make `m` use the lended `IOE` and `Tracing` effects.
+                                . raise @Tracing
+                                . raise @IOE
+                                $ m
 
-        -- Restore the old scope
-        putEnv env (Conc oldScope)
-        pure result
+
+-- | Helper to propagate span context to a forked thread
+propagateContext :: Maybe OT.SpanContext -> IO a -> IO a
+propagateContext Nothing action = action
+propagateContext (Just spanCtx) action = do
+    -- Create context with parent span
+    let parentSpan = OT.wrapSpanContext spanCtx
+    let ctx = Context.insertSpan parentSpan Context.empty
+
+    -- Attach context to thread-local storage
+    oldCtx <- ThreadLocal.attachContext ctx
+
+    -- Run action
+    result <- action
+
+    -- Restore old context
+    void $ case oldCtx of
+        Just old -> ThreadLocal.attachContext old
+        Nothing -> ThreadLocal.detachContext
+
+    pure result
 
 
--- | Run a `Conc` effect with `Ki`.
-runConc :: (IOE :> es) => Eff (Conc : es) a -> Eff es a
-runConc eff = do
-    unsafeSeqUnliftIO \unlift ->
-        Ki.scoped \scope ->
-            unlift $ evalStaticRep (Conc scope) eff
+concStrat :: UnliftStrategy
+concStrat = ConcUnlift Persistent Unlimited
