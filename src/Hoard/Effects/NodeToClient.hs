@@ -132,18 +132,19 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NoByronSupport :+ NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
 
 
-data NodeConnectionError
-    = NodeConnectionError SomeException
-    deriving (Show)
+data NodeConnectionError = NodeConnectionError SomeException deriving (Show)
 
 
 data ElectionValidationError
     = PraosValidationErr (PraosValidationErr Crypto)
     | EraMismatch EraMismatch
     deriving (Show)
+
+
+data NoByronSupport = NoByronSupport deriving (Show)
 
 
 infixr 6 :+
@@ -155,11 +156,16 @@ makeEffect ''NodeToClient
 
 validateVrfSignature
     :: ( Error AcquireFailure :> es
+       , Error NoByronSupport :> es
        , Error NodeConnectionError :> es
        , NodeToClient :> es
        )
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
-validateVrfSignature = (=<<) leftToError . (=<<) leftToError . validateVrfSignature_
+validateVrfSignature =
+    (=<<) leftToError
+        . (=<<) leftToError
+        . (=<<) leftToError
+        . validateVrfSignature_
 
 
 data Connection
@@ -232,8 +238,9 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
+                    $ runErrorNoCallStack
                     $ case header of
-                        HeaderByron _ -> error "to do"
+                        HeaderByron _ -> throwError NoByronSupport
                         HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
                             validateVrfSignatureTPraos
                                 ShelleyBasedEraShelley
