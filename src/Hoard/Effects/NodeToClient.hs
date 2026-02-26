@@ -89,7 +89,7 @@ import Ouroboros.Consensus.Cardano.Block
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr, doValidateVRFSignature)
+import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr (VRFKeyUnknown, VRFLeaderValueTooBig), doValidateVRFSignature)
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
@@ -97,6 +97,7 @@ import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
+import Cardano.Crypto.VRF qualified as VRF
 import Cardano.Ledger.State qualified as SL
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -256,8 +257,8 @@ validateVrfSignatureTPraos
        , Tracing :> es
        , VRFAlgorithm (VRF c)
        )
-    => ShelleyBasedEra era -> CardanoHeader -> BHBody c -> Eff es b
-validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput}}) = do
+    => ShelleyBasedEra era -> CardanoHeader -> BHBody c -> Eff es ()
+validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput = certVRF}}) = do
     let target =
             SpecificPoint
                 $ C.ChainPoint (blockSlot header)
@@ -265,18 +266,32 @@ validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVR
                 $ toShortRawHash (Proxy @CardanoBlock)
                 $ headerHash
                 $ header
+        blockIssuer = coerceKeyRole (hashKey bheaderVk)
     activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
-    (=<<)
-        ( \stakePoolStake ->
-            checkLeaderValue certifiedOutput stakePoolStake activeSlotsCoeff
-        )
+    (=<<) leftToError
+        $ (fmap . first)
+            ( \sigma ->
+                -- copied from https://github.com/IntersectMBO/cardano-ledger/blob/f3c4a2cacd829d002530b6884dfa42d0cc642dcb/libs/cardano-protocol-tpraos/src/Cardano/Protocol/TPraos/BHeader.hs#L335-L338
+                let vrfLeaderVal = assertBoundedNatural certNatMax (VRF.getOutputVRFNatural certVRF)
+                    certNatMax :: Natural
+                    certNatMax = (2 :: Natural) ^ (8 * VRF.sizeOutputVRF certVRF)
+                in  -- copied from https://github.com/IntersectMBO/ouroboros-consensus/blob/7908694b77ed52d51c098bec1ac39134a6c28c0c/ouroboros-consensus-protocol/src/ouroboros-consensus-protocol/Ouroboros/Consensus/Protocol/Praos.hs#L595
+                    PraosValidationErr $ VRFLeaderValueTooBig (bvValue vrfLeaderVal) sigma activeSlotsCoeff
+            )
+        $ fmap
+            ( \individualPoolStake ->
+                if checkLeaderValue certVRF individualPoolStake activeSlotsCoeff then
+                    Right ()
+                else
+                    Left individualPoolStake
+            )
         $ fmap individualPoolStake
-        $ fmap (fromMaybe $ error $ "to do")
-        $ fmap (M.lookup (coerceKeyRole $ hashKey $ bheaderVk))
+        -- \$ (=<<) leftToError
+        -- \$ fmap (maybeToRight (PraosValidationErr $ VRFKeyUnknown blockIssuer) . M.lookup blockIssuer)
+        $ fmap (fromMaybe undefined . M.lookup blockIssuer)
         $ fmap (SL.unPoolDistr . unPoolDistr)
         $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         $ fmap (decodePoolDistribution era)
-        $ (=<<) leftToError
         $ (=<<) leftToError
         $ (=<<) leftToError
         $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
@@ -286,11 +301,8 @@ validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVR
         $ QueryPoolDistribution
         $ Just
         $ S.singleton
-        -- block issuer
         $ StakePoolKeyHash
-        $ coerceKeyRole
-        $ hashKey
-        $ bheaderVk
+        $ blockIssuer
 
 
 validateVrfSignaturePraos
@@ -301,7 +313,7 @@ validateVrfSignaturePraos
        , Error AcquireFailure :> es
        , Error ElectionValidationError :> es
        , Error NodeConnectionError :> es
-       , FromCBOR (ChainDepState (ConsensusProtocol era)) -- to do
+       , FromCBOR (ChainDepState (ConsensusProtocol era))
        , IOE :> es
        , Labeled "nodeToClient" WithSocket :> es
        , Log :> es
