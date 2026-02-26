@@ -31,7 +31,15 @@ import Cardano.Api
     , QueryInEra (QueryInShelleyBasedEra)
     , QueryInMode (QueryChainPoint, QueryInEra)
     , QueryInShelleyBasedEra (QueryPoolDistribution, QueryProtocolState)
-    , ShelleyBasedEra (ShelleyBasedEraBabbage, ShelleyBasedEraConway, ShelleyBasedEraDijkstra)
+    , ShelleyBasedEra
+        ( ShelleyBasedEraAllegra
+        , ShelleyBasedEraAlonzo
+        , ShelleyBasedEraBabbage
+        , ShelleyBasedEraConway
+        , ShelleyBasedEraDijkstra
+        , ShelleyBasedEraMary
+        , ShelleyBasedEraShelley
+        )
     , ShelleyConfig
     , Target (SpecificPoint)
     , connectToLocalNode
@@ -44,6 +52,12 @@ import Cardano.Ledger.Keys (HasKeyRole (coerceKeyRole), hashKey)
 import Cardano.Ledger.State (IndividualPoolStake (individualPoolStake))
 import Cardano.Protocol.Crypto (VRF)
 import Cardano.Protocol.TPraos.BHeader
+    ( BHBody (BHBody, bheaderL, bheaderVk)
+    , BHeader (BHeader)
+    , BoundedNatural (bvValue)
+    , assertBoundedNatural
+    , checkLeaderValue
+    )
 import Control.Concurrent.Chan.Unagi
     ( InChan
     , OutChan
@@ -91,7 +105,7 @@ import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMa
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr (VRFKeyUnknown, VRFLeaderValueTooBig), doValidateVRFSignature)
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
-import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader, shelleyHeaderRaw))
+import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, put, putMVar, readMVar)
@@ -220,21 +234,37 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ case header of
                         HeaderByron _ -> error "to do"
-                        HeaderShelley _ -> error "to do"
-                        HeaderAllegra _ -> error "to do"
-                        HeaderMary _ -> error "to do"
-                        HeaderAlonzo _ -> error "to do"
-                        HeaderBabbage (ShelleyHeader {shelleyHeaderRaw}) ->
+                        HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
+                            validateVrfSignatureTPraos
+                                ShelleyBasedEraShelley
+                                header
+                                bhbody
+                        HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
+                            validateVrfSignatureTPraos
+                                ShelleyBasedEraAllegra
+                                header
+                                bhbody
+                        HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
+                            validateVrfSignatureTPraos
+                                ShelleyBasedEraMary
+                                header
+                                bhbody
+                        HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
+                            validateVrfSignatureTPraos
+                                ShelleyBasedEraAlonzo
+                                header
+                                bhbody
+                        HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
                             validateVrfSignaturePraos
                                 ShelleyBasedEraBabbage
                                 header
                                 (protocolHeaderView shelleyHeaderRaw)
-                        HeaderConway (ShelleyHeader {shelleyHeaderRaw}) ->
+                        HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
                             validateVrfSignaturePraos
                                 ShelleyBasedEraConway
                                 header
                                 (protocolHeaderView shelleyHeaderRaw)
-                        HeaderDijkstra (ShelleyHeader {shelleyHeaderRaw}) ->
+                        HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
                             validateVrfSignaturePraos
                                 ShelleyBasedEraDijkstra
                                 header
@@ -286,12 +316,12 @@ validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVR
                     Left individualPoolStake
             )
         $ fmap individualPoolStake
-        -- \$ (=<<) leftToError
-        -- \$ fmap (maybeToRight (PraosValidationErr $ VRFKeyUnknown blockIssuer) . M.lookup blockIssuer)
-        $ fmap (fromMaybe undefined . M.lookup blockIssuer)
+        $ (=<<) leftToError
+        $ fmap (maybeToRight (PraosValidationErr $ VRFKeyUnknown blockIssuer) . M.lookup blockIssuer)
         $ fmap (SL.unPoolDistr . unPoolDistr)
         $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         $ fmap (decodePoolDistribution era)
+        $ (=<<) leftToError
         $ (=<<) leftToError
         $ (=<<) leftToError
         $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
