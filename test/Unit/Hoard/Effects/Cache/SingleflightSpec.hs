@@ -1,12 +1,11 @@
 module Unit.Hoard.Effects.Cache.SingleflightSpec (spec_Singleflight) where
 
 import Control.Concurrent (threadDelay)
-import Effectful (Eff, IOE, Limit (..), Persistence (..), UnliftStrategy (..), runEff, withEffToIO, (:>))
+import Effectful (IOE, Limit (..), Persistence (..), UnliftStrategy (..), runEff, withEffToIO)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (catch, throwIO)
 import Effectful.State.Static.Shared (State, modify, runState)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow)
-import Prelude hiding (State, modify, runState)
 
 import Control.Concurrent.Async qualified as Async
 

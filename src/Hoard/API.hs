@@ -5,15 +5,14 @@ module Hoard.API
     )
 where
 
-import Effectful (Eff)
 import Servant
 import Servant.Server.Generic (AsServerT)
-import Prelude hiding (appendFile, readFile)
 
 import Hoard.API.Violations (ViolationsAPI, violationsHandler)
 import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Monitoring.Metrics (Metrics, exportMetrics)
+import Prelude hiding ((:>))
 
 
 -- | Named routes for the API

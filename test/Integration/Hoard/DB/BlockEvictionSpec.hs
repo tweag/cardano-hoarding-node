@@ -27,7 +27,6 @@ import Test.Consensus.Shelley.Examples
     )
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
-import Prelude hiding (evalState, head, runReader)
 
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)

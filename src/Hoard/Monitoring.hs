@@ -8,12 +8,10 @@ module Hoard.Monitoring
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.List (partition)
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Rel8 (isNull)
-import Prelude hiding (Reader, State, asks, gets)
 
 import Cardano.Api qualified as C
 import Data.Set qualified as S

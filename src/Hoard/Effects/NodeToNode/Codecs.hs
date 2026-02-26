@@ -2,7 +2,6 @@ module Hoard.Effects.NodeToNode.Codecs (hoistCodecs) where
 
 import Network.TypedProtocol.Codec (hoistCodec)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
-import Prelude hiding (ByteString)
 
 
 hoistCodecs

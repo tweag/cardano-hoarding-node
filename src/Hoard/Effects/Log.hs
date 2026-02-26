@@ -46,12 +46,11 @@ module Hoard.Effects.Log
 import Control.Tracer (Tracer (..))
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
-import Prelude hiding (Reader, ask, local, runReader)
 
 import Data.ByteString.Char8 qualified as B8
 

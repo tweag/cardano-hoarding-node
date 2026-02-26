@@ -7,7 +7,6 @@ import Effectful.FileSystem (runFileSystem)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
-import Prelude hiding (evalState)
 
 import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)

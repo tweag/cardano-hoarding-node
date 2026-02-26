@@ -1,6 +1,5 @@
 module Hoard.Triggers (every) where
 
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 
 

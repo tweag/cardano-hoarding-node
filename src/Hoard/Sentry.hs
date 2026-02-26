@@ -15,13 +15,11 @@ import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
-import Effectful (Eff, (:>))
 import Effectful.Concurrent.STM (Concurrent, atomically)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, evalState, gets)
 import Ouroboros.Consensus.Block (getHeader)
 import StmContainers.Map (Map)
-import Prelude hiding (Map, Reader, State, asks, atomically, evalState, gets)
 
 import StmContainers.Map qualified as Map
 
@@ -40,6 +38,7 @@ import Hoard.Effects.Monitoring.Tracing
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
+import Prelude hiding (Map)
 
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Publishing qualified as Sub

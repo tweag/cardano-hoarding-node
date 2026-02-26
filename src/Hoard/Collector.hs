@@ -3,10 +3,8 @@ module Hoard.Collector
     , collectFromPeer
     ) where
 
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.MVar (newEmptyMVar, putMVar, tryReadMVar)
-import Prelude hiding (newEmptyMVar, putMVar, tryReadMVar)
 
 import Hoard.Data.BlockHash (blockHashFromHeader)
 import Hoard.Data.ID (ID)

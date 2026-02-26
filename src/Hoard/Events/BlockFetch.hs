@@ -8,7 +8,6 @@ module Hoard.Events.BlockFetch
 
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
-import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)

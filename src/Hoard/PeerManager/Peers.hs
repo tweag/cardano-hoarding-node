@@ -9,9 +9,7 @@ module Hoard.PeerManager.Peers
 
 import Data.Default (Default (..))
 import Data.Time (UTCTime)
-import Effectful (Eff, (:>))
-import Effectful.Concurrent.MVar (Concurrent, newEmptyMVar, takeMVar, tryPutMVar)
-import Prelude hiding (newEmptyMVar, takeMVar, tryPutMVar)
+import Effectful.Concurrent.MVar (Concurrent, MVar, newEmptyMVar, takeMVar, tryPutMVar)
 
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)

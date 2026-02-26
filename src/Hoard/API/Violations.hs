@@ -3,12 +3,12 @@ module Hoard.API.Violations
     , violationsHandler
     ) where
 
-import Effectful (Eff)
 import Servant (Get, JSON, QueryParam, type (:-), type (:>))
 
 import Hoard.API.Data.BlockViolation (SlotDispute)
 import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
+import Prelude hiding ((:>))
 
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 

@@ -18,14 +18,13 @@ module Hoard.Effects.WithSocket
 
 import Cardano.Api (File (File), SocketPath)
 import Data.Aeson (FromJSON)
-import Effectful (Eff, Effect, IOE, type (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Labeled (Labeled, runLabeled)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
 import System.Process.Typed (proc, withProcessTerm)
-import Prelude hiding (Reader, ask)
 
 import Hoard.CardanoNode.Config (Config (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))

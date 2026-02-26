@@ -1,9 +1,7 @@
 module Hoard.OrphanDetection (component) where
 
-import Effectful ((:>))
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.State.Static.Shared (State)
-import Prelude hiding (State)
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)

@@ -6,7 +6,6 @@ module Hoard.DB.Schema
     )
 where
 
-import Effectful
 import Rel8
     ( Expr
     , Name

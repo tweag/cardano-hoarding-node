@@ -5,12 +5,10 @@ module Hoard.OrphanDetection.Listeners
 
 import Cardano.Api (BlockHeader, ChainPoint (..), Hash, asType)
 import Cardano.Api.Serialise.Raw (deserialiseFromRawBytes)
-import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Effectful.State.Static.Shared (State, gets, modify)
 import Ouroboros.Consensus.Block (SlotNo (..), blockSlot, getHeader, toRawHash)
 import Ouroboros.Network.Block (blockHash)
-import Prelude hiding (State, gets, modify)
 
 import Data.Set qualified as Set
 

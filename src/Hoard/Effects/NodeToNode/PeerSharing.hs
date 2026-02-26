@@ -2,7 +2,6 @@ module Hoard.Effects.NodeToNode.PeerSharing
     ( miniProtocol
     ) where
 
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
@@ -16,7 +15,6 @@ import Ouroboros.Network.Mux
 import Ouroboros.Network.NodeToNode (peerSharingMiniProtocolNum)
 import Ouroboros.Network.Protocol.PeerSharing.Client (PeerSharingClient (..), peerSharingClientPeer)
 import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
-import Prelude hiding (Reader, State, ask, asks, evalState, runReader)
 
 import Data.Set qualified as S
 import Network.TypedProtocol.Peer.Client qualified as Peer

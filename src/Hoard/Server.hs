@@ -4,12 +4,12 @@ module Hoard.Server
     )
 where
 
-import Effectful (IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
+import Effectful (IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO)
 import Effectful.Exception (try)
 import Effectful.Reader.Static (Reader, ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
+import Relude.Monad.Reexport (ExceptT (..))
 import Servant (Handler (..), hoistServer, serve)
-import Prelude hiding (Reader, ask)
 
 import Hoard.API (API, server)
 import Hoard.Component (Component (..), defaultComponent)

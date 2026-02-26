@@ -12,6 +12,8 @@ module Hoard.Effects.Monitoring.Metrics.Registry
     , observeHistogram
     ) where
 
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+
 import Data.Map.Strict qualified as Map
 import Prometheus qualified as Prom
 

@@ -32,16 +32,11 @@ import Control.Concurrent.Chan.Unagi
     , readChan
     , writeChan
     )
-import Effectful
-    ( Eff
-    , Effect
-    , IOE
-    , inject
-    , (:>)
-    )
+import Effectful (Effect, IOE, inject)
 import Effectful.Concurrent.Async (race)
 import Effectful.Concurrent.MVar
     ( Concurrent
+    , MVar
     , newEmptyMVar
     , putMVar
     , readMVar
@@ -55,12 +50,12 @@ import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import Prelude hiding (Reader, State, ask, evalState, get, newEmptyMVar, put, putMVar, readMVar)
+import Relude.Monad (runExceptT)
 
 import Cardano.Api qualified as C
+import Control.Concurrent.MVar qualified as MVar
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
-import Prelude qualified as P
 
 import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
@@ -225,7 +220,7 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                     pure
                         . Q.SendMsgQuery QueryChainPoint
                         . Q.ClientStQuerying
-                        $ \result -> P.putMVar resultVar (ChainPoint result) $> Q.SendMsgRelease queryImmutableTip
+                        $ \result -> MVar.putMVar resultVar (ChainPoint result) $> Q.SendMsgRelease queryImmutableTip
                 , recvMsgFailure = error "`ImmutableTip` should never fail to be acquired."
                 }
     queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
@@ -234,8 +229,8 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
         pure
             $ S.SendMsgFindIntersect [coerce point]
             $ S.ClientStIntersect
-                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
-                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain
+                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ MVar.putMVar resultVar True *> queryIsOnChain
+                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ MVar.putMVar resultVar False *> queryIsOnChain
                 }
 
 

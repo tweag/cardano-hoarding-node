@@ -3,10 +3,8 @@ module Hoard.Persistence
     , PeerSlotKey
     ) where
 
-import Effectful (Eff, (:>))
 import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlotNo)
-import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))

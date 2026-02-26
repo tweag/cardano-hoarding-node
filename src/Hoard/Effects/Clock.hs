@@ -6,7 +6,7 @@ module Hoard.Effects.Clock
     ) where
 
 import Data.Time (UTCTime, getCurrentTime)
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 

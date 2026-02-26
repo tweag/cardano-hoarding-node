@@ -4,7 +4,6 @@ module Hoard.Effects.NodeToNode.ChainSync
 
 import Cardano.Api.Block (toConsensusPointHF)
 import Control.Tracer (nullTracer)
-import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, gets)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.TypedProtocol (PeerRole (..))
@@ -18,7 +17,6 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode (chainSyncMiniProtocolNum)
 import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
-import Prelude hiding (Reader, State, ask, gets, runReader)
 
 import Data.List qualified as List
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync

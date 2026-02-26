@@ -6,7 +6,7 @@ module Hoard.Effects.HoardStateRepo
     ) where
 
 import Data.Default (Default (def))
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 import Rel8 (lit)

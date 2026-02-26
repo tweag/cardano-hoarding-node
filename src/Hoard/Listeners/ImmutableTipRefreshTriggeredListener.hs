@@ -4,9 +4,7 @@ module Hoard.Listeners.ImmutableTipRefreshTriggeredListener
     , immutableTipRefreshedListener
     ) where
 
-import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State, gets, modifyM)
-import Prelude hiding (State, gets, modify)
 
 import Hoard.Effects.HoardStateRepo (HoardStateRepo, persistImmutableTip)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)

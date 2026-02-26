@@ -7,7 +7,6 @@ import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
 import Test.Hspec
 import Text.Read (read)
-import Prelude hiding (runReader)
 
 import Data.UUID.V4 qualified as UUID
 import Rel8 qualified

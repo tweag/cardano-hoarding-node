@@ -17,7 +17,7 @@ module Hoard.Effects.NodeToNode
 import Cardano.Api ()
 import Data.Time (NominalDiffTime)
 import Data.Traversable (for)
-import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO, (:>))
+import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Exception (Handler (..), IOException, catches)
@@ -54,7 +54,6 @@ import Ouroboros.Network.NodeToNode
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
 import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..))
 import Ouroboros.Network.Snocket (Snocket (..), socketSnocket)
-import Prelude hiding (Reader, State, ask, asks, evalState, get, gets)
 
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP

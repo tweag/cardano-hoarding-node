@@ -2,7 +2,6 @@ module Hoard.Effects.NodeToNode.KeepAlive
     ( miniProtocol
     ) where
 
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -14,7 +13,6 @@ import Ouroboros.Network.Mux
 import Ouroboros.Network.NodeToNode (keepAliveMiniProtocolNum)
 import Ouroboros.Network.Protocol.KeepAlive.Client (KeepAliveClient (..), KeepAliveClientSt (..), keepAliveClientPeer)
 import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
-import Prelude hiding (Reader, State, ask, asks, evalState, gets, runReader)
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 

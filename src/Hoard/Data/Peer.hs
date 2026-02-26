@@ -9,7 +9,6 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
 import Network.Socket (SockAddr)
-import Prelude hiding (id)
 
 import Data.IP qualified as IP
 import Text.Show qualified as Show

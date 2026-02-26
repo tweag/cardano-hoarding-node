@@ -6,7 +6,6 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
-import Prelude hiding (id)
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.ID (ID)

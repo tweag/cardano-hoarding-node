@@ -22,11 +22,10 @@ module Hoard.Effects.Chan
     ) where
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
-import Effectful (Dispatch (..), DispatchOf, Eff, Effect, IOE, (:>))
+import Effectful (Dispatch (..), DispatchOf, Effect, IOE)
 import Effectful.Dispatch.Static (SideEffects (..), StaticRep, evalStaticRep, unsafeEff_)
 import Effectful.State.Static.Shared (evalState, get, modify)
 import Effectful.Timeout (Timeout, timeout)
-import Prelude hiding (evalState, get, modify)
 
 import Control.Concurrent.Chan.Unagi qualified as Unagi
 

@@ -20,11 +20,10 @@ module Hoard.Effects.Conc
     )
 where
 
-import Effectful (Eff, Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), raise, withEffToIO, (:>))
+import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), raise, withEffToIO)
 import Effectful.Concurrent.STM (atomically, runConcurrent)
 import Effectful.Dispatch.Dynamic (EffectHandler, interpose, interpret, localLend, localUnlift, localUnliftIO)
 import Effectful.TH (makeEffect)
-import Prelude hiding (atomically)
 
 import Ki qualified
 import OpenTelemetry.Context qualified as Context
