@@ -410,6 +410,7 @@ test-suite hoard-test
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
       Unit.Hoard.Data.BlockSpec
+      Unit.Hoard.Data.HeaderSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.Cache.SingleflightSpec
       Unit.Hoard.Effects.ConcSpec
