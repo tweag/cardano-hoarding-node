@@ -16,7 +16,8 @@ import Data.UUID qualified as UUID
 
 import Hoard.Collector (filterHeaderReceived)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
@@ -107,6 +108,7 @@ spec_Collector = do
                     . runWriter
                     . runPubWriter @BlockFetch.Request
                     . evalState db
+                    . evalState @(Set (BlockHash, BlockTag)) mempty
                     . runBlockRepoState
                     . runAllValidVerifier
                     $ filterHeaderReceived testPeer.id headerReceived

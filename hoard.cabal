@@ -28,6 +28,7 @@ library
       Hoard.Core
       Hoard.Data.Block
       Hoard.Data.BlockHash
+      Hoard.Data.BlockTag
       Hoard.Data.Eras
       Hoard.Data.Header
       Hoard.Data.ID
@@ -36,6 +37,7 @@ library
       Hoard.Data.PoolID
       Hoard.DB.Schema
       Hoard.DB.Schemas.Blocks
+      Hoard.DB.Schemas.BlockTags
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
       Hoard.DB.Schemas.HoardState

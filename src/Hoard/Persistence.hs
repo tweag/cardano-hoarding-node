@@ -36,6 +36,7 @@ import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Sentry (AdversarialBehavior (..))
 
+import Hoard.Data.BlockTag qualified as BlockTag
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
@@ -101,8 +102,9 @@ blockReceived event = withSpan "persistence.block_received" do
 
     res <- verifyBlock block
     case res of
-        Left _invalidBlock ->
+        Left _invalidBlock -> do
             addAttribute "block.valid" False
+            BlockRepo.tagBlock block.hash [BlockTag.CorruptBlockIntegrity]
         Right validBlock -> do
             addAttribute "block.valid" True
 
