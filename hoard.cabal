@@ -31,6 +31,7 @@ library
       Hoard.Data.BlockTag
       Hoard.Data.Eras
       Hoard.Data.Header
+      Hoard.Data.HeaderTag
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.Data.PeerNote
@@ -40,6 +41,7 @@ library
       Hoard.DB.Schemas.BlockTags
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
+      Hoard.DB.Schemas.HeaderTags
       Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
@@ -410,6 +412,7 @@ test-suite hoard-test
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
       Unit.Hoard.Data.BlockSpec
+      Unit.Hoard.Data.HeaderSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.Cache.SingleflightSpec
       Unit.Hoard.Effects.ConcSpec
