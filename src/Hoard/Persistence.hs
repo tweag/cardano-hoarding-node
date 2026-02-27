@@ -17,7 +17,7 @@ import Hoard.Data.Peer (Peer (..))
 import Hoard.Data.PeerNote (NoteType (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
+import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
@@ -33,7 +33,7 @@ import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Effects.Quota (MessageStatus (..), Quota)
-import Hoard.Effects.Verifier (Verifier, verifyBlock)
+import Hoard.Effects.Verifier (Verifier, getVerified, verifyBlock, verifyHeader)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
@@ -42,7 +42,9 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Data.BlockTag qualified as BlockTag
+import Hoard.Data.HeaderTag qualified as HeaderTag
 import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.HeaderRepo qualified as HeaderRepo
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
@@ -92,12 +94,24 @@ newtype PeerSlotKey = PeerSlotKey (ID Peer, Int64)
 
 
 headerReceived
-    :: (HeaderRepo :> es, Metrics :> es, Tracing :> es)
+    :: ( HeaderRepo :> es
+       , Metrics :> es
+       , Tracing :> es
+       , Verifier :> es
+       )
     => UTCTime -> HeaderReceived -> Eff es ()
 headerReceived timestamp event = withSpan "persistence.header_received" do
-    recordHeaderReceived
     let header = extractHeaderData timestamp event.header
-    upsertHeader header event.peer timestamp
+    verifyHeader header >>= \case
+        Left invalidHeader -> do
+            addAttribute "header.valid" False
+            HeaderRepo.tagHeader
+                ((.hash) $ getVerified invalidHeader)
+                [HeaderTag.CorruptHeaderIntegrity]
+        Right validHeader -> do
+            addAttribute "header.valid" True
+            HeaderRepo.upsertHeader validHeader event.peer timestamp
+            recordHeaderReceived
 
 
 blockReceived

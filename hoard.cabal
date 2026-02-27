@@ -32,6 +32,7 @@ library
       Hoard.Data.BlockTag
       Hoard.Data.Eras
       Hoard.Data.Header
+      Hoard.Data.HeaderTag
       Hoard.Data.ID
       Hoard.Data.Peer
       Hoard.Data.PeerNote
@@ -41,6 +42,7 @@ library
       Hoard.DB.Schemas.BlockTags
       Hoard.DB.Schemas.HeaderReceipts
       Hoard.DB.Schemas.Headers
+      Hoard.DB.Schemas.HeaderTags
       Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
@@ -137,6 +139,7 @@ library
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-ledger-binary
     , cardano-ledger-byron
     , cardano-ledger-core
     , cardano-ledger-shelley
