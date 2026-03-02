@@ -47,7 +47,6 @@ import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.ImmutableTipRefreshTriggered qualified as NodeToClient
 import Hoard.Events.KeepAlive qualified as KeepAlive
-import Hoard.Events.Network qualified as Network
 import Hoard.Events.PeerSharing qualified as PeerSharing
 import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.Monitoring qualified as Monitoring
@@ -109,7 +108,6 @@ main =
         . runPubSub @ChainSync.RollForward
         . runPubSub @KeepAlive.Ping
         . runPubSub @Monitoring.Poll
-        . runPubSub @Network.ProtocolError
         . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
         . runPubSub @ImmutableTip.Refreshed
         . runPubSub @PeerManager.CullRequested

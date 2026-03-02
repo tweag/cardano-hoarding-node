@@ -7,29 +7,19 @@ import Effectful.Reader.Static (Reader, asks)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
-import Hoard.Effects.Publishing (Sub, listen)
-import Hoard.Events.Network (ProtocolError)
-import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 component
     :: ( IOE :> es
-       , Log :> es
        , Reader SetupConfig :> es
-       , Sub ProtocolError :> es
        , Tracing :> es
        )
     => Component es
 component =
     defaultComponent
         { name = "Core"
-        , listeners =
-            pure
-                [ listen protocolErrorListener
-                ]
         , setup = do
             -- Set file descriptor limits
             setFileDescriptorLimit
