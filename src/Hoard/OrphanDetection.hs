@@ -1,6 +1,7 @@
-module Hoard.OrphanDetection (component) where
+module Hoard.OrphanDetection (component, Config (..)) where
 
 import Effectful.Error.Static (runErrorNoCallStack)
+import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 
 import Hoard.Component (Component (..), defaultComponent)
@@ -12,6 +13,7 @@ import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Events.BlockFetch (BlockReceived)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
+import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Log qualified as Log
@@ -24,6 +26,7 @@ component
        , Clock :> es
        , Log :> es
        , NodeToClient :> es
+       , Reader Config :> es
        , State HoardState :> es
        , Sub BlockReceived :> es
        , Sub ImmutableTipRefreshed :> es

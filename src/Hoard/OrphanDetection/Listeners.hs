@@ -6,6 +6,7 @@ module Hoard.OrphanDetection.Listeners
 import Cardano.Api (BlockHeader, ChainPoint (..), Hash, asType)
 import Cardano.Api.Serialise.Raw (deserialiseFromRawBytes)
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, gets, modify)
 import Ouroboros.Consensus.Block (SlotNo (..), blockSlot, getHeader, toRawHash)
 import Ouroboros.Network.Block (blockHash)
@@ -19,6 +20,7 @@ import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
+import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.HoardState (HoardState (..))
@@ -117,19 +119,21 @@ immutableTipUpdatedAger
        , Clock :> es
        , Error Text :> es
        , NodeToClient :> es
+       , Reader Config :> es
        , State HoardState :> es
        , Tracing :> es
        )
     => ImmutableTipRefreshed
     -> Eff es ()
 immutableTipUpdatedAger _event = withSpan "immutable_tip_updated_ager" do
+    cfg <- ask
     newSlot <- gets (chainPointToSlot . (.immutableTip))
     beingClassified <- gets (.blocksBeingClassified)
 
     addAttribute "being_classified.count" $ Set.size beingClassified
 
-    -- Get up to 1000 unclassified blocks that are not currently being classified
-    unclassifiedBlocks <- BlockRepo.getUnclassifiedBlocksBeforeSlot newSlot 1000 beingClassified
+    -- Get up to agingBatchSize unclassified blocks that are not currently being classified
+    unclassifiedBlocks <- BlockRepo.getUnclassifiedBlocksBeforeSlot newSlot cfg.agingBatchSize beingClassified
 
     addAttribute "unclassified.count" $ length unclassifiedBlocks
 

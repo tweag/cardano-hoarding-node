@@ -105,6 +105,9 @@ quota:
   entry_ttl: 43200 # 12 hours
   cleanup_interval: 3600 # 1 hour
 
+orphan_detection:
+  aging_batch_size: 1000
+
 block_eviction:
   eviction_interval_seconds: 3600 # 1 hour
 
