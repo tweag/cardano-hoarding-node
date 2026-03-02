@@ -1,13 +1,14 @@
 module Hoard.Data.Eras
     ( BlockEra (..)
     , blockToEra
+    , headerToEra
     ) where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..))
+import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..), Header (..))
 import Rel8 (DBEq, DBType, ReadShow (..))
 
-import Hoard.Types.Cardano (CardanoBlock)
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
@@ -21,6 +22,18 @@ blockToEra = \case
     BlockBabbage _ -> Babbage
     BlockConway _ -> Conway
     BlockDijkstra _ -> Dijkstra
+
+
+headerToEra :: CardanoHeader -> BlockEra
+headerToEra = \case
+    HeaderByron _ -> Byron
+    HeaderAllegra _ -> Allegra
+    HeaderAlonzo _ -> Alonzo
+    HeaderMary _ -> Mary
+    HeaderShelley _ -> Shelley
+    HeaderBabbage _ -> Babbage
+    HeaderConway _ -> Conway
+    HeaderDijkstra _ -> Dijkstra
 
 
 data BlockEra

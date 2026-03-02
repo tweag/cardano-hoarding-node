@@ -1,15 +1,20 @@
 module Integration.Hoard.DB.HeaderPersistenceSpec (spec_HeaderPersistence) where
 
+import Data.Maybe (fromJust)
 import Data.Time (UTCTime, getCurrentTime)
-import Effectful (runEff)
+import Effectful (runEff, runPureEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
+import Test.Consensus.Shelley.Examples (examplesShelley)
 import Test.Hspec
+import Test.Util.Serialisation.Examples (Examples (..))
 import Text.Read (read)
 
 import Data.UUID.V4 qualified as UUID
+import Ouroboros.Consensus.Cardano.Block qualified as O
 import Rel8 qualified
+import Relude.Unsafe qualified
 
 import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
@@ -22,11 +27,14 @@ import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
 import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
+import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.Types.Cardano (CardanoHeader)
 
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.Effects.Log qualified as Log
+import Hoard.Effects.Verifier qualified as Verifier
 
 
 spec_HeaderPersistence :: Spec
@@ -61,12 +69,14 @@ spec_HeaderPersistence = do
             now <- getCurrentTime
             peer <- mkTestPeer now
             let header =
-                    Header
-                        { hash = BlockHash "abc123def456"
-                        , slotNumber = 12345
-                        , blockNumber = 100
-                        , firstSeenAt = now
-                        }
+                    makeValid
+                        Header
+                            { hash = BlockHash "abc123def456"
+                            , headerData = exampleHdr
+                            , slotNumber = 12345
+                            , blockNumber = 100
+                            , firstSeenAt = now
+                            }
 
             -- First, create the peer (upsertPeers returns the peer with DB-assigned ID)
             result <- runWrite config $ do
@@ -95,12 +105,14 @@ spec_HeaderPersistence = do
             now <- getCurrentTime
             peer <- mkTestPeer now
             let header =
-                    Header
-                        { hash = BlockHash "abc123def456"
-                        , slotNumber = 12345
-                        , blockNumber = 100
-                        , firstSeenAt = now
-                        }
+                    makeValid
+                        Header
+                            { hash = BlockHash "abc123def456"
+                            , headerData = exampleHdr
+                            , slotNumber = 12345
+                            , blockNumber = 100
+                            , firstSeenAt = now
+                            }
 
             -- Create peer first (upsertPeers returns the peer with DB-assigned ID)
             _ <- runWrite config $ do
@@ -124,12 +136,14 @@ spec_HeaderPersistence = do
             peer1 <- mkTestPeerWithPort now 3001
             peer2 <- mkTestPeerWithPort now 3002
             let header =
-                    Header
-                        { hash = BlockHash "abc123def456"
-                        , slotNumber = 12345
-                        , blockNumber = 100
-                        , firstSeenAt = now
-                        }
+                    makeValid
+                        Header
+                            { hash = BlockHash "abc123def456"
+                            , headerData = exampleHdr
+                            , slotNumber = 12345
+                            , blockNumber = 100
+                            , firstSeenAt = now
+                            }
 
             -- Create both peers (upsertPeers returns peers with DB-assigned IDs)
             _ <- runWrite config $ do
@@ -180,6 +194,15 @@ mkTestPeerWithPort now port = do
             }
 
 
+makeValid :: Header -> Verified 'Valid Header
+makeValid =
+    fromJust
+        . rightToMaybe
+        . runPureEff
+        . Verifier.runAllValidVerifier
+        . Verifier.verifyHeader
+
+
 -- Helper statements
 
 countHeadersStmt :: Statement () Int
@@ -188,3 +211,7 @@ countHeadersStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each HeadersSchem
 
 countReceiptsStmt :: Statement () Int
 countReceiptsStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each HeaderReceiptsSchema.schema
+
+
+exampleHdr :: CardanoHeader
+exampleHdr = O.HeaderShelley . snd . Relude.Unsafe.head $ examplesShelley.exampleHeader
