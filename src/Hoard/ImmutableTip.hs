@@ -1,6 +1,6 @@
 module Hoard.ImmutableTip
     ( component
-    , ImmutableTipRefreshed (..)
+    , Refreshed (..)
     , Config
     ) where
 
@@ -29,7 +29,7 @@ component
        , HoardStateRepo.HoardStateRepo :> es
        , NodeToClient :> es
        , Pub ImmutableTipRefreshTriggered :> es
-       , Pub ImmutableTipRefreshed :> es
+       , Pub Refreshed :> es
        , Reader Config :> es
        , State HoardState :> es
        , Sub ImmutableTipRefreshTriggered :> es
@@ -64,7 +64,7 @@ component =
 -- If fetching the tip fails due to a connection error, it retries once to reconnect and fetch.
 immutableTipRefreshTriggeredListener
     :: ( NodeToClient :> es
-       , Pub ImmutableTipRefreshed :> es
+       , Pub Refreshed :> es
        , State HoardState :> es
        , Tracing :> es
        )
@@ -77,12 +77,12 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "im
             setStatus Ok
             modifyM $ \hoardState ->
                 if hoardState.immutableTip < tip then
-                    publish ImmutableTipRefreshed $> hoardState {immutableTip = tip}
+                    publish Refreshed $> hoardState {immutableTip = tip}
                 else
                     pure hoardState
 
 
-data ImmutableTipRefreshed = ImmutableTipRefreshed
+data Refreshed = Refreshed
 
 
 data Config = Config

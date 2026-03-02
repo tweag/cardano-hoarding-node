@@ -19,7 +19,6 @@ import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.ImmutableTip (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoBlock)
@@ -28,6 +27,7 @@ import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.NodeToClient qualified as NodeToClient
 import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.Types.Cardano qualified as Hoard
 
 
@@ -123,7 +123,7 @@ immutableTipUpdatedAger
        , State HoardState :> es
        , Tracing :> es
        )
-    => ImmutableTipRefreshed
+    => ImmutableTip.Refreshed
     -> Eff es ()
 immutableTipUpdatedAger _event = withSpan "immutable_tip_updated_ager" do
     cfg <- ask

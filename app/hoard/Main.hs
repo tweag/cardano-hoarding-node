@@ -111,7 +111,7 @@ main =
         . runPubSub @Monitoring.Poll
         . runPubSub @Network.ProtocolError
         . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
-        . runPubSub @ImmutableTip.ImmutableTipRefreshed
+        . runPubSub @ImmutableTip.Refreshed
         . runPubSub @PeerManager.CullRequested
         . runPubSub @PeerManager.PeerDisconnected
         . runPubSub @PeerManager.PeerRequested

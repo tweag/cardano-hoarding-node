@@ -36,7 +36,6 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
-import Hoard.ImmutableTip (ImmutableTipRefreshed (..))
 import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -48,6 +47,7 @@ import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Effects.Quota qualified as Quota
+import Hoard.ImmutableTip qualified as ImmutableTip
 
 
 component
@@ -63,7 +63,7 @@ component
        , Sub AdversarialBehavior :> es
        , Sub BlockReceived :> es
        , Sub HeaderReceived :> es
-       , Sub ImmutableTipRefreshed :> es
+       , Sub ImmutableTip.Refreshed :> es
        , Sub PeersReceived :> es
        , Tracing :> es
        , Verifier :> es
@@ -158,8 +158,8 @@ persistImmutableTipOnRefresh
        , State HoardState :> es
        , Tracing :> es
        )
-    => ImmutableTipRefreshed -> Eff es ()
-persistImmutableTipOnRefresh ImmutableTipRefreshed = withSpan "immutable_tip.persist" do
+    => ImmutableTip.Refreshed -> Eff es ()
+persistImmutableTipOnRefresh ImmutableTip.Refreshed = withSpan "immutable_tip.persist" do
     tip <- gets (.immutableTip)
     HoardStateRepo.persistImmutableTip tip
 
