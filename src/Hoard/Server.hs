@@ -4,11 +4,11 @@ module Hoard.Server
     )
 where
 
+import Control.Monad.Trans.Except (ExceptT (..))
 import Effectful (IOE, Limit (..), Persistence (..), UnliftStrategy (..), withEffToIO)
 import Effectful.Exception (try)
 import Effectful.Reader.Static (Reader, ask)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
-import Relude.Monad.Reexport (ExceptT (..))
 import Servant (Handler (..), hoistServer, serve)
 
 import Hoard.API (API, server)

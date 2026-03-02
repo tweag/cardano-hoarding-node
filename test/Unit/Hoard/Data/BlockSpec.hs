@@ -13,7 +13,7 @@ import Test.Consensus.Shelley.Examples
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
 
-import Relude.Unsafe qualified
+import Data.List qualified as List
 import Test.Consensus.Byron.Examples qualified as Byron
 
 import Hoard.Data.Block (decodeCardanoBlock, encodeCardanoBlock)
@@ -41,4 +41,4 @@ blocks =
         Conway -> (x, mkBlock BlockConway examplesConway)
         Dijkstra -> (x, mkBlock BlockDijkstra examplesDijkstra)
   where
-    mkBlock mk examples = mk $ snd $ Relude.Unsafe.head $ examples.exampleBlock
+    mkBlock mk examples = mk $ snd $ List.head $ examples.exampleBlock
