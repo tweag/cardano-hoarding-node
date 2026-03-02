@@ -14,6 +14,7 @@ import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
+import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
@@ -32,6 +33,7 @@ spec_Schema = withCleanTestDatabase $ do
             weakTestSchema config testTime HeadersSchema.schema
             weakTestSchema config testTime BlocksSchema.schema
             weakTestSchema config testTime HoadStateSchema.schema
+            weakTestSchema config testTime BlockTagsSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors

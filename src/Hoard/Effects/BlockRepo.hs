@@ -7,6 +7,7 @@ module Hoard.Effects.BlockRepo
     , getUnclassifiedBlocksBeforeSlot
     , getViolations
     , evictBlocks
+    , tagBlock
     , runBlockRepo
     , runBlockRepoState
     ) where
@@ -30,6 +31,7 @@ import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolat
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
+import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
@@ -37,6 +39,7 @@ import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
 
+import Hoard.DB.Schemas.BlockTags qualified as BlockTags
 import Hoard.DB.Schemas.Blocks qualified as Blocks
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
 import Hoard.Effects.Cache.Singleflight qualified as Singleflight
@@ -50,6 +53,7 @@ data BlockRepo :: Effect where
     GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
     GetViolations :: Maybe Int64 -> Maybe Int64 -> BlockRepo m [SlotDispute]
     EvictBlocks :: BlockRepo m Int
+    TagBlock :: BlockHash -> [BlockTag] -> BlockRepo m ()
 
 
 makeEffect ''BlockRepo
@@ -99,6 +103,10 @@ runBlockRepo action = do
             Singleflight.removeFromCache hashes
             addAttribute "evicted.count" $ length hashes
             pure $ length hashes
+        TagBlock hash tag ->
+            withSpan "block_repo.tag_block"
+                $ runTransaction "tag-block"
+                $ tagBlockTrans hash tag
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
@@ -266,11 +274,36 @@ deleteBlocksByHashesQuery hashes =
                 }
 
 
-runBlockRepoState :: (State [Block] :> es) => Eff (BlockRepo : es) a -> Eff es a
+tagBlockTrans :: BlockHash -> [BlockTag] -> Transaction ()
+tagBlockTrans hash tags =
+    TX.statement ()
+        $ Rel8.run_
+        $ Rel8.insert
+            Rel8.Insert
+                { into = BlockTags.schema
+                , rows = Rel8.values $ mkRow <$> tags
+                , onConflict = Rel8.DoNothing
+                , returning = Rel8.NoReturning
+                }
+  where
+    mkRow tag =
+        BlockTags.Row
+            { id = Rel8.unsafeDefault
+            , blockHash = lit hash
+            , tag = lit tag
+            , taggedAt = Rel8.unsafeDefault
+            }
+
+
+runBlockRepoState
+    :: ( State (Set (BlockHash, BlockTag)) :> es
+       , State [Block] :> es
+       )
+    => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
     GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
-    BlockExists blockHash -> gets $ isJust . find ((blockHash ==) . (.hash))
+    BlockExists blockHash -> gets @[Block] $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp ->
         modify $ fmap $ \block ->
             if block.hash == blockHash then
@@ -302,3 +335,5 @@ runBlockRepoState = interpret_ \case
             (evictable, keep) = partition isEvictable blocks
         put keep
         pure (length evictable)
+    TagBlock hash tags ->
+        modify @(Set (BlockHash, BlockTag)) $ Set.union $ Set.fromList $ (hash,) <$> tags

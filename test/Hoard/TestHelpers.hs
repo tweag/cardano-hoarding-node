@@ -20,7 +20,7 @@ import Effectful
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
-import Effectful.State.Static.Shared (State, runState)
+import Effectful.State.Static.Shared (State, evalState, runState)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Servant (hoistServer, serve)
@@ -31,6 +31,8 @@ import Servant.Server (Handler (..))
 
 import Hoard.API (API, Routes, server)
 import Hoard.Data.Block (Block)
+import Hoard.Data.BlockHash (BlockHash)
+import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
@@ -82,26 +84,26 @@ runEffectStackTest
     -> m (a, HoardState)
 runEffectStackTest eff = liftIO $ do
     let testTime = UTCTime (toEnum 0) 0
-    ((a, finalState), _blockState) <-
-        runEff
-            . runFileSystem
-            . runChan
-            . runTracingNoOp
-            . runConc
-            . runReader (def :: Log.Config)
-            . runLog
-            . runClockConst testTime
-            . runMetrics
-            . runState @[Block] []
-            . runBlockRepoState
-            . runState @HoardState def
-            $ eff
-    pure (a, finalState)
+    runEff
+        . runFileSystem
+        . runChan
+        . runTracingNoOp
+        . runConc
+        . runReader @Log.Config def
+        . runLog
+        . runClockConst testTime
+        . runMetrics
+        . evalState @[Block] []
+        . evalState @(Set (BlockHash, BlockTag)) mempty
+        . runBlockRepoState
+        . runState @HoardState def
+        $ eff
 
 
 type TestAppEffs =
     [ State HoardState
     , BlockRepo
+    , State (Set (BlockHash, BlockTag))
     , State [Block]
     , Metrics
     , Clock
