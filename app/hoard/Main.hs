@@ -33,16 +33,7 @@ import Hoard.Effects.Publishing (runPubSub)
 import Hoard.Effects.Quota (runQuota)
 import Hoard.Effects.UUID (runGenUUID)
 import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
-import Hoard.Events.ChainSync (ChainSyncIntersectionFound, ChainSyncStarted, HeaderReceived (..), RollBackward, RollForward)
-import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered)
-import Hoard.Events.KeepAlive (KeepAlivePing)
-import Hoard.Events.Network (ProtocolError)
-import Hoard.Events.PeerSharing (PeerSharingFailed, PeerSharingStarted, PeersReceived)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
-import Hoard.Monitoring (Poll)
-import Hoard.PeerManager (CullRequested, PeerDisconnected, PeerRequested)
 import Hoard.PeerManager.Peers (Peers)
-import Hoard.Persistence (PeerSlotKey)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.BlockEviction qualified as BlockEviction
@@ -54,6 +45,12 @@ import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.Quota.Config qualified as Quota
 import Hoard.Effects.WithSocket qualified as WithSocket
 import Hoard.Events.BlockFetch qualified as BlockFetch
+import Hoard.Events.ChainSync qualified as ChainSync
+import Hoard.Events.ImmutableTipRefreshTriggered qualified as NodeToClient
+import Hoard.Events.KeepAlive qualified as KeepAlive
+import Hoard.Events.Network qualified as Network
+import Hoard.Events.PeerSharing qualified as PeerSharing
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener qualified as NodeToClient
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
@@ -99,28 +96,25 @@ main =
         . evalState @Peers def
         . Sentry.runDuplicateBlocksState
         . runConc
-        . runQuota @PeerSlotKey 1
-        . runPubSub @ChainSyncStarted
-        . runPubSub @ChainSyncIntersectionFound
-        . runPubSub @RollBackward
-        . runPubSub @RollForward
-        . runPubSub @HeaderReceived
-        . runPubSub @BlockFetch.RequestStarted
-        . runPubSub @BlockFetch.Request
-        . runPubSub @BlockFetch.BlockReceived
+        . runQuota @Persistence.PeerSlotKey 1
         . runPubSub @BlockFetch.BatchCompleted
+        . runPubSub @BlockFetch.BlockReceived
+        . runPubSub @BlockFetch.Request
         . runPubSub @BlockFetch.RequestFailed
-        . runPubSub @PeerSharingStarted
-        . runPubSub @PeersReceived
-        . runPubSub @PeerSharingFailed
-        . runPubSub @CullRequested
-        . runPubSub @PeerRequested
-        . runPubSub @PeerDisconnected
-        . runPubSub @Poll
-        . runPubSub @ImmutableTipRefreshTriggered
-        . runPubSub @ImmutableTipRefreshed
-        . runPubSub @ProtocolError
-        . runPubSub @KeepAlivePing
+        . runPubSub @BlockFetch.RequestStarted
+        . runPubSub @ChainSync.HeaderReceived
+        . runPubSub @ChainSync.IntersectionFound
+        . runPubSub @ChainSync.RollBackward
+        . runPubSub @ChainSync.RollForward
+        . runPubSub @KeepAlive.Ping
+        . runPubSub @Monitoring.Poll
+        . runPubSub @Network.ProtocolError
+        . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
+        . runPubSub @NodeToClient.ImmutableTipRefreshed
+        . runPubSub @PeerManager.CullRequested
+        . runPubSub @PeerManager.PeerDisconnected
+        . runPubSub @PeerManager.PeerRequested
+        . runPubSub @PeerSharing.PeersReceived
         . runPubSub @Sentry.AdversarialBehavior
         . runGenUUID
         . runNodeToClient

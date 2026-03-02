@@ -34,7 +34,6 @@ import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
-import Hoard.Events.KeepAlive (KeepAlivePing (..))
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Sentry (AdversarialBehavior (..))
@@ -47,6 +46,7 @@ import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
+import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Sentry qualified as Sentry
 
 
@@ -73,7 +73,7 @@ component
        , Sub AdversarialBehavior :> es
        , Sub ChainSync.HeaderReceived :> es
        , Sub CullRequested :> es
-       , Sub KeepAlivePing :> es
+       , Sub KeepAlive.Ping :> es
        , Sub PeerDisconnected :> es
        , Sub PeerRequested :> es
        , Tracing :> es
@@ -131,7 +131,7 @@ triggerReplenish = do
 -- * Listeners
 
 
-updatePeerConnectionState :: (State Peers :> es) => KeepAlivePing -> Eff es ()
+updatePeerConnectionState :: (State Peers :> es) => KeepAlive.Ping -> Eff es ()
 updatePeerConnectionState event =
     modify
         $ Peers

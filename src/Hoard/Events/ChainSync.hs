@@ -1,9 +1,8 @@
 module Hoard.Events.ChainSync
-    ( ChainSyncStarted (..)
-    , HeaderReceived (..)
+    ( HeaderReceived (..)
     , RollBackward (..)
     , RollForward (..)
-    , ChainSyncIntersectionFound (..)
+    , IntersectionFound (..)
     ) where
 
 import Cardano.Api.LedgerState ()
@@ -17,13 +16,6 @@ import Hoard.Types.Cardano (CardanoHeader, CardanoPoint, CardanoTip)
 --
 -- ChainSync is responsible for synchronizing chain headers with peers,
 -- handling forks and rollbacks.
-data ChainSyncStarted = ChainSyncStarted
-    { peer :: Peer
-    , timestamp :: UTCTime
-    }
-    deriving (Show, Typeable)
-
-
 data HeaderReceived = HeaderReceived
     { peer :: Peer
     , timestamp :: UTCTime
@@ -52,7 +44,7 @@ data RollForward = RollForward
     deriving (Typeable)
 
 
-data ChainSyncIntersectionFound = ChainSyncIntersectionFound
+data IntersectionFound = IntersectionFound
     { peer :: Peer
     , timestamp :: UTCTime
     , point :: CardanoPoint

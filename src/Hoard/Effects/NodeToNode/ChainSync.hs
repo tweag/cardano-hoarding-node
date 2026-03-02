@@ -32,12 +32,7 @@ import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, re
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
 import Hoard.Effects.Publishing (Pub, publish)
-import Hoard.Events.ChainSync
-    ( ChainSyncIntersectionFound (..)
-    , ChainSyncStarted (..)
-    , HeaderReceived (..)
-    , RollBackward (..)
-    )
+import Hoard.Events.ChainSync (HeaderReceived (..), IntersectionFound (..), RollBackward (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -50,9 +45,8 @@ miniProtocol
      . ( Clock :> es
        , Log :> es
        , Metrics :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
+       , Pub IntersectionFound :> es
        , Pub RollBackward :> es
        , State HoardState :> es
        , Tracing :> es
@@ -91,9 +85,8 @@ client
      . ( Clock :> es
        , Log :> es
        , Metrics :> es
-       , Pub ChainSyncIntersectionFound :> es
-       , Pub ChainSyncStarted :> es
        , Pub HeaderReceived :> es
+       , Pub IntersectionFound :> es
        , Pub RollBackward :> es
        , State HoardState :> es
        , Tracing :> es
@@ -102,20 +95,14 @@ client
     -> Peer
     -> PeerPipelined (ChainSync CardanoHeader CardanoPoint CardanoTip) AsClient ChainSync.StIdle IO ()
 client unlift peer =
-    ClientPipelined
-        $ Effect
-        $ unlift
-        $ withExceptionLogging "ChainSync"
-        $ do
-            timestamp <- Clock.currentTime
-            publish $ ChainSyncStarted {peer, timestamp}
-            initialPoints <-
-                fmap List.singleton
-                    . fmap toConsensusPointHF
-                    . coerce
-                    . gets @HoardState
-                    $ (.immutableTip)
-            pure (findIntersect initialPoints)
+    ClientPipelined $ Effect $ unlift $ withExceptionLogging "ChainSync" do
+        initialPoints <-
+            fmap List.singleton
+                . fmap toConsensusPointHF
+                . coerce
+                . gets @HoardState
+                $ (.immutableTip)
+        pure (findIntersect initialPoints)
   where
     findIntersect :: forall c. [CardanoPoint] -> Client (ChainSync CardanoHeader CardanoPoint CardanoTip) (Pipelined Z c) ChainSync.StIdle IO ()
     findIntersect initialPoints =
@@ -128,7 +115,7 @@ client unlift peer =
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ withSpan "chain_sync.intersection_found" do
                 timestamp <- Clock.currentTime
                 publish
-                    $ ChainSyncIntersectionFound
+                    $ IntersectionFound
                         { peer
                         , timestamp
                         , point
