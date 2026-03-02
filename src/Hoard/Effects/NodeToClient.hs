@@ -32,6 +32,7 @@ import Control.Concurrent.Chan.Unagi
     , readChan
     , writeChan
     )
+import Control.Monad.Trans.Except (runExceptT)
 import Effectful (Effect, IOE, inject)
 import Effectful.Concurrent.Async (race)
 import Effectful.Concurrent.MVar
@@ -50,7 +51,6 @@ import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import Relude.Monad (runExceptT)
 
 import Cardano.Api qualified as C
 import Control.Concurrent.MVar qualified as MVar

@@ -7,11 +7,12 @@ import Effectful.Writer.Static.Shared (runWriter)
 import Ouroboros.Consensus.Block (GetHeader (getHeader))
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (BlockShelley))
 import Ouroboros.Network.Block (Tip (TipGenesis))
-import Relude.Unsafe (head, read)
 import Test.Consensus.Shelley.Examples (examplesShelley)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Util.Serialisation.Examples (Examples (..))
+import Text.Read (read)
 
+import Data.List qualified as List
 import Data.UUID qualified as UUID
 
 import Hoard.Collector (filterHeaderReceived)
@@ -33,7 +34,7 @@ import Hoard.Events.BlockFetch qualified as BlockFetch
 
 
 testBlock :: CardanoBlock
-testBlock = BlockShelley $ snd $ Relude.Unsafe.head examplesShelley.exampleBlock
+testBlock = BlockShelley $ snd $ List.head examplesShelley.exampleBlock
 
 
 testHeader :: CardanoHeader
