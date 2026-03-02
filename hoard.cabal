@@ -240,8 +240,10 @@ library hoard-prelude
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-crypto-class
     , cardano-ledger-core
     , cardano-ledger-shelley
+    , cardano-protocol-tpraos
     , casing
     , cborg
     , containers
