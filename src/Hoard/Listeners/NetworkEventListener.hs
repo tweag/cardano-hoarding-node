@@ -1,7 +1,5 @@
 module Hoard.Listeners.NetworkEventListener (protocolErrorListener) where
 
-import Effectful (Eff, (:>))
-
 import Hoard.Effects.Log (Log)
 import Hoard.Events.Network (ProtocolError (..))
 

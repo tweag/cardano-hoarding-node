@@ -7,7 +7,6 @@ module Hoard.Component
     , runSystem
     ) where
 
-import Effectful (Eff, (:>))
 import Text.Casing (fromHumps, toQuietSnake)
 
 import Hoard.Effects.Conc (Conc)

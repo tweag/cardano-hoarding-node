@@ -11,7 +11,7 @@ module Hoard.Effects.PeerRepo
 where
 
 import Data.Time (NominalDiffTime, UTCTime, calendarTimeTime)
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)

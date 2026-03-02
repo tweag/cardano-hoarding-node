@@ -5,7 +5,6 @@ import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Test.Hspec
-import Prelude hiding (runReader)
 
 import Rel8 qualified
 

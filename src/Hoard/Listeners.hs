@@ -1,8 +1,6 @@
 module Hoard.Listeners (runListeners) where
 
-import Effectful (Eff, (:>))
 import Effectful.State.Static.Shared (State)
-import Prelude hiding (Reader, State)
 
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)

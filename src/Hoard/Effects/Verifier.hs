@@ -24,7 +24,8 @@ import Cardano.Api
     , readByronGenesisConfig
     , readShelleyGenesisConfig
     )
-import Effectful (Eff, Effect, IOE, (:>))
+import Control.Monad.Trans.Except (runExceptT)
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, ask, runReader)
@@ -35,7 +36,6 @@ import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..), Header (..))
 import Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock, ShelleyCompatible, shelleyHeaderRaw)
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsKES)
 import System.IO.Error (userError)
-import Prelude hiding (Reader, ask, runReader)
 
 import Cardano.Api.Byron qualified as Byron
 import Ouroboros.Consensus.Byron.Ledger.Integrity qualified as Byron

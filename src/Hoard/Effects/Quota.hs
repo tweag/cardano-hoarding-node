@@ -38,13 +38,13 @@ module Hoard.Effects.Quota
     ) where
 
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Concurrent (Concurrent, threadDelay)
+import Effectful.Concurrent.STM (STM)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import StmContainers.Map (Map)
-import Prelude hiding (Map, Reader, ask)
 
 import Effectful.Concurrent.STM qualified as STM
 import ListT qualified
@@ -54,6 +54,7 @@ import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Quota.Config
+import Prelude hiding (Map)
 
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log

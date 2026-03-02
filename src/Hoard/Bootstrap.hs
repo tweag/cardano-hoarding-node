@@ -2,10 +2,9 @@ module Hoard.Bootstrap (bootstrapPeers) where
 
 import Control.Exception (try)
 import Data.IP (IP)
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE)
 import Effectful.Reader.Static (Reader, ask)
 import Network.Socket (HostName, PortNumber)
-import Prelude hiding (Reader, ask)
 
 import Data.IP qualified as IP
 import Data.Set qualified as S

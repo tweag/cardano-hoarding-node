@@ -1,9 +1,8 @@
 module Unit.Hoard.Effects.ConcSpec (spec_Conc) where
 
-import Effectful (Eff, IOE, runEff)
+import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent, threadDelay)
 import Test.Hspec (Spec, context, describe, it, shouldBe, shouldSatisfy)
-import Prelude
 
 import Data.IORef qualified as IORef
 

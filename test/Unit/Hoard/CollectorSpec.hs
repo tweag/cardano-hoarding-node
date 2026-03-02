@@ -11,7 +11,6 @@ import Relude.Unsafe (head, read)
 import Test.Consensus.Shelley.Examples (examplesShelley)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Util.Serialisation.Examples (Examples (..))
-import Prelude hiding (evalState, execState)
 
 import Data.UUID qualified as UUID
 

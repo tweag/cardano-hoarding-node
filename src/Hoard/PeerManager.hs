@@ -7,12 +7,11 @@ module Hoard.PeerManager
     ) where
 
 import Data.Time (UTCTime, diffUTCTime)
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Exception (ExitCase (..), generalBracket)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets, modify)
-import Prelude hiding (Reader, State, asks, get, gets, modify, state)
 
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set

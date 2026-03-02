@@ -45,12 +45,11 @@ module Hoard.Effects.Monitoring.Tracing
 import Control.Tracer (Tracer (..))
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Exception (bracket, onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
-import Prelude hiding (Reader, ask)
 
 import Data.HashMap.Strict qualified as HashMap
 import OpenTelemetry.Context qualified as Context

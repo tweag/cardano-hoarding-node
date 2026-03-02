@@ -4,7 +4,7 @@ module Hoard.Control.Exception
     , runErrorThrowing
     ) where
 
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.Exception (SomeAsyncException (..), catch, throwIO)
 import System.IO.Error (userError)

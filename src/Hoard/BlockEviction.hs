@@ -1,9 +1,7 @@
 module Hoard.BlockEviction (component, Config (..)) where
 
-import Effectful ((:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask)
-import Prelude hiding (Reader, ask)
 
 import Hoard.BlockEviction.Config (Config (..))
 import Hoard.Component (Component (..), defaultComponent)

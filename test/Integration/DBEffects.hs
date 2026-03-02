@@ -5,7 +5,6 @@ import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Test.Hspec
-import Prelude hiding (runReader)
 
 import Hasql.Decoders qualified as D
 import Hasql.Encoders qualified as E

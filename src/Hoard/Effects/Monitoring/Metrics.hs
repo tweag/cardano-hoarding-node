@@ -42,10 +42,9 @@ module Hoard.Effects.Monitoring.Metrics
     ) where
 
 import Data.Time.Clock (diffUTCTime)
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.TH (makeEffect)
-import Prelude hiding (Reader, ask)
 
 import Prometheus qualified as Prom
 import Prometheus.Metric.GHC qualified as GHC

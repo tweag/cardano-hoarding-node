@@ -5,13 +5,12 @@ module Hoard.Effects.DBRead
     )
 where
 
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.TH
 import Hasql.Statement (Statement)
-import Prelude hiding (Reader, asks)
 
 import Hasql.Pool qualified as Pool
 import Hasql.Session qualified as Session

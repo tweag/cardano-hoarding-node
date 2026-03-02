@@ -2,12 +2,11 @@ module Hoard.Core (SetupConfig, component) where
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default, def)
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
-import Prelude hiding (Reader, State, asks, modify)
 
 import Hoard.CardanoNode.Config (Config (..))
 import Hoard.Component (Component (..), defaultComponent)

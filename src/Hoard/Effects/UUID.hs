@@ -8,7 +8,7 @@ module Hoard.Effects.UUID
 
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
-import Effectful (Eff, Effect, IOE, (:>))
+import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 

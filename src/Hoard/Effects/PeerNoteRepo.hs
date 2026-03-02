@@ -5,12 +5,11 @@ module Hoard.Effects.PeerNoteRepo
     , runPeerNoteRepoState
     ) where
 
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.State.Static.Shared (State, modify)
 import Effectful.TH (makeEffect)
 import Rel8 (lit)
-import Prelude hiding (State, modify)
 
 import Data.UUID qualified as UUID
 import Hasql.Transaction qualified as TX

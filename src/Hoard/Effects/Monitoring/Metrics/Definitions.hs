@@ -40,8 +40,6 @@ module Hoard.Effects.Monitoring.Metrics.Definitions
     , recordDBQueryError
     ) where
 
-import Effectful (Eff, (:>))
-
 import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc)
 
 

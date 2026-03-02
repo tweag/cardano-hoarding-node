@@ -6,17 +6,16 @@ module Hoard.TestHelpers
     )
 where
 
+import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Default (def)
 import Data.Time (UTCTime (..))
 import Effectful
-    ( Eff
-    , IOE
+    ( IOE
     , Limit (..)
     , Persistence (..)
     , UnliftStrategy (..)
     , runEff
     , withEffToIO
-    , (:>)
     )
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
@@ -29,7 +28,6 @@ import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEn
 import Servant.Client.Core (ClientError)
 import Servant.Client.Generic (genericClient)
 import Servant.Server (Handler (..))
-import Prelude hiding (Reader, State, atomicModifyIORef', newIORef, readIORef, runReader, runState)
 
 import Hoard.API (API, Routes, server)
 import Hoard.Data.Block (Block)

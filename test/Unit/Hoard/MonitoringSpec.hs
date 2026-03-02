@@ -1,14 +1,13 @@
 module Unit.Hoard.MonitoringSpec (spec_Monitoring) where
 
 import Data.Time (UTCTime (..))
-import Effectful (Eff, runEff, (:>))
+import Effectful (runEff)
 import Effectful.Concurrent.MVar (Concurrent, newEmptyMVar, runConcurrent)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (execWriter)
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Prelude hiding (evalState, newEmptyMVar, runReader)
 
 import Cardano.Api qualified as C
 import Data.UUID qualified as UUID

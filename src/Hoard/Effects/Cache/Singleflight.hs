@@ -6,12 +6,12 @@ module Hoard.Effects.Cache.Singleflight
     , runSingleflight
     ) where
 
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent.STM (TMVar, TVar)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift)
 import Effectful.Exception (throwIO, try)
 import Effectful.TH (makeEffect)
-import Prelude hiding (Reader, ask)
 
 import Data.Map.Strict qualified as Map
 import Effectful.Concurrent.STM qualified as STM

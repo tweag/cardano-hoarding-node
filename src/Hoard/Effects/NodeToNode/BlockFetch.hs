@@ -4,7 +4,6 @@ module Hoard.Effects.NodeToNode.BlockFetch
 
 import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
-import Effectful (Eff, (:>))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
@@ -18,7 +17,6 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode (blockFetchMiniProtocolNum)
 import Ouroboros.Network.Protocol.BlockFetch.Client (BlockFetchReceiver, BlockFetchResponse, blockFetchClientPeer)
-import Prelude hiding (Reader, State, ask, evalState, get, modify, runReader)
 
 import Data.Set qualified as Set
 import Network.TypedProtocol.Peer.Client qualified as Peer

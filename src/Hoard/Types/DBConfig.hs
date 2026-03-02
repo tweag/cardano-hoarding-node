@@ -8,7 +8,6 @@ module Hoard.Types.DBConfig
 where
 
 import Data.Aeson (FromJSON)
-import Prelude hiding (runReader)
 
 import Hasql.Connection.Setting qualified as Setting
 import Hasql.Connection.Setting.Connection qualified as Connection

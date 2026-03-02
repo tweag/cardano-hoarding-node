@@ -1,6 +1,6 @@
 module Unit.Hoard.Effects.LogSpec (spec_Log) where
 
-import Effectful (Eff, runPureEff)
+import Effectful (runPureEff)
 import Effectful.Writer.Static.Shared (Writer, execWriter)
 import Test.Hspec (Spec, describe, it, shouldBe)
 

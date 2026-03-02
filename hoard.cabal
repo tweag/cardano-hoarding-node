@@ -155,6 +155,7 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
+    , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
@@ -198,8 +199,100 @@ library
     , yaml
   mixins:
       base hiding (Prelude)
-    , relude (Relude as Prelude)
-    , relude 
+  default-language: GHC2021
+
+library hoard-prelude
+  exposed-modules:
+      Prelude
+  other-modules:
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      prelude
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      aeson
+    , async
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-api
+    , cardano-ledger-core
+    , cardano-ledger-shelley
+    , casing
+    , cborg
+    , containers
+    , contra-tracer
+    , data-default
+    , directory
+    , effectful
+    , effectful-core
+    , effectful-plugin
+    , effectful-th
+    , filepath
+    , hashable
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , hs-opentelemetry-api
+    , hs-opentelemetry-exporter-otlp
+    , hs-opentelemetry-sdk
+    , http-client
+    , http-client-tls
+    , http-types
+    , iproute
+    , ki
+    , list-t
+    , network
+    , network-mux
+    , network-uri
+    , optparse-applicative
+    , ouroboros-consensus
+    , ouroboros-consensus-cardano
+    , ouroboros-consensus-diffusion
+    , ouroboros-consensus-protocol
+    , ouroboros-network
+    , ouroboros-network-api
+    , ouroboros-network-framework
+    , ouroboros-network-protocols
+    , prometheus-client
+    , prometheus-metrics-ghc
+    , rel8
+    , relude
+    , serialise
+    , servant
+    , servant-server
+    , stm-containers
+    , string-conversions
+    , text
+    , time
+    , transformers
+    , typed-process
+    , typed-protocols
+    , unagi-chan
+    , unix
+    , unordered-containers
+    , uuid
+    , warp
+    , yaml
   default-language: GHC2021
 
 executable hoard-exe
@@ -253,6 +346,7 @@ executable hoard-exe
     , hasql-pool
     , hasql-transaction
     , hoard
+    , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
@@ -296,8 +390,6 @@ executable hoard-exe
     , yaml
   mixins:
       base hiding (Prelude)
-    , relude (Relude as Prelude)
-    , relude 
   default-language: GHC2021
 
 test-suite hoard-test
@@ -373,6 +465,7 @@ test-suite hoard-test
     , hasql-pool
     , hasql-transaction
     , hoard
+    , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
@@ -429,6 +522,4 @@ test-suite hoard-test
     , yaml
   mixins:
       base hiding (Prelude)
-    , relude (Relude as Prelude)
-    , relude 
   default-language: GHC2021

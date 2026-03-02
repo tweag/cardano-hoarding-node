@@ -10,13 +10,12 @@ module Hoard.Effects.ConfigPath
 
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.String.Conversions (cs)
-import Effectful (Eff, IOE, (:>))
+import Effectful (IOE)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
-import Prelude hiding (Reader, ask, asks, runReader)
 
 import Data.Yaml qualified as Yaml
 

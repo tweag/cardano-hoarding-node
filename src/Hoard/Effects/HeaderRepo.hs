@@ -6,7 +6,7 @@ module Hoard.Effects.HeaderRepo
 where
 
 import Data.Time (UTCTime)
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 import Hasql.Transaction (Transaction)

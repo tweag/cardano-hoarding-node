@@ -13,7 +13,7 @@ module Hoard.Effects.BlockRepo
 
 import Data.List (partition)
 import Data.Time (UTCTime)
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith)
 import Effectful.State.Static.Shared (State, get, gets, modify, put)
@@ -21,7 +21,6 @@ import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
 import Rel8 (isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
-import Prelude hiding (Reader, State, ask, atomically, get, gets, modify, newTVarIO, put, runReader)
 
 import Data.Set qualified as Set
 import Hasql.Transaction qualified as TX

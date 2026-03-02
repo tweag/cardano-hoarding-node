@@ -9,11 +9,10 @@ module Hoard.Effects.Publishing
 where
 
 import Data.Typeable (typeOf)
-import Effectful (Eff, Effect, (:>))
+import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, localSeqUnlift)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
-import Prelude hiding (Reader, State, ask, modify, runState)
 
 import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Monitoring.Tracing (SpanContext, Tracing)

@@ -1,11 +1,10 @@
 module Unit.Hoard.Effects.QuotaSpec (spec_Quota) where
 
-import Effectful (Eff, IOE, runEff, (:>))
+import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Concurrent.Async (mapConcurrently)
 import Effectful.Reader.Static (Reader, runReader)
 import Test.Hspec (Spec, describe, it, shouldBe)
-import Prelude hiding (Reader, runReader)
 
 import Data.IORef qualified as IORef
 

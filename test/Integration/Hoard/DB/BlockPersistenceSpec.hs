@@ -28,7 +28,6 @@ import Test.Consensus.Shelley.Examples
     )
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
-import Prelude hiding (evalState, head, runReader)
 
 import Rel8 qualified
 
