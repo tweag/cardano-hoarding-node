@@ -18,9 +18,11 @@ import Data.UUID (UUID)
 import Effectful.Concurrent.STM (Concurrent, atomically)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, evalState, gets)
-import Ouroboros.Consensus.Block (getHeader)
+import Ouroboros.Consensus.Block (SlotNo (..), getHeader)
 import StmContainers.Map (Map)
 
+import Ouroboros.Consensus.Block.Abstract qualified as Block
+import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import StmContainers.Map qualified as Map
 
 import Hoard.Component (Component (..), defaultComponent)
@@ -60,6 +62,7 @@ component =
         , listeners =
             pure
                 [ Sub.listen duplicateBlockGuard
+                , Sub.listen unrequestedBlockGuard
                 ]
         }
 
@@ -119,6 +122,32 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
         | otherwise -> do
             addAttribute @Text "result" "none"
             pure ()
+
+
+unrequestedBlockGuard
+    :: ( Clock :> es
+       , Pub AdversarialBehavior :> es
+       , Tracing :> es
+       )
+    => BlockReceived -> Eff es ()
+unrequestedBlockGuard event =
+    when (blockNo < startNo || blockNo > endNo) $ withSpan "sentry.unrequested_block_guard" do
+        timestamp <- Clock.currentTime
+        publish
+            AdversarialBehavior
+                { timestamp
+                , peer = event.peer
+                , severity = Minor
+                , description = "returned block outside of requested range"
+                }
+  where
+    BlockFetch.ChainRange start end = event.range
+    SlotNo blockNo = Block.blockSlot event.block
+    startNo = pointToNo start
+    endNo = pointToNo end
+    pointToNo = \case
+        Block.GenesisPoint -> 0
+        Block.BlockPoint (SlotNo n) _ -> n
 
 
 data DuplicateBlockKey = DuplicateBlockKey
