@@ -17,7 +17,7 @@ import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
 import Hoard.Events.Network (ProtocolError)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (..), immutableTipRefreshTriggeredListener, immutableTipRefreshedListener)
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (..), immutableTipRefreshTriggeredListener)
 import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
 import Hoard.Triggers (every)
 import Hoard.Types.HoardState (HoardState (..))
@@ -38,7 +38,6 @@ component
        , Reader SetupConfig :> es
        , State HoardState :> es
        , Sub ImmutableTipRefreshTriggered :> es
-       , Sub ImmutableTipRefreshed :> es
        , Sub ProtocolError :> es
        , Tracing :> es
        )
@@ -50,7 +49,6 @@ component =
             pure
                 [ listen protocolErrorListener
                 , listen immutableTipRefreshTriggeredListener
-                , listen immutableTipRefreshedListener
                 ]
         , triggers = do
             refreshInterval <- asks @Config $ (.immutableTipRefreshSeconds)

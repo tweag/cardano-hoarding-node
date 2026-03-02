@@ -3,6 +3,7 @@ module Hoard.Persistence
     , PeerSlotKey
     ) where
 
+import Effectful.State.Static.Shared (State, gets)
 import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlotNo)
 
@@ -16,6 +17,7 @@ import Hoard.Data.PeerNote (NoteType (..))
 import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo, upsertHeader)
+import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockReceived, recordHeaderReceived)
@@ -34,10 +36,13 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
+import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (..))
 import Hoard.Sentry (AdversarialBehavior (..))
+import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Data.BlockTag qualified as BlockTag
 import Hoard.Effects.BlockRepo qualified as BlockRepo
+import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
@@ -48,14 +53,17 @@ import Hoard.Effects.Quota qualified as Quota
 component
     :: ( BlockRepo :> es
        , HeaderRepo :> es
+       , HoardStateRepo :> es
        , Log :> es
        , Metrics :> es
        , PeerNoteRepo :> es
        , PeerRepo :> es
        , Quota PeerSlotKey :> es
+       , State HoardState :> es
        , Sub AdversarialBehavior :> es
        , Sub BlockReceived :> es
        , Sub HeaderReceived :> es
+       , Sub ImmutableTipRefreshed :> es
        , Sub PeersReceived :> es
        , Tracing :> es
        , Verifier :> es
@@ -70,6 +78,7 @@ component =
                 , Sub.listen blockReceived
                 , Sub.listen peersReceived
                 , Sub.listen noteAdversarialBehavior
+                , Sub.listen persistImmutableTipOnRefresh
                 ]
         }
 
@@ -141,6 +150,18 @@ noteAdversarialBehavior event =
     withSpan "persistence.note_adversarial_behavior"
         $ void
         $ PeerNoteRepo.saveNote event.peer.id Adversarial "Peer exceeded duplicate block warning threshold"
+
+
+-- | Persist the updated immutable tip to the database.
+persistImmutableTipOnRefresh
+    :: ( HoardStateRepo :> es
+       , State HoardState :> es
+       , Tracing :> es
+       )
+    => ImmutableTipRefreshed -> Eff es ()
+persistImmutableTipOnRefresh ImmutableTipRefreshed = withSpan "immutable_tip.persist" do
+    tip <- gets (.immutableTip)
+    HoardStateRepo.persistImmutableTip tip
 
 
 extractHeaderData :: HeaderReceived -> Header

@@ -1,12 +1,10 @@
 module Hoard.Listeners.ImmutableTipRefreshTriggeredListener
     ( ImmutableTipRefreshed (..)
     , immutableTipRefreshTriggeredListener
-    , immutableTipRefreshedListener
     ) where
 
-import Effectful.State.Static.Shared (State, gets, modifyM)
+import Effectful.State.Static.Shared (State, modifyM)
 
-import Hoard.Effects.HoardStateRepo (HoardStateRepo, persistImmutableTip)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, publish)
@@ -44,15 +42,3 @@ immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered = withSpan "im
 
 
 data ImmutableTipRefreshed = ImmutableTipRefreshed
-
-
--- | Persist the updated immutable tip to the database.
-immutableTipRefreshedListener
-    :: ( HoardStateRepo :> es
-       , State HoardState :> es
-       , Tracing :> es
-       )
-    => ImmutableTipRefreshed -> Eff es ()
-immutableTipRefreshedListener ImmutableTipRefreshed = withSpan "immutable_tip.persist" do
-    tip <- gets (.immutableTip)
-    persistImmutableTip tip
