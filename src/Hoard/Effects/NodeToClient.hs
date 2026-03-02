@@ -67,15 +67,14 @@ import Control.Concurrent.Chan.Unagi
     )
 import Control.Monad.Trans.Except (runExcept)
 import Effectful
-    ( Eff
-    , Effect
+    ( Effect
     , IOE
     , inject
-    , (:>)
     )
 import Effectful.Concurrent.Async (race)
 import Effectful.Concurrent.MVar
     ( Concurrent
+    , MVar
     , newEmptyMVar
     , putMVar
     , readMVar
@@ -108,17 +107,16 @@ import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
-import Prelude hiding (Reader, State, ask, asks, evalState, get, newEmptyMVar, put, putMVar, readMVar)
 
 import Cardano.Api qualified as C
 import Cardano.Crypto.VRF qualified as VRF
 import Cardano.Ledger.State qualified as SL
+import Control.Concurrent.MVar qualified as MVar
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Ouroboros.Consensus.Protocol.Praos.Common qualified as Consensus
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
-import Prelude qualified as P
 
 import Hoard.Effects.Conc (Conc, Thread, fork)
 import Hoard.Effects.Log (Log)
@@ -518,8 +516,8 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
                     pure
                         . Q.SendMsgQuery query
                         . Q.ClientStQuerying
-                        $ \r -> P.putMVar resultVar (Right r) $> Q.SendMsgRelease localStateQuery
-                , recvMsgFailure = \e -> P.putMVar resultVar (Left e) *> localStateQuery
+                        $ \r -> MVar.putMVar resultVar (Right r) $> Q.SendMsgRelease localStateQuery
+                , recvMsgFailure = \e -> MVar.putMVar resultVar (Left e) *> localStateQuery
                 }
     queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
     queryIsOnChain = do
@@ -527,8 +525,8 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
         pure
             $ S.SendMsgFindIntersect [coerce point]
             $ S.ClientStIntersect
-                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ P.putMVar resultVar True *> queryIsOnChain
-                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ P.putMVar resultVar False *> queryIsOnChain
+                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ MVar.putMVar resultVar True *> queryIsOnChain
+                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ MVar.putMVar resultVar False *> queryIsOnChain
                 }
 
 
