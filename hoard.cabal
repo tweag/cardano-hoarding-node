@@ -90,6 +90,7 @@ library
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
       Hoard.OrphanDetection
+      Hoard.OrphanDetection.Config
       Hoard.OrphanDetection.Data
       Hoard.OrphanDetection.Listeners
       Hoard.PeerManager

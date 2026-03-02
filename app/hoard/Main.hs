@@ -71,6 +71,7 @@ main =
         . runConfig @"monitoring" @Monitoring.Config
         . runConfig @"cardano_protocols" @NodeToNode.ProtocolsConfig
         . runConfig @"node_to_node" @NodeToNode.NodeToNodeConfig
+        . runConfig @"orphan_detection" @OrphanDetection.Config
         . runConfig @"block_eviction" @BlockEviction.Config
         . runConfig @"cardano_node_integration" @CardanoNode.Config
         . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
