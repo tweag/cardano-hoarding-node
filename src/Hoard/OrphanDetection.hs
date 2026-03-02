@@ -12,7 +12,7 @@ import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Events.BlockFetch (BlockReceived)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
+import Hoard.ImmutableTip (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.Types.HoardState (HoardState)
 

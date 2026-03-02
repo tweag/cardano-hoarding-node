@@ -36,7 +36,7 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (..))
+import Hoard.ImmutableTip (ImmutableTipRefreshed (..))
 import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Types.HoardState (HoardState (..))
 

@@ -84,7 +84,7 @@ library
       Hoard.Events.KeepAlive
       Hoard.Events.Network
       Hoard.Events.PeerSharing
-      Hoard.Listeners.ImmutableTipRefreshTriggeredListener
+      Hoard.ImmutableTip
       Hoard.Listeners.NetworkEventListener
       Hoard.Monitoring
       Hoard.OrphanDetection

@@ -3,41 +3,22 @@ module Hoard.Core (SetupConfig, component) where
 import Data.Aeson (FromJSON)
 import Data.Default (Default, def)
 import Effectful (IOE)
-import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, modify)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 
-import Hoard.CardanoNode.Config (Config (..))
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Effects.HoardStateRepo (HoardStateRepo)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
-import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
-import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
+import Hoard.Effects.Publishing (Sub, listen)
 import Hoard.Events.Network (ProtocolError)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed (..), immutableTipRefreshTriggeredListener)
 import Hoard.Listeners.NetworkEventListener (protocolErrorListener)
-import Hoard.Triggers (every)
-import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
-
-import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 
 
 component
-    :: ( Concurrent :> es
-       , HoardStateRepo :> es
-       , IOE :> es
+    :: ( IOE :> es
        , Log :> es
-       , NodeToClient :> es
-       , Pub ImmutableTipRefreshTriggered :> es
-       , Pub ImmutableTipRefreshed :> es
-       , Reader Config :> es
        , Reader SetupConfig :> es
-       , State HoardState :> es
-       , Sub ImmutableTipRefreshTriggered :> es
        , Sub ProtocolError :> es
        , Tracing :> es
        )
@@ -48,22 +29,10 @@ component =
         , listeners =
             pure
                 [ listen protocolErrorListener
-                , listen immutableTipRefreshTriggeredListener
-                ]
-        , triggers = do
-            refreshInterval <- asks @Config $ (.immutableTipRefreshSeconds)
-            pure
-                [ every refreshInterval $ publish ImmutableTipRefreshTriggered
                 ]
         , setup = do
             -- Set file descriptor limits
             setFileDescriptorLimit
-
-            -- Load immutable tip from DB and set in state
-            immutableTip <- HoardStateRepo.getImmutableTip
-            modify (\hoardState -> hoardState {immutableTip = immutableTip})
-        , start =
-            publish ImmutableTipRefreshTriggered
         }
 
 
