@@ -17,6 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Data.BlockViolation
+      Hoard.API.Util
       Hoard.API.Violations
       Hoard.BlockEviction
       Hoard.BlockEviction.Config
@@ -43,7 +44,6 @@ library
       Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
-      Hoard.Effects
       Hoard.Effects.BlockRepo
       Hoard.Effects.Cache.Singleflight
       Hoard.Effects.Chan

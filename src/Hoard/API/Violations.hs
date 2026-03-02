@@ -6,7 +6,7 @@ module Hoard.API.Violations
 import Servant (Get, JSON, QueryParam, type (:-), type (:>))
 
 import Hoard.API.Data.BlockViolation (SlotDispute)
-import Hoard.Effects ((::>))
+import Hoard.API.Util ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Prelude hiding ((:>))
 
