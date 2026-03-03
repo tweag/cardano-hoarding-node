@@ -1,5 +1,7 @@
 module Integration.Hoard.DB.BlockEvictionSpec (spec_BlockEviction) where
 
+import Data.List ((!!))
+import Data.Maybe (fromJust)
 import Data.Time (UTCTime (..))
 import Effectful (runEff, runPureEff)
 import Effectful.Concurrent (runConcurrent)
@@ -16,7 +18,6 @@ import Ouroboros.Consensus.Cardano.Block
         , BlockShelley
         )
     )
-import Relude.Unsafe (fromJust, head, read, (!!))
 import Test.Consensus.Shelley.Examples
     ( examplesAllegra
     , examplesAlonzo
@@ -27,6 +28,9 @@ import Test.Consensus.Shelley.Examples
     )
 import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
+import Text.Read (read)
+
+import Data.List qualified as List
 
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
@@ -41,6 +45,7 @@ import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
+import Prelude hiding (head)
 
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Verifier qualified as Verifier
@@ -171,12 +176,12 @@ mkTestBlockAtSlot exampleIdx slotNumber =
 
 exampleBlocks :: [CardanoBlock]
 exampleBlocks =
-    [ BlockShelley $ snd $ Relude.Unsafe.head examplesShelley.exampleBlock
-    , BlockAllegra $ snd $ Relude.Unsafe.head examplesAllegra.exampleBlock
-    , BlockMary $ snd $ Relude.Unsafe.head examplesMary.exampleBlock
-    , BlockAlonzo $ snd $ Relude.Unsafe.head examplesAlonzo.exampleBlock
-    , BlockBabbage $ snd $ Relude.Unsafe.head examplesBabbage.exampleBlock
-    , BlockConway $ snd $ Relude.Unsafe.head examplesConway.exampleBlock
+    [ BlockShelley $ snd $ List.head examplesShelley.exampleBlock
+    , BlockAllegra $ snd $ List.head examplesAllegra.exampleBlock
+    , BlockMary $ snd $ List.head examplesMary.exampleBlock
+    , BlockAlonzo $ snd $ List.head examplesAlonzo.exampleBlock
+    , BlockBabbage $ snd $ List.head examplesBabbage.exampleBlock
+    , BlockConway $ snd $ List.head examplesConway.exampleBlock
     ]
 
 
