@@ -50,6 +50,7 @@ import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Exception (bracket, onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
+import Effectful.Timeout (Timeout, timeout)
 
 import Data.HashMap.Strict qualified as HashMap
 import OpenTelemetry.Context qualified as Context
@@ -155,7 +156,7 @@ asTracer unlift eventName =
 --
 -- Initializes the tracer provider and manages span lifecycle.
 runTracing
-    :: (IOE :> es)
+    :: (IOE :> es, Timeout :> es)
     => Bool
     -- ^ Tracing enabled flag
     -> Text
@@ -169,7 +170,7 @@ runTracing enabled serviceName otlpEndpoint action
     | otherwise =
         bracket
             (liftIO $ Provider.initTracingState serviceName otlpEndpoint)
-            (\tracingState -> liftIO $ Provider.shutdownTracingState tracingState)
+            (\tracingState -> void $ timeout 3_000_000 $ liftIO $ Provider.shutdownTracingState tracingState)
             $ \tracingState -> interpretWith action $ \env -> \case
                 WithSpan spanName innerAction -> localSeqUnlift env $ \unlift -> do
                     currentCtx <- liftIO ThreadLocal.getContext
@@ -263,7 +264,7 @@ runTracing enabled serviceName otlpEndpoint action
 --
 -- Convenience wrapper that reads TracingConfig from the Reader effect.
 runTracingFromConfig
-    :: (IOE :> es, Reader TracingConfig :> es)
+    :: (IOE :> es, Reader TracingConfig :> es, Timeout :> es)
     => Eff (Tracing : es) a
     -> Eff es a
 runTracingFromConfig action = do
