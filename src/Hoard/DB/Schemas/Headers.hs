@@ -19,11 +19,14 @@ import Rel8
 
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.BlockHash (BlockHash)
-import Hoard.Data.Header (Header (..))
+import Hoard.Data.Eras (BlockEra, headerToEra)
+import Hoard.Data.Header (Header (..), decodeCardanoHeader, encodeCardanoHeader)
 
 
 data Row f = Row
     { hash :: Column f BlockHash
+    , headerData :: Column f ByteString
+    , headerEra :: Column f BlockEra
     , slotNumber :: Column f Int64
     , blockNumber :: Column f Int64
     , firstSeenAt :: Column f UTCTime
@@ -44,14 +47,17 @@ schema = mkSchema "headers"
 
 
 -- | Convert a database row to a Header domain type
-headerFromRow :: Row Result -> Header
-headerFromRow row =
-    Header
-        { hash = row.hash
-        , slotNumber = fromIntegral row.slotNumber
-        , blockNumber = fromIntegral row.blockNumber
-        , firstSeenAt = row.firstSeenAt
-        }
+headerFromRow :: Row Result -> Either Text Header
+headerFromRow row = do
+    headerData <- decodeCardanoHeader row.headerEra row.headerData
+    pure
+        $ Header
+            { hash = row.hash
+            , headerData
+            , slotNumber = fromIntegral row.slotNumber
+            , blockNumber = fromIntegral row.blockNumber
+            , firstSeenAt = row.firstSeenAt
+            }
 
 
 -- | Convert a Header domain type to a database row
@@ -59,6 +65,8 @@ rowFromHeader :: Header -> Row Expr
 rowFromHeader header =
     Row
         { hash = lit header.hash
+        , headerData = lit $ encodeCardanoHeader header.headerData
+        , headerEra = lit $ headerToEra $ header.headerData
         , slotNumber = lit $ fromIntegral header.slotNumber
         , blockNumber = lit $ fromIntegral header.blockNumber
         , firstSeenAt = lit header.firstSeenAt

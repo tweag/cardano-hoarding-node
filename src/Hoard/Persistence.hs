@@ -168,6 +168,7 @@ extractHeaderData :: HeaderReceived -> Header
 extractHeaderData event =
     Header
         { hash = blockHashFromHeader event.header
+        , headerData = event.header
         , slotNumber = unSlotNo $ blockSlot event.header
         , blockNumber = unBlockNo $ blockNo event.header
         , firstSeenAt = event.timestamp

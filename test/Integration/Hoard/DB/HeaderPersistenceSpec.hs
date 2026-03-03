@@ -5,11 +5,15 @@ import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
 import Hasql.Statement (Statement)
+import Test.Consensus.Shelley.Examples (examplesShelley)
 import Test.Hspec
+import Test.Util.Serialisation.Examples (Examples (..))
 import Text.Read (read)
 
 import Data.UUID.V4 qualified as UUID
+import Ouroboros.Consensus.Cardano.Block qualified as O
 import Rel8 qualified
+import Relude.Unsafe qualified
 
 import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
@@ -23,6 +27,7 @@ import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.Types.Cardano (CardanoHeader)
 
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
@@ -63,6 +68,7 @@ spec_HeaderPersistence = do
             let header =
                     Header
                         { hash = BlockHash "abc123def456"
+                        , headerData = exampleHdr
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now
@@ -97,6 +103,7 @@ spec_HeaderPersistence = do
             let header =
                     Header
                         { hash = BlockHash "abc123def456"
+                        , headerData = exampleHdr
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now
@@ -126,6 +133,7 @@ spec_HeaderPersistence = do
             let header =
                     Header
                         { hash = BlockHash "abc123def456"
+                        , headerData = exampleHdr
                         , slotNumber = 12345
                         , blockNumber = 100
                         , firstSeenAt = now
@@ -188,3 +196,7 @@ countHeadersStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each HeadersSchem
 
 countReceiptsStmt :: Statement () Int
 countReceiptsStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each HeaderReceiptsSchema.schema
+
+
+exampleHdr :: CardanoHeader
+exampleHdr = O.HeaderShelley . snd . Relude.Unsafe.head $ examplesShelley.exampleHeader
