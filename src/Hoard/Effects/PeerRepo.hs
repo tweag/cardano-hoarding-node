@@ -3,6 +3,7 @@ module Hoard.Effects.PeerRepo
     , upsertPeers
     , getPeerByAddress
     , getAllPeers
+    , hasPeers
     , updatePeerFailure
     , updateLastConnected
     , getEligiblePeers
@@ -55,6 +56,9 @@ data PeerRepo :: Effect where
     -- | Get all peers from the database
     GetAllPeers
         :: PeerRepo m (Set Peer)
+    -- | Check if any peers exist in the database
+    HasPeers
+        :: PeerRepo m Bool
     -- | Update a peer's last failure time
     UpdatePeerFailure
         :: Peer
@@ -102,6 +106,9 @@ runPeerRepo = interpret $ \_ -> \case
     GetAllPeers ->
         withSpan "peer_repo.get_all_peers"
             $ runQuery "get-all-peers" getAllPeersImpl
+    HasPeers ->
+        withSpan "peer_repo.has_peers"
+            $ runQuery "has-peers" hasPeersImpl
     UpdatePeerFailure peer timestamp ->
         withSpan "peer_repo.update_peer_failure"
             $ runTransaction "update-peer-failure"
@@ -185,6 +192,16 @@ getAllPeersImpl =
     fmap (fromList . map PeersSchema.peerFromRow)
         $ Rel8.run
         $ select
+        $ Rel8.each PeersSchema.schema
+
+
+-- | Check if any peers exist in the database
+hasPeersImpl :: Statement () Bool
+hasPeersImpl =
+    fmap (not . null)
+        $ Rel8.run
+        $ select
+        $ Rel8.limit 1
         $ Rel8.each PeersSchema.schema
 
 
