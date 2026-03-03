@@ -14,7 +14,7 @@ import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc (runConc)
-import Hoard.Effects.ConfigPath (runConfig, runConfigPath)
+import Hoard.Effects.ConfigPath (runConfig, runConfigPath, withHotReload)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv)
@@ -67,65 +67,66 @@ main =
         . loadOptions
         . runConfigPath
         . loadEnv
-        . runConfig @"server" @Server.Config
-        . runConfig @"monitoring" @Monitoring.Config
-        . runConfig @"cardano_protocols" @NodeToNode.ProtocolsConfig
-        . runConfig @"node_to_node" @NodeToNode.NodeToNodeConfig
-        . runConfig @"orphan_detection" @OrphanDetection.Config
-        . runConfig @"block_eviction" @BlockEviction.Config
-        . runConfig @"cardano_node_integration" @CardanoNode.Config
-        . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
-        . runConfig @"peer_manager" @PeerManager.Config
-        . runConfig @"quota" @Quota.Config
-        . runConfig @"setup" @Core.SetupConfig
         . runConfig @"logging" @Log.Config
         . runConfig @"tracing" @TracingConfig
-        . runConfig @"sentry" @Sentry.Config
         . runLog
         . runTracingFromConfig
         . runClock
         . runFileSystem
         . runTemporary
-        . runByronConfig
-        . runShelleyConfig
-        . runVerifier
-        . runMetrics
-        . WithSocket.withNodeSockets
-        . runErrorThrowing
-        . evalState @HoardState def
-        . evalState @Peers def
-        . Sentry.runDuplicateBlocksState
         . runConc
-        . runQuota @Persistence.PeerSlotKey 1
-        . runPubSub @BlockFetch.BatchCompleted
-        . runPubSub @BlockFetch.BlockReceived
-        . runPubSub @BlockFetch.Request
-        . runPubSub @BlockFetch.RequestFailed
-        . runPubSub @BlockFetch.RequestStarted
-        . runPubSub @ChainSync.HeaderReceived
-        . runPubSub @ChainSync.IntersectionFound
-        . runPubSub @ChainSync.RollBackward
-        . runPubSub @ChainSync.RollForward
-        . runPubSub @KeepAlive.Ping
-        . runPubSub @Monitoring.Poll
-        . runPubSub @Network.ProtocolError
-        . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
-        . runPubSub @NodeToClient.ImmutableTipRefreshed
-        . runPubSub @PeerManager.CullRequested
-        . runPubSub @PeerManager.PeerDisconnected
-        . runPubSub @PeerManager.PeerRequested
-        . runPubSub @PeerSharing.PeersReceived
-        . runPubSub @Sentry.AdversarialBehavior
-        . runGenUUID
-        . runNodeToClient
-        . runNodeToNode
-        . runDBRead
-        . runDBWrite
-        . runHeaderRepo
-        . runPeerRepo
-        . runBlockRepo
-        . runHoardStateRepo
-        . runPeerNoteRepo
+        $ withHotReload
+            . runConfig @"server" @Server.Config
+            . runConfig @"monitoring" @Monitoring.Config
+            . runConfig @"cardano_protocols" @NodeToNode.ProtocolsConfig
+            . runConfig @"node_to_node" @NodeToNode.NodeToNodeConfig
+            . runConfig @"orphan_detection" @OrphanDetection.Config
+            . runConfig @"block_eviction" @BlockEviction.Config
+            . runConfig @"cardano_node_integration" @CardanoNode.Config
+            . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
+            . runConfig @"peer_manager" @PeerManager.Config
+            . runConfig @"quota" @Quota.Config
+            . runConfig @"setup" @Core.SetupConfig
+            . runConfig @"sentry" @Sentry.Config
+            . runByronConfig
+            . runShelleyConfig
+            . runVerifier
+            . runMetrics
+            . WithSocket.withNodeSockets
+            . runErrorThrowing
+            . evalState @HoardState def
+            . evalState @Peers def
+            . Sentry.runDuplicateBlocksState
+            . runQuota @Persistence.PeerSlotKey 1
+            . runPubSub @BlockFetch.BatchCompleted
+            . runPubSub @BlockFetch.BlockReceived
+            . runPubSub @BlockFetch.Request
+            . runPubSub @BlockFetch.RequestFailed
+            . runPubSub @BlockFetch.RequestStarted
+            . runPubSub @ChainSync.HeaderReceived
+            . runPubSub @ChainSync.IntersectionFound
+            . runPubSub @ChainSync.RollBackward
+            . runPubSub @ChainSync.RollForward
+            . runPubSub @KeepAlive.Ping
+            . runPubSub @Monitoring.Poll
+            . runPubSub @Network.ProtocolError
+            . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
+            . runPubSub @NodeToClient.ImmutableTipRefreshed
+            . runPubSub @PeerManager.CullRequested
+            . runPubSub @PeerManager.PeerDisconnected
+            . runPubSub @PeerManager.PeerRequested
+            . runPubSub @PeerSharing.PeersReceived
+            . runPubSub @Sentry.AdversarialBehavior
+            . runGenUUID
+            . runNodeToClient
+            . runNodeToNode
+            . runDBRead
+            . runDBWrite
+            . runHeaderRepo
+            . runPeerRepo
+            . runBlockRepo
+            . runHoardStateRepo
+            . runPeerNoteRepo
         $ do
             runSystem
                 [ Core.component

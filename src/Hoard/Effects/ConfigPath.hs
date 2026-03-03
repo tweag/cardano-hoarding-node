@@ -1,27 +1,34 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Hoard.Effects.ConfigPath
-    ( ConfigPath
+    ( ConfigPath (..)
     , runConfigPath
     , loadYaml
     , AtKey (..)
     , runConfig
+    , withHotReload
     ) where
 
 import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.String.Conversions (cs)
 import Effectful (IOE)
-import Effectful.Exception (throwIO)
-import Effectful.Reader.Static (Reader, asks, runReader)
+import Effectful.Concurrent (Concurrent, threadDelay)
+import Effectful.Exception (throwIO, try)
+import Effectful.Reader.Static (Reader, ask, asks, runReader)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import System.Directory (getModificationTime)
 import System.FilePath ((</>))
 import System.IO.Error (userError)
 
 import Data.Yaml qualified as Yaml
 
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Log (Log)
 import Hoard.Effects.Options (Options)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
 
+import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Options qualified as Options
 
 
@@ -66,3 +73,40 @@ loadYaml (ConfigPath path) = do
     case result of
         Left err -> throwIO $ userError $ "Failed to parse " <> path <> ": " <> show err
         Right configFile -> pure configFile
+
+
+data ReloadRequested = ReloadRequested
+    deriving (Show)
+    deriving anyclass (Exception)
+
+
+-- | Run a computation, restarting it whenever the config file changes on disk.
+--
+-- Opens a Ki sub-scope (via 'Conc.scoped') for the computation and forks a
+-- background thread that polls the config file's modification time once per
+-- second. When a change is detected, it throws 'ReloadRequested' into the
+-- scope, which kills all threads cleanly and restarts the whole block —
+-- re-running every 'runConfig' call inside it with fresh values.
+withHotReload
+    :: (Conc :> es, Concurrent :> es, IOE :> es, Log :> es, Reader ConfigPath :> es)
+    => Eff es a
+    -> Eff es ()
+withHotReload action = do
+    ConfigPath path <- ask
+    loop path
+  where
+    loop path = do
+        _ <- try @ReloadRequested do
+            Conc.scoped do
+                Conc.fork_ (watchFile path)
+                action
+        loop path
+
+    watchFile path = do
+        mtime0 <- liftIO $ getModificationTime path
+        forever do
+            threadDelay 1_000_000
+            mtime <- liftIO $ getModificationTime path
+            when (mtime /= mtime0) do
+                Log.info $ "Config file changed, reloading: " <> toText path
+                throwIO ReloadRequested
