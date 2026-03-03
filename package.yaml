@@ -171,6 +171,7 @@ tests:
     - postgres-options
     - process
     - rel8
+    - relude
     - servant-client
     - servant-client-core
     - servant-server

@@ -162,6 +162,7 @@
             (hsPkgs."postgres-options" or (errorHandler.buildDepError "postgres-options"))
             (hsPkgs."process" or (errorHandler.buildDepError "process"))
             (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
+            (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
             (hsPkgs."servant-client" or (errorHandler.buildDepError "servant-client"))
             (hsPkgs."servant-client-core" or (errorHandler.buildDepError "servant-client-core"))
             (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
