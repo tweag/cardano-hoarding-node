@@ -10,10 +10,10 @@ import Test.Hspec
 import Test.Util.Serialisation.Examples (Examples (..))
 import Text.Read (read)
 
+import Data.List qualified as List
 import Data.UUID.V4 qualified as UUID
 import Ouroboros.Consensus.Cardano.Block qualified as O
 import Rel8 qualified
-import Relude.Unsafe qualified
 
 import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
@@ -199,4 +199,4 @@ countReceiptsStmt = fmap length $ Rel8.run $ Rel8.select $ Rel8.each HeaderRecei
 
 
 exampleHdr :: CardanoHeader
-exampleHdr = O.HeaderShelley . snd . Relude.Unsafe.head $ examplesShelley.exampleHeader
+exampleHdr = O.HeaderShelley . snd . List.head $ examplesShelley.exampleHeader
