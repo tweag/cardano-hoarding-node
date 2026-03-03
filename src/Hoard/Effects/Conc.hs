@@ -20,12 +20,21 @@ module Hoard.Effects.Conc
     )
 where
 
-import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..), raise, withEffToIO)
+import Effectful
+    ( Effect
+    , IOE
+    , Limit (..)
+    , Persistence (..)
+    , UnliftStrategy (..)
+    , raise
+    , withEffToIO
+    , withUnliftStrategy
+    )
 import Effectful.Concurrent.STM (atomically, runConcurrent)
-import Effectful.Dispatch.Dynamic (EffectHandler, interpose, interpret, localLend, localUnlift, localUnliftIO)
+import Effectful.Dispatch.Dynamic (EffectHandler, interpose, interpret, localLend, localUnlift)
 import Effectful.TH (makeEffect)
 
-import Ki qualified
+import Ki.Unlifted qualified as Ki
 import OpenTelemetry.Context qualified as Context
 import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace.Core qualified as OT
@@ -80,25 +89,29 @@ runConc eff = withEffToIO concStrat $ \unlift ->
 --             withSpan "child" $ doWork
 -- @
 runConcTraced :: forall es a. (IOE :> es, Tracing :> es) => Scope -> Eff (Conc : es) a -> Eff es a
-runConcTraced (Scope scope0) = interpret $ handler @es scope0
+runConcTraced (Scope scope0) eff = do
+    -- Use permissive unlifting strategy for `Eff es`' `MonadUnliftIO`
+    -- instance.
+    withUnliftStrategy concStrat
+        $ interpret (handler @es scope0) eff
   where
     handler :: forall es'. (IOE :> es', Tracing :> es') => Ki.Scope -> EffectHandler Conc es'
     handler scope env = \case
         Fork action -> do
             -- Capture parent span context
             parentCtx <- Tracing.getSpanContext
-            localUnliftIO env concStrat $ \unlift ->
+            localUnlift env concStrat $ \unlift ->
                 fmap Thread
-                    . liftIO
                     . Ki.fork scope
-                    $ propagateContext parentCtx (unlift action)
+                    $ propagateContext parentCtx
+                    $ unlift action
         Fork_ action -> do
             -- Capture parent span context
             parentCtx <- Tracing.getSpanContext
-            localUnliftIO env concStrat $ \unlift ->
-                liftIO
-                    . Ki.fork_ scope
-                    $ propagateContext parentCtx (unlift action)
+            localUnlift env concStrat $ \unlift ->
+                Ki.fork_ scope
+                    $ propagateContext parentCtx
+                    $ unlift action
         Await (Thread thread) ->
             runConcurrent
                 . atomically
@@ -110,35 +123,31 @@ runConcTraced (Scope scope0) = interpret $ handler @es scope0
         ForkTry action -> do
             -- Capture parent span context
             parentCtx <- Tracing.getSpanContext
-            localUnliftIO env concStrat $ \unlift ->
+            localUnlift env concStrat $ \unlift ->
                 fmap Thread
-                    . liftIO
                     . Ki.forkTry scope
-                    $ propagateContext parentCtx (unlift action)
+                    $ propagateContext parentCtx
+                    $ unlift action
         Scoped m ->
             -- Unlift the contained `m` action (of type `Eff localEs a`) to run it in `Eff es a`.
             localUnlift env concStrat \unliftEff ->
                 -- Lend `es`' `IOE` and `Tracing` effects to the `localEs` effect stack.
                 localLend @'[Tracing, IOE] env concStrat \lend ->
-                    -- Unlift `Eff` into `IO` because that's what `Ki` expects.
-                    withEffToIO concStrat \unliftIO ->
-                        Ki.scoped \subScope ->
-                            -- Temporarily step into `IO` for `Ki.scoped`'s sake.
-                            unliftIO
-                                -- Resolve `localEs` to `es`.
-                                . unliftEff
-                                -- Lend the `IOE` and `Tracing` effects to the inner (recursive) handler.
-                                . lend
-                                -- Resolve `m`'s `Conc` effect using this handler.
-                                . interpose (handler subScope)
-                                -- Make `m` use the lended `IOE` and `Tracing` effects.
-                                . raise @Tracing
-                                . raise @IOE
-                                $ m
+                    Ki.scoped \subScope ->
+                        -- Resolve `localEs` to `es`.
+                        unliftEff
+                            -- Lend the `IOE` and `Tracing` effects to the inner (recursive) handler.
+                            . lend
+                            -- Resolve `m`'s `Conc` effect using this handler.
+                            . interpose (handler subScope)
+                            -- Make `m` use the lended `IOE` and `Tracing` effects.
+                            . raise @Tracing
+                            . raise @IOE
+                            $ m
 
 
 -- | Helper to propagate span context to a forked thread
-propagateContext :: Maybe OT.SpanContext -> IO a -> IO a
+propagateContext :: (IOE :> es) => Maybe OT.SpanContext -> Eff es a -> Eff es a
 propagateContext Nothing action = action
 propagateContext (Just spanCtx) action = do
     -- Create context with parent span

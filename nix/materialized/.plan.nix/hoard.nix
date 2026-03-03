@@ -64,7 +64,7 @@
           (hsPkgs."http-client-tls" or (errorHandler.buildDepError "http-client-tls"))
           (hsPkgs."http-types" or (errorHandler.buildDepError "http-types"))
           (hsPkgs."iproute" or (errorHandler.buildDepError "iproute"))
-          (hsPkgs."ki" or (errorHandler.buildDepError "ki"))
+          (hsPkgs."ki-unlifted" or (errorHandler.buildDepError "ki-unlifted"))
           (hsPkgs."list-t" or (errorHandler.buildDepError "list-t"))
           (hsPkgs."network" or (errorHandler.buildDepError "network"))
           (hsPkgs."network-mux" or (errorHandler.buildDepError "network-mux"))

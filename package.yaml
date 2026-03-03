@@ -79,7 +79,7 @@ library:
     - http-client-tls
     - http-types
     - iproute
-    - ki
+    - ki-unlifted
     - list-t
     - network
     - network-mux

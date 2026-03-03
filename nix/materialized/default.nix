@@ -735,6 +735,7 @@
         prettyprinter-ansi-terminal.revision = import ./cabal-files/prettyprinter-ansi-terminal.nix;
         cardano-lmdb-simple.revision = import ./cabal-files/cardano-lmdb-simple.nix;
         deriving-aeson.revision = import ./cabal-files/deriving-aeson.nix;
+        ki-unlifted.revision = import ./cabal-files/ki-unlifted.nix;
         easy-file.revision = import ./cabal-files/easy-file.nix;
         scientific.revision = import ./cabal-files/scientific.nix;
         scientific.flags.integer-simple = false;
@@ -1229,6 +1230,7 @@
           "fgl".components.library.planned = lib.mkOverride 900 true;
           "dot".components.library.planned = lib.mkOverride 900 true;
           "void".components.library.planned = lib.mkOverride 900 true;
+          "ki-unlifted".components.library.planned = lib.mkOverride 900 true;
           "network-info".components.library.planned = lib.mkOverride 900 true;
           "kes-agent".components.exes."kes-agent-control".planned = lib.mkOverride 900 true;
           "typed-protocols".components.sublibs."examples".planned = lib.mkOverride 900 true;
