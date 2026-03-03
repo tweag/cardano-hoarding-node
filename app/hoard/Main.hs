@@ -47,9 +47,8 @@ import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.ImmutableTipRefreshTriggered qualified as NodeToClient
 import Hoard.Events.KeepAlive qualified as KeepAlive
-import Hoard.Events.Network qualified as Network
 import Hoard.Events.PeerSharing qualified as PeerSharing
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener qualified as NodeToClient
+import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
 import Hoard.PeerManager qualified as PeerManager
@@ -74,6 +73,7 @@ main =
         . runConfig @"orphan_detection" @OrphanDetection.Config
         . runConfig @"block_eviction" @BlockEviction.Config
         . runConfig @"cardano_node_integration" @CardanoNode.Config
+        . runConfig @"cardano_node_integration" @ImmutableTip.Config
         . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
         . runConfig @"peer_manager" @PeerManager.Config
         . runConfig @"quota" @Quota.Config
@@ -108,9 +108,8 @@ main =
         . runPubSub @ChainSync.RollForward
         . runPubSub @KeepAlive.Ping
         . runPubSub @Monitoring.Poll
-        . runPubSub @Network.ProtocolError
         . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
-        . runPubSub @NodeToClient.ImmutableTipRefreshed
+        . runPubSub @ImmutableTip.Refreshed
         . runPubSub @PeerManager.CullRequested
         . runPubSub @PeerManager.PeerDisconnected
         . runPubSub @PeerManager.PeerRequested
@@ -129,6 +128,7 @@ main =
         $ do
             runSystem
                 [ Core.component
+                , ImmutableTip.component
                 , Sentry.component
                 , Server.component
                 , Persistence.component

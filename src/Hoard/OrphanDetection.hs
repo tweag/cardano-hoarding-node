@@ -12,12 +12,12 @@ import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Sub)
 import Hoard.Events.BlockFetch (BlockReceived)
-import Hoard.Listeners.ImmutableTipRefreshTriggeredListener (ImmutableTipRefreshed)
 import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.OrphanDetection.Listeners qualified as Listeners
 
 
@@ -29,7 +29,7 @@ component
        , Reader Config :> es
        , State HoardState :> es
        , Sub BlockReceived :> es
-       , Sub ImmutableTipRefreshed :> es
+       , Sub ImmutableTip.Refreshed :> es
        , Tracing :> es
        )
     => Component es

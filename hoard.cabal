@@ -17,6 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Data.BlockViolation
+      Hoard.API.Util
       Hoard.API.Violations
       Hoard.BlockEviction
       Hoard.BlockEviction.Config
@@ -43,7 +44,6 @@ library
       Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
-      Hoard.Effects
       Hoard.Effects.BlockRepo
       Hoard.Effects.Cache.Singleflight
       Hoard.Effects.Chan
@@ -78,16 +78,12 @@ library
       Hoard.Effects.UUID
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
-      Hoard.Events
       Hoard.Events.BlockFetch
       Hoard.Events.ChainSync
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.KeepAlive
-      Hoard.Events.Network
       Hoard.Events.PeerSharing
-      Hoard.Listeners
-      Hoard.Listeners.ImmutableTipRefreshTriggeredListener
-      Hoard.Listeners.NetworkEventListener
+      Hoard.ImmutableTip
       Hoard.Monitoring
       Hoard.OrphanDetection
       Hoard.OrphanDetection.Config
@@ -105,7 +101,6 @@ library
       Hoard.Types.DBConfig
       Hoard.Types.Deployment
       Hoard.Types.Environment
-      Hoard.Types.Header
       Hoard.Types.HoardState
       Hoard.Types.JsonReadShow
       Hoard.Types.NodeIP

@@ -8,8 +8,8 @@ where
 import Servant
 import Servant.Server.Generic (AsServerT)
 
+import Hoard.API.Util ((::>))
 import Hoard.API.Violations (ViolationsAPI, violationsHandler)
-import Hoard.Effects ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Monitoring.Metrics (Metrics, exportMetrics)
 import Prelude hiding ((:>))
