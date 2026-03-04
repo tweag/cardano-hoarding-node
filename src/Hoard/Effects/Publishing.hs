@@ -8,7 +8,6 @@ module Hoard.Effects.Publishing
     )
 where
 
-import Data.Typeable (typeOf)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, localSeqUnlift)
 import Effectful.TH (makeEffect)
@@ -41,8 +40,8 @@ data TracedEvent event = TracedEvent
 
 
 -- | Runs Pub and Sub effects with an internal channel for a specific event type.
--- Automatically captures span context from the publisher and creates linked spans in listeners.
-runPubSub :: forall event es a. (Chan :> es, Tracing :> es, Typeable event) => Eff (Pub event : Sub event : es) a -> Eff es a
+-- Automatically captures span context from the publisher and propagates it as a span link in listeners.
+runPubSub :: forall event es a. (Chan :> es, Tracing :> es) => Eff (Pub event : Sub event : es) a -> Eff es a
 runPubSub action = do
     (inChan, _) <- Chan.newChan @(TracedEvent event)
 
@@ -57,14 +56,7 @@ runPubSub action = do
                 chan <- Chan.dupChan inChan
                 forever do
                     TracedEvent {event, publisherSpanContext} <- Chan.readChan chan
-                    case publisherSpanContext of
-                        -- If we have a publisher span context, create a linked span
-                        Just ctx ->
-                            Tracing.withSpanLinked "pubsub.listen" [ctx] $ do
-                                Tracing.addAttribute "event.type" (show $ typeOf event :: Text)
-                                unlift $ listener event
-                        -- Otherwise just run the listener normally
-                        Nothing -> unlift $ listener event
+                    Tracing.withLinkPropagation publisherSpanContext $ unlift $ listener event
 
     handleSub . handlePub $ action
 
