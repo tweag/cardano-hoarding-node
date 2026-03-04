@@ -8,9 +8,10 @@ module Hoard.Events.BlockFetch
 
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
+import Ouroboros.Network.Protocol.BlockFetch.Type (ChainRange)
 
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 
 
 -- | Events from the BlockFetch mini-protocol.
@@ -38,6 +39,7 @@ data BlockReceived = BlockReceived
     , timestamp :: UTCTime
     , block :: CardanoBlock
     , requestId :: UUID
+    , range :: ChainRange CardanoPoint
     }
     deriving (Typeable)
 

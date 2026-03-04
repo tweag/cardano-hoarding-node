@@ -17,11 +17,11 @@ import Ouroboros.Network.Mux
     )
 import Ouroboros.Network.NodeToNode (blockFetchMiniProtocolNum)
 import Ouroboros.Network.Protocol.BlockFetch.Client (BlockFetchReceiver, BlockFetchResponse, blockFetchClientPeer)
+import Ouroboros.Network.Protocol.BlockFetch.Type (ChainRange (..))
 
 import Data.Set qualified as Set
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
-import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
@@ -130,14 +130,15 @@ client unlift cfg peer =
             let points = headerPoint . (.header) <$> reqs
                 start = minimum points
                 end = maximum points
+                range = ChainRange start end
                 requestedHashes = Set.fromList $ blockHashFromHeader . (.header) <$> toList reqs
             addAttribute "request.id" $ show @Text requestId
             addAttribute "request.count" $ length reqs
 
             pure
                 $ BlockFetch.SendMsgRequestRange
-                    (BlockFetch.ChainRange start end)
-                    (handleResponse unlift peer requestId requestedHashes reqs)
+                    range
+                    (handleResponse unlift peer requestId requestedHashes reqs range)
                 $ client unlift cfg peer
 
 
@@ -151,9 +152,10 @@ blockReceiver
     -> Peer
     -> UUID
     -> Set BlockHash
+    -> ChainRange CardanoPoint
     -> Int
     -> BlockFetchReceiver CardanoBlock IO
-blockReceiver unlift peer requestId requestedHashes blockCount =
+blockReceiver unlift peer requestId requestedHashes range blockCount =
     BlockFetch.BlockFetchReceiver
         { handleBlock = \block -> unlift $ withSpan "block_fetch.handle_block" do
             addAttribute "request.id" $ show @Text requestId
@@ -164,8 +166,9 @@ blockReceiver unlift peer requestId requestedHashes blockCount =
                     , timestamp
                     , block
                     , requestId
+                    , range
                     }
-            pure $ blockReceiver unlift peer requestId requestedHashes (blockCount + 1)
+            pure $ blockReceiver unlift peer requestId requestedHashes range (blockCount + 1)
         , handleBatchDone = unlift $ withSpan "block_fetch.handle_batch_done" do
             addAttribute "request.id" $ show @Text requestId
             addAttribute "received.count" blockCount
@@ -192,12 +195,13 @@ handleResponse
     -> UUID
     -> Set BlockHash
     -> NonEmpty Request
+    -> ChainRange CardanoPoint
     -> BlockFetchResponse CardanoBlock IO ()
-handleResponse unlift peer requestId requestedHashes reqs =
+handleResponse unlift peer requestId requestedHashes reqs range =
     BlockFetch.BlockFetchResponse
         { handleStartBatch = unlift $ withSpan "block_fetch.handle_start_batch" do
             addAttribute "request.id" $ show @Text requestId
-            pure $ blockReceiver unlift peer requestId requestedHashes 0
+            pure $ blockReceiver unlift peer requestId requestedHashes range 0
         , handleNoBlocks = unlift $ withSpan "block_fetch.handle_no_blocks" do
             addAttribute "request.id" $ show @Text requestId
             addAttribute "request.count" $ length reqs
