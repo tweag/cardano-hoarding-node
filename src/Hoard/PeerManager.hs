@@ -41,6 +41,7 @@ import Hoard.Types.Environment (PeerSnapshotFile)
 
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Events.BlockFetch qualified as BlockFetch
@@ -82,8 +83,14 @@ component
 component =
     defaultComponent
         { name = "PeerManager"
-        , setup =
-            void bootstrapPeers
+        , setup = do
+            knownPeersExist <- PeerRepo.hasPeers
+            if knownPeersExist then
+                Log.debug "Known peers found in database, skipping bootstrap"
+            else do
+                Log.debug "No known peers found, bootstrapping from peer snapshot"
+                bootstrappedPeers <- bootstrapPeers
+                Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
         , listeners =
             pure
                 [ Sub.listen updatePeerConnectionState
