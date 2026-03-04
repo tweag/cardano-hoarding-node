@@ -36,7 +36,7 @@ makeEffect ''PeerNoteRepo
 runPeerNoteRepo :: (DBWrite :> es) => Eff (PeerNoteRepo : es) a -> Eff es a
 runPeerNoteRepo = interpret_ \case
     SaveNote peerId noteType note -> do
-        runTransaction "save-note"
+        runTransaction "save_note"
             . fmap PeerNotes.peerNoteFromRow
             . TX.statement ()
             . Rel8.run1

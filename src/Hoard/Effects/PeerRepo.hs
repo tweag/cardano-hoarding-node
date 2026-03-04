@@ -27,7 +27,6 @@ import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 
@@ -91,35 +90,28 @@ makeEffect ''PeerRepo
 
 -- | Run the PeerRepo effect using the DBRead and DBWrite effects
 runPeerRepo
-    :: (DBRead :> es, DBWrite :> es, Tracing :> es)
+    :: (DBRead :> es, DBWrite :> es)
     => Eff (PeerRepo : es) a
     -> Eff es a
 runPeerRepo = interpret $ \_ -> \case
     UpsertPeers peerAddrs sourcePeer timestamp ->
-        withSpan "peer_repo.upsert_peers"
-            $ runTransaction "upsert-peers"
+        runTransaction "upsert_peers"
             $ upsertPeersImpl peerAddrs sourcePeer timestamp
     GetPeerByAddress peerAddr ->
-        withSpan "peer_repo.get_peer_by_address"
-            $ runQuery "get-peer-by-address"
+        runQuery "get_peer_by_address"
             $ getPeerByAddressImpl peerAddr
     GetAllPeers ->
-        withSpan "peer_repo.get_all_peers"
-            $ runQuery "get-all-peers" getAllPeersImpl
+        runQuery "get_all_peers" getAllPeersImpl
     HasPeers ->
-        withSpan "peer_repo.has_peers"
-            $ runQuery "has-peers" hasPeersImpl
+        runQuery "has_peers" hasPeersImpl
     UpdatePeerFailure peer timestamp ->
-        withSpan "peer_repo.update_peer_failure"
-            $ runTransaction "update-peer-failure"
+        runTransaction "update_peer_failure"
             $ updatePeerFailureImpl peer timestamp
     UpdateLastConnected peerId timestamp ->
-        withSpan "peer_repo.update_last_connected"
-            $ runTransaction "update-last-connected"
+        runTransaction "update_last_connected"
             $ updateLastConnectedImpl peerId timestamp
     GetEligiblePeers failureTimeout alreadyConnectedPeers limit ->
-        withSpan "peer_repo.get_eligible_peers"
-            $ runQuery "get-eligible-peers"
+        runQuery "get_eligible_peers"
             $ getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
 
 

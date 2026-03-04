@@ -50,7 +50,7 @@ mkSchema tableName =
 
 countRows :: (DBRead :> es, Rel8able row) => TableSchema (row Name) -> Eff es Int
 countRows schema =
-    runQuery ("countRows[" <> toText schema.name.name <> "]")
+    runQuery ("count_rows[" <> toText schema.name.name <> "]")
         $ fmap fromIntegral
         $ Rel8.run1
         $ Rel8.select
@@ -65,7 +65,7 @@ countRowsWhere
     -> (row Expr -> Expr Bool)
     -> Eff es Int
 countRowsWhere schema predicate =
-    runQuery ("countRowsWhere[" <> toText schema.name.name <> "]")
+    runQuery ("count_rows_where[" <> toText schema.name.name <> "]")
         $ fmap fromIntegral
         $ Rel8.run1
         $ Rel8.select

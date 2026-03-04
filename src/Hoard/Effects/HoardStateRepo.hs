@@ -16,7 +16,6 @@ import Rel8 qualified
 
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Types.Cardano (ChainPoint)
 
 import Hoard.DB.Schemas.HoardState qualified as HoardState
@@ -31,18 +30,16 @@ data HoardStateRepo :: Effect where
 makeEffect ''HoardStateRepo
 
 
-runHoardStateRepo :: (DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (HoardStateRepo : es) a -> Eff es a
-runHoardStateRepo = interpret_ $ \case
+runHoardStateRepo :: (DBRead :> es, DBWrite :> es) => Eff (HoardStateRepo : es) a -> Eff es a
+runHoardStateRepo = interpret_ \case
     GetImmutableTip ->
-        withSpan "hoard_state_repo.get_immutable_tip"
-            . runQuery "get_immutable_tip"
+        runQuery "get_immutable_tip"
             . fmap (fromMaybe $ TS.immutableTip def)
             . Rel8.runMaybe
             . Rel8.select
             $ HoardState.immutableTip <$> Rel8.each HoardState.schema
     PersistImmutableTip chainPoint ->
-        withSpan "hoard_state_repo.persist_immutable_tip"
-            . runTransaction "persist_immutable_tip"
+        runTransaction "persist_immutable_tip"
             . TX.statement ()
             . Rel8.run_
             . Rel8.insert
