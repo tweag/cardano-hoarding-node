@@ -14,12 +14,12 @@
 -- @
 module Hoard.Effects.Monitoring.Tracing
     ( -- * Effect
-      Tracing
+      Tracing (..)
 
       -- * Span Operations
     , withSpan
-    , withSpanAsChild
     , withSpanLinked
+    , withLinkPropagation
     , addAttribute
     , addEvent
     , setStatus
@@ -45,8 +45,8 @@ module Hoard.Effects.Monitoring.Tracing
 import Control.Tracer (Tracer (..))
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
-import Effectful (Effect, IOE)
-import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
+import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..))
+import Effectful.Dispatch.Dynamic (interposeWith, interpret, interpretWith, localSeqUnlift, localUnlift)
 import Effectful.Exception (bracket, onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
@@ -100,9 +100,6 @@ type SpanContext = OT.SpanContext
 data Tracing :: Effect where
     -- | Execute an action within a named span (bracket-style, automatic cleanup)
     WithSpan :: Text -> m a -> Tracing m a
-    -- | Execute an action within a named span as a child of an explicit parent context.
-    -- Useful for preserving trace hierarchy across thread boundaries
-    WithSpanAsChild :: Text -> SpanContext -> m a -> Tracing m a
     -- | Execute an action within a named span with links to other span contexts
     WithSpanLinked :: Text -> [SpanContext] -> m a -> Tracing m a
     -- | Add an attribute to the current span
@@ -113,6 +110,8 @@ data Tracing :: Effect where
     SetStatus :: SpanStatus -> Tracing m ()
     -- | Get the current span context (for exemplars)
     GetSpanContext :: Tracing m (Maybe SpanContext)
+    -- | Get the current OpenTelemetry context (internal use)
+    GetCurrentContext :: Tracing m Context.Context
 
 
 -- | Useful to create a heterogeneous list of attribute values. These two are equivalent:
@@ -152,6 +151,35 @@ asTracer unlift eventName =
     Tracer $ \msg -> unlift $ addEvent eventName [("message", toText msg)]
 
 
+-- | Run an action with automatic span link propagation for fire-and-forget forks.
+--
+-- Any span created with no current parent (i.e., a root span) will automatically
+-- receive a link to @parentCtx@. Nested spans inside those are unaffected — they
+-- already have a parent and follow normal child semantics.
+--
+-- This avoids the trace growth problem caused by parent-child propagation in
+-- long-running loops: each loop iteration's work becomes its own trace, linked
+-- back to the originating span rather than piling spans onto a single trace.
+withLinkPropagation :: (Tracing :> es) => Maybe SpanContext -> Eff es a -> Eff es a
+withLinkPropagation Nothing action = action
+withLinkPropagation (Just parentSpanCtx) action =
+    interposeWith action $ \env -> \case
+        WithSpan name m -> do
+            currentCtx <- getCurrentContext
+            localUnlift env (ConcUnlift Persistent Unlimited) $ \unlift ->
+                case Context.lookupSpan currentCtx of
+                    Nothing -> withSpanLinked name [parentSpanCtx] (unlift m)
+                    Just _ -> withSpan name (unlift m)
+        WithSpanLinked name ctxs m ->
+            localUnlift env (ConcUnlift Persistent Unlimited) $ \unlift ->
+                withSpanLinked name ctxs (unlift m)
+        AddAttribute key val -> addAttribute key val
+        AddEvent name attrs -> addEvent name attrs
+        SetStatus status -> setStatus status
+        GetSpanContext -> getSpanContext
+        GetCurrentContext -> getCurrentContext
+
+
 -- | Run the Tracing effect with OpenTelemetry
 --
 -- Initializes the tracer provider and manages span lifecycle.
@@ -180,24 +208,6 @@ runTracing enabled serviceName otlpEndpoint action
                     innerResult <-
                         unlift innerAction `onException` do
                             liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
-                    -- Restore the old context
-                    liftIO $ void $ case oldCtx of
-                        Just ctx -> ThreadLocal.attachContext ctx
-                        Nothing -> ThreadLocal.detachContext
-                    liftIO $ OT.endSpan newSpan Nothing
-                    pure innerResult
-                WithSpanAsChild spanName parentSpanContext innerAction -> localSeqUnlift env $ \unlift -> do
-                    -- wrapSpanContext creates a non-recording span from the SpanContext,
-                    -- allowing child span creation across thread boundaries
-                    let parentSpan = OT.wrapSpanContext parentSpanContext
-                    let parentCtx = Context.insertSpan parentSpan Context.empty
-                    newSpan <- liftIO $ OT.createSpan tracingState.tracer parentCtx spanName OT.defaultSpanArguments
-                    let newCtx = Context.insertSpan newSpan parentCtx
-                    oldCtx <- liftIO $ ThreadLocal.attachContext newCtx
-                    innerResult <-
-                        unlift innerAction `onException` do
-                            liftIO $ OT.setStatus newSpan (OT.Error "Exception occurred")
-
                     -- Restore the old context
                     liftIO $ void $ case oldCtx of
                         Just ctx -> ThreadLocal.attachContext ctx
@@ -258,6 +268,7 @@ runTracing enabled serviceName otlpEndpoint action
                             spanCtx <- liftIO $ OT.getSpanContext currentSpan
                             pure $ Just spanCtx
                         Nothing -> pure Nothing
+                GetCurrentContext -> liftIO ThreadLocal.getContext
 
 
 -- | Run the Tracing effect with config from Reader
@@ -276,9 +287,9 @@ runTracingFromConfig action = do
 runTracingNoOp :: Eff (Tracing : es) a -> Eff es a
 runTracingNoOp = interpret $ \env -> \case
     WithSpan _ act -> localSeqUnlift env $ \unlift -> unlift act
-    WithSpanAsChild _ _ act -> localSeqUnlift env $ \unlift -> unlift act
     WithSpanLinked _ _ act -> localSeqUnlift env $ \unlift -> unlift act
     AddAttribute _ _ -> pure ()
     AddEvent _ _ -> pure ()
     SetStatus _ -> pure ()
     GetSpanContext -> pure Nothing
+    GetCurrentContext -> pure Context.empty

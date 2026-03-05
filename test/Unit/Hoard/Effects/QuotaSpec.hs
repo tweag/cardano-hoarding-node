@@ -9,7 +9,8 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 import Data.IORef qualified as IORef
 
 import Hoard.Effects.Clock (Clock, runClock)
-import Hoard.Effects.Conc (Conc, runConc)
+import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Conc.Traced (runConc)
 import Hoard.Effects.Log (Log, runLogNoOp)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.Effects.Quota (Config (..), MessageStatus (..), Quota, runQuota, withQuotaCheck)

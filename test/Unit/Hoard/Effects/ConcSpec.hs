@@ -6,7 +6,8 @@ import Test.Hspec (Spec, context, describe, it, shouldBe, shouldSatisfy)
 
 import Data.IORef qualified as IORef
 
-import Hoard.Effects.Conc (Conc, fork_, runConc, scoped)
+import Hoard.Effects.Conc (Conc, fork_, scoped)
+import Hoard.Effects.Conc.Traced (runConc)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 
 

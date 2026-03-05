@@ -49,6 +49,7 @@ library
       Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
+      Hoard.Effects.Conc.Traced
       Hoard.Effects.ConfigPath
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
@@ -290,6 +291,7 @@ test-suite hoard-test
       Unit.Hoard.Data.HeaderSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Effects.Cache.SingleflightSpec
+      Unit.Hoard.Effects.Conc.TracedSpec
       Unit.Hoard.Effects.ConcSpec
       Unit.Hoard.Effects.LogSpec
       Unit.Hoard.Effects.PublishingSpec
@@ -335,6 +337,7 @@ test-suite hoard-test
     , hasql-transaction
     , hoard
     , hoard-prelude
+    , hs-opentelemetry-api
     , hspec
     , http-client
     , network
