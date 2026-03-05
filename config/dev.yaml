@@ -41,9 +41,9 @@ setup:
 
 peer_manager:
   # Cooldown period after a peer failure before retrying (in seconds)
-  peer_failure_cooldown_seconds: 300
-  max_collector_lifetime_seconds: 3000 # 50 minutes
-  max_concurrent_collectors: 150
+  peer_failure_cooldown_seconds: 60
+  max_collector_lifetime_seconds: 1200 # 20 minutes
+  max_concurrent_collectors: 400
 
 sentry:
   duplicate_blocks:
@@ -106,12 +106,12 @@ quota:
   cleanup_interval: 3600 # 1 hour
 
 orphan_detection:
-  aging_batch_size: 1000
+  aging_batch_size: 5000
 
 block_eviction:
-  eviction_interval_seconds: 3600 # 1 hour
+  eviction_interval_seconds: 300 # 5 minutes
 
 # Cardano node integration configuration
 cardano_node_integration:
   ssh_server_alive_interval_seconds: 60
-  immutable_tip_refresh_seconds: 20
+  immutable_tip_refresh_seconds: 5
