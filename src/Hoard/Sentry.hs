@@ -12,7 +12,6 @@ module Hoard.Sentry
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
-import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Effectful.Concurrent.STM (Concurrent, atomically)
 import Effectful.Reader.Static (Reader, asks, runReader)
@@ -54,8 +53,8 @@ component =
         { name = "Sentry"
         , listeners =
             pure
-                [ Sub.listen duplicateBlockGuard
-                , Sub.listen unrequestedBlockGuard
+                [ Sub.listen_ duplicateBlockGuard
+                , Sub.listen_ unrequestedBlockGuard
                 ]
         }
 
@@ -96,8 +95,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
             addAttribute @Text "result" "warning"
             publish
                 $ AdversarialBehavior
-                    { timestamp = event.timestamp
-                    , peer = event.peer
+                    { peer = event.peer
                     , description = "exceeded duplicate block critical threshold"
                     , severity = Critical
                     }
@@ -105,8 +103,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
             addAttribute @Text "result" "critical"
             publish
                 $ AdversarialBehavior
-                    { timestamp = event.timestamp
-                    , peer = event.peer
+                    { peer = event.peer
                     , description = "exceeded duplicate block warning threshold"
                     , severity = Minor
                     }
@@ -124,8 +121,7 @@ unrequestedBlockGuard event =
     when (blockNo < startNo || blockNo > endNo) $ withSpan "sentry.unrequested_block_guard" do
         publish
             AdversarialBehavior
-                { timestamp = event.timestamp
-                , peer = event.peer
+                { peer = event.peer
                 , severity = Minor
                 , description = "returned block outside of requested range"
                 }
@@ -146,8 +142,7 @@ data AdversarialSeverity
 
 
 data AdversarialBehavior = AdversarialBehavior
-    { timestamp :: UTCTime
-    , peer :: Peer
+    { peer :: Peer
     , severity :: AdversarialSeverity
     , description :: Text
     }

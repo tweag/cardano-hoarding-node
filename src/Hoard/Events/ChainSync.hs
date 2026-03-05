@@ -6,7 +6,6 @@ module Hoard.Events.ChainSync
     ) where
 
 import Cardano.Api.LedgerState ()
-import Data.Time (UTCTime)
 
 import Hoard.Data.Peer (Peer)
 import Hoard.Types.Cardano (CardanoHeader, CardanoPoint, CardanoTip)
@@ -18,7 +17,6 @@ import Hoard.Types.Cardano (CardanoHeader, CardanoPoint, CardanoTip)
 -- handling forks and rollbacks.
 data HeaderReceived = HeaderReceived
     { peer :: Peer
-    , timestamp :: UTCTime
     , header :: CardanoHeader
     , tip :: CardanoTip
     }
@@ -27,7 +25,6 @@ data HeaderReceived = HeaderReceived
 
 data RollBackward = RollBackward
     { peer :: Peer
-    , timestamp :: UTCTime
     , point :: CardanoPoint
     , tip :: CardanoTip
     }
@@ -36,7 +33,6 @@ data RollBackward = RollBackward
 
 data RollForward = RollForward
     { peer :: Peer
-    , timestamp :: UTCTime
     , header :: CardanoHeader
     , point :: CardanoPoint
     , tip :: CardanoTip
@@ -46,7 +42,6 @@ data RollForward = RollForward
 
 data IntersectionFound = IntersectionFound
     { peer :: Peer
-    , timestamp :: UTCTime
     , point :: CardanoPoint
     , tip :: CardanoTip
     }

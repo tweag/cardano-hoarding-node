@@ -50,7 +50,7 @@ component =
                 ]
         , listeners =
             pure
-                [ Sub.listen immutableTipRefreshTriggeredListener
+                [ Sub.listen_ immutableTipRefreshTriggeredListener
                 ]
         , start =
             publish ImmutableTipRefreshTriggered

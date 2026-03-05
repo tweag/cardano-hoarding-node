@@ -3,6 +3,7 @@ module Hoard.Persistence
     , PeerSlotKey
     ) where
 
+import Data.Time (UTCTime)
 import Effectful.State.Static.Shared (State, gets)
 import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlotNo)
@@ -37,6 +38,7 @@ import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Sentry (AdversarialBehavior (..))
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Data.BlockTag qualified as BlockTag
@@ -77,8 +79,8 @@ component =
                 [ Sub.listen headerReceived
                 , Sub.listen blockReceived
                 , Sub.listen peersReceived
-                , Sub.listen noteAdversarialBehavior
-                , Sub.listen persistImmutableTipOnRefresh
+                , Sub.listen_ noteAdversarialBehavior
+                , Sub.listen_ persistImmutableTipOnRefresh
                 ]
         }
 
@@ -89,11 +91,13 @@ newtype PeerSlotKey = PeerSlotKey (ID Peer, Int64)
     deriving (ToAttribute) via ToAttributeShow PeerSlotKey
 
 
-headerReceived :: (HeaderRepo :> es, Metrics :> es, Tracing :> es) => HeaderReceived -> Eff es ()
-headerReceived event = withSpan "persistence.header_received" do
+headerReceived
+    :: (HeaderRepo :> es, Metrics :> es, Tracing :> es)
+    => UTCTime -> HeaderReceived -> Eff es ()
+headerReceived timestamp event = withSpan "persistence.header_received" do
     recordHeaderReceived
-    let header = extractHeaderData event
-    upsertHeader header event.peer event.timestamp
+    let header = extractHeaderData timestamp event.header
+    upsertHeader header event.peer timestamp
 
 
 blockReceived
@@ -104,9 +108,9 @@ blockReceived
        , Tracing :> es
        , Verifier :> es
        )
-    => BlockReceived -> Eff es ()
-blockReceived event = withSpan "persistence.block_received" do
-    let block = extractBlockData event
+    => UTCTime -> BlockReceived -> Eff es ()
+blockReceived timestamp event = withSpan "persistence.block_received" do
+    let block = extractBlockData timestamp event.block
         quotaKey = PeerSlotKey (event.peer.id, block.slotNumber)
 
     res <- verifyBlock block
@@ -135,14 +139,14 @@ blockReceived event = withSpan "persistence.block_received" do
                             ]
 
 
-peersReceived :: (PeerRepo :> es, Tracing :> es) => PeersReceived -> Eff es ()
-peersReceived event =
+peersReceived :: (PeerRepo :> es, Tracing :> es) => UTCTime -> PeersReceived -> Eff es ()
+peersReceived timestamp event =
     withSpan "persistence.peers_received"
         $ void
         $ PeerRepo.upsertPeers
             event.peerAddresses
             event.peer.address
-            event.timestamp
+            timestamp
 
 
 noteAdversarialBehavior :: (PeerNoteRepo :> es, Tracing :> es) => AdversarialBehavior -> Eff es ()
@@ -164,19 +168,19 @@ persistImmutableTipOnRefresh ImmutableTip.Refreshed = withSpan "immutable_tip.pe
     HoardStateRepo.persistImmutableTip tip
 
 
-extractHeaderData :: HeaderReceived -> Header
-extractHeaderData event =
+extractHeaderData :: UTCTime -> CardanoHeader -> Header
+extractHeaderData timestamp header =
     Header
-        { hash = blockHashFromHeader event.header
-        , headerData = event.header
-        , slotNumber = unSlotNo $ blockSlot event.header
-        , blockNumber = unBlockNo $ blockNo event.header
-        , firstSeenAt = event.timestamp
+        { hash = blockHashFromHeader header
+        , headerData = header
+        , slotNumber = unSlotNo $ blockSlot header
+        , blockNumber = unBlockNo $ blockNo header
+        , firstSeenAt = timestamp
         }
 
 
-extractBlockData :: BlockReceived -> Block
-extractBlockData BlockReceived {timestamp, block} =
+extractBlockData :: UTCTime -> CardanoBlock -> Block
+extractBlockData timestamp block =
     Block
         { hash = blockHashFromHeader $ getHeader block
         , slotNumber = fromIntegral $ unSlotNo $ blockSlot block

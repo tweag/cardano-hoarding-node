@@ -93,11 +93,11 @@ component =
                 Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
         , listeners =
             pure
-                [ Sub.listen updatePeerConnectionState
-                , Sub.listen cullOldCollectors
+                [ Sub.listen_ updatePeerConnectionState
+                , Sub.listen_ cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
-                , Sub.listen replenishCollectors
-                , Sub.listen cullAdversarialPeers
+                , Sub.listen_ replenishCollectors
+                , Sub.listen_ cullAdversarialPeers
                 ]
         , triggers =
             pure
@@ -184,9 +184,9 @@ cullAdversarialPeers event = do
         pure ()
 
 
-noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es, Tracing :> es) => PeerDisconnected -> Eff es ()
-noteDisconnectedPeer event = withSpan "peer_manager.note_disconnected_peer" do
-    PeerRepo.updateLastConnected event.peerId event.timestamp
+noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es, Tracing :> es) => UTCTime -> PeerDisconnected -> Eff es ()
+noteDisconnectedPeer timestamp event = withSpan "peer_manager.note_disconnected_peer" do
+    PeerRepo.updateLastConnected event.peerId timestamp
     publish $ PeerRequested 1
 
 
@@ -284,11 +284,9 @@ bracketCollector peer = withSpan "peer_manager.bracket_collector" do
 
         signalTermination conn
         modify $ Peers . Map.delete peer.id . (.peers)
-        timestamp <- Clock.currentTime
         publish
             PeerDisconnected
                 { peerId = peer.id
-                , timestamp
                 }
 
 
@@ -304,5 +302,4 @@ data CullRequested = CullRequested
 
 data PeerDisconnected = PeerDisconnected
     { peerId :: (ID Peer)
-    , timestamp :: UTCTime
     }
