@@ -17,6 +17,6 @@ WHERE constraint_schema = 'hoard'
   AND constraint_name = 'block_tags_block_hash_tag_key';
 
 SELECT 1/COUNT(*)
-WHERE ENUM_RANGE(NULL::hoard.block_tag_kind) = '{CorruptBlockIntegrity,OutsideOfRequestedRange,HeaderBlockMismatch}';
+WHERE ENUM_RANGE(NULL::hoard.block_tag_kind) = '{CorruptBlockIntegrity,OutsideOfRequestedRange,HeaderBlockMismatch,SlotDispute}';
 
 ROLLBACK;
