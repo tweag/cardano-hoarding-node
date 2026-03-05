@@ -94,7 +94,7 @@ main =
         . runErrorThrowing
         . evalState @HoardState def
         . evalState @Peers def
-        . Sentry.runDuplicateBlocksState
+        . Sentry.runDuplicateBlocksReader
         . runConc
         . runQuota @Persistence.PeerSlotKey 1
         . runPubSub @BlockFetch.BatchCompleted

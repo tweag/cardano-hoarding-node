@@ -1,10 +1,9 @@
 module Hoard.Sentry
     ( component
-    , DuplicateBlockKey (..)
     , DuplicateBlocks (..)
     , AdversarialBehavior (..)
     , AdversarialSeverity (..)
-    , runDuplicateBlocksState
+    , runDuplicateBlocksReader
 
       -- * Config
     , Config (..)
@@ -16,8 +15,7 @@ import Data.Default (Default (..))
 import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Effectful.Concurrent.STM (Concurrent, atomically)
-import Effectful.Reader.Static (Reader, asks)
-import Effectful.State.Static.Shared (State, evalState, gets)
+import Effectful.Reader.Static (Reader, asks, runReader)
 import Ouroboros.Consensus.Block (SlotNo (..), getHeader)
 import StmContainers.Map (Map)
 
@@ -29,11 +27,8 @@ import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing
-    ( ToAttribute
-    , ToAttributeShow (..)
-    , Tracing
+    ( Tracing
     , addAttribute
     , withSpan
     )
@@ -42,16 +37,14 @@ import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
 
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Publishing qualified as Sub
 
 
 component
-    :: ( Clock :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , Pub AdversarialBehavior :> es
        , Reader Config :> es
-       , State DuplicateBlocks :> es
+       , Reader DuplicateBlocks :> es
        , Sub BlockReceived :> es
        , Tracing :> es
        )
@@ -72,18 +65,17 @@ newtype DuplicateBlocks = DuplicateBlocks
     }
 
 
-runDuplicateBlocksState :: (Concurrent :> es) => Eff (State DuplicateBlocks : es) a -> Eff es a
-runDuplicateBlocksState eff = do
+runDuplicateBlocksReader :: (Concurrent :> es) => Eff (Reader DuplicateBlocks : es) a -> Eff es a
+runDuplicateBlocksReader eff = do
     m <- atomically Map.new
-    evalState (DuplicateBlocks m) eff
+    runReader (DuplicateBlocks m) eff
 
 
 duplicateBlockGuard
-    :: ( Clock :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , Pub AdversarialBehavior :> es
        , Reader Config :> es
-       , State DuplicateBlocks :> es
+       , Reader DuplicateBlocks :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
@@ -91,21 +83,20 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
     addAttribute "peer.address" event.peer.address
     addAttribute "request.id" $ show @Text event.requestId
     let blockHash = blockHashFromHeader $ getHeader event.block
-    m <- gets (.duplicateBlocks)
+    m <- asks @DuplicateBlocks (.duplicateBlocks)
     let key = (event.peer.id, event.requestId, blockHash)
     c <- atomically do
         count <- fromMaybe 0 <$> Map.lookup key m
         let newCount = count + 1
         Map.insert newCount key m
         pure newCount
-    duplicateConfig <- asks (.duplicateBlocks)
-    timestamp <- Clock.currentTime
+    duplicateConfig <- asks @Config (.duplicateBlocks)
     if
         | c > duplicateConfig.criticalThreshold -> do
             addAttribute @Text "result" "warning"
             publish
                 $ AdversarialBehavior
-                    { timestamp
+                    { timestamp = event.timestamp
                     , peer = event.peer
                     , description = "exceeded duplicate block critical threshold"
                     , severity = Critical
@@ -114,7 +105,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
             addAttribute @Text "result" "critical"
             publish
                 $ AdversarialBehavior
-                    { timestamp
+                    { timestamp = event.timestamp
                     , peer = event.peer
                     , description = "exceeded duplicate block warning threshold"
                     , severity = Minor
@@ -125,17 +116,15 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
 
 
 unrequestedBlockGuard
-    :: ( Clock :> es
-       , Pub AdversarialBehavior :> es
+    :: ( Pub AdversarialBehavior :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
 unrequestedBlockGuard event =
     when (blockNo < startNo || blockNo > endNo) $ withSpan "sentry.unrequested_block_guard" do
-        timestamp <- Clock.currentTime
         publish
             AdversarialBehavior
-                { timestamp
+                { timestamp = event.timestamp
                 , peer = event.peer
                 , severity = Minor
                 , description = "returned block outside of requested range"
@@ -148,16 +137,6 @@ unrequestedBlockGuard event =
     pointToNo = \case
         Block.GenesisPoint -> 0
         Block.BlockPoint (SlotNo n) _ -> n
-
-
-data DuplicateBlockKey = DuplicateBlockKey
-    { peerId :: ID Peer
-    , hash :: BlockHash
-    , requestId :: UUID
-    }
-    deriving (Hashable)
-    deriving stock (Eq, Generic, Ord, Show)
-    deriving (ToAttribute) via ToAttributeShow DuplicateBlockKey
 
 
 data AdversarialSeverity
