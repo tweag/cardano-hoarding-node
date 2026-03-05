@@ -3,6 +3,7 @@ module Hoard.Sentry
     , DuplicateBlocks (..)
     , AdversarialBehavior (..)
     , AdversarialSeverity (..)
+    , ReceivedUnrequestedBlock (..)
     , runDuplicateBlocksReader
 
       -- * Config
@@ -34,6 +35,7 @@ import Hoard.Effects.Monitoring.Tracing
     )
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Events.BlockFetch (BlockReceived (..))
+import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
 
@@ -43,6 +45,7 @@ import Hoard.Effects.Publishing qualified as Sub
 component
     :: ( Concurrent :> es
        , Pub AdversarialBehavior :> es
+       , Pub ReceivedUnrequestedBlock :> es
        , Reader Config :> es
        , Reader DuplicateBlocks :> es
        , Sub BlockReceived :> es
@@ -117,6 +120,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
 
 unrequestedBlockGuard
     :: ( Pub AdversarialBehavior :> es
+       , Pub ReceivedUnrequestedBlock :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
@@ -128,6 +132,12 @@ unrequestedBlockGuard event =
                 , peer = event.peer
                 , severity = Minor
                 , description = "returned block outside of requested range"
+                }
+        publish
+            ReceivedUnrequestedBlock
+                { timestamp = event.timestamp
+                , peer = event.peer
+                , block = event.block
                 }
   where
     BlockFetch.ChainRange start end = event.range
@@ -150,6 +160,13 @@ data AdversarialBehavior = AdversarialBehavior
     , peer :: Peer
     , severity :: AdversarialSeverity
     , description :: Text
+    }
+
+
+data ReceivedUnrequestedBlock = ReceivedUnrequestedBlock
+    { timestamp :: UTCTime
+    , peer :: Peer
+    , block :: CardanoBlock
     }
 
 

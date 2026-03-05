@@ -9,7 +9,7 @@ import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlot
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (blockHashFromBlock, blockHashFromHeader)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
@@ -36,7 +36,7 @@ import Hoard.Effects.Verifier (Verifier, verifyBlock)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
-import Hoard.Sentry (AdversarialBehavior (..))
+import Hoard.Sentry (AdversarialBehavior (..), ReceivedUnrequestedBlock (..))
 import Hoard.Types.HoardState (HoardState (..))
 
 import Hoard.Data.BlockTag qualified as BlockTag
@@ -65,6 +65,7 @@ component
        , Sub HeaderReceived :> es
        , Sub ImmutableTip.Refreshed :> es
        , Sub PeersReceived :> es
+       , Sub ReceivedUnrequestedBlock :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -79,6 +80,7 @@ component =
                 , Sub.listen peersReceived
                 , Sub.listen noteAdversarialBehavior
                 , Sub.listen persistImmutableTipOnRefresh
+                , Sub.listen tagUnrequestedBlock
                 ]
         }
 
@@ -162,6 +164,13 @@ persistImmutableTipOnRefresh
 persistImmutableTipOnRefresh ImmutableTip.Refreshed = withSpan "immutable_tip.persist" do
     tip <- gets (.immutableTip)
     HoardStateRepo.persistImmutableTip tip
+
+
+tagUnrequestedBlock :: (BlockRepo :> es, Tracing :> es) => ReceivedUnrequestedBlock -> Eff es ()
+tagUnrequestedBlock event = withSpan "persistence.tag_unrequested_block" do
+    BlockRepo.tagBlock hash [BlockTag.UnrequestedBlock]
+  where
+    hash = blockHashFromBlock event.block
 
 
 extractHeaderData :: HeaderReceived -> Header
