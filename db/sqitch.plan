@@ -12,3 +12,4 @@
 008_create_peer_notes_table 2026-02-20T10:30:13Z Victor Nascimento Bakke <gipphe@argon> # Create table to track notable information about peers
 009_create_block_tags_table 2026-02-27T08:40:39Z Victor Nascimento Bakke <gipphe@argon> # Create table for block tags
 010_add_header_data_field 2026-03-03T10:03:35Z Victor Nascimento Bakke <gipphe@argon> # Add header data field to headers table
+011_add_orphan_block_tag [009_create_block_tags_table] 2026-03-06T00:00:00Z Christian Georgii <christian.georgii@moduscreate.com> # Add OrphanBlock tag kind
