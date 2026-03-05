@@ -136,6 +136,7 @@ library
     , base16-bytestring
     , bytestring
     , cardano-api
+    , cardano-ledger-byron
     , cardano-ledger-core
     , cardano-ledger-shelley
     , casing
