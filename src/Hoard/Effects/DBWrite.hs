@@ -15,7 +15,7 @@ import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write),
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
 
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
+import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 
 import Hoard.Types.DBConfig qualified as DB
@@ -37,11 +37,7 @@ runDBWrite
 runDBWrite eff = do
     pool <- asks $ DB.writerPool
     interpretWith_ eff \case
-        RunTransaction txName tx -> withSpan "db.transaction" do
-            addAttribute @Text "db.operation" "write"
-            addAttribute "db.transaction.name" txName
-            addAttribute @Text "db.isolation_level" "ReadCommitted"
-
+        RunTransaction txName tx -> withSpan txName do
             result <- liftIO $ Pool.use pool (transaction ReadCommitted Write tx)
             case result of
                 Left err -> do

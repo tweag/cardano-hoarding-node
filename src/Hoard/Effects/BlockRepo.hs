@@ -34,7 +34,6 @@ import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
 import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, addEvent, withSpan)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
@@ -59,53 +58,38 @@ data BlockRepo :: Effect where
 makeEffect ''BlockRepo
 
 
-runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
-runBlockRepo action = do
+runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepo action =
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
-        InsertBlocks blocks -> withSpan "block_repo.insert_blocks" do
-            addAttribute "blocks.count" $ length blocks
-            runTransaction "insert-blocks"
+        InsertBlocks blocks -> do
+            runTransaction "insert_blocks"
                 $ insertBlocksTrans
                 $ getVerified <$> blocks
             -- Pre-populate cache: we know these blocks exist after insertion
             Singleflight.updateCache (map ((,True) . (.hash) . getVerified) blocks)
         GetBlock header ->
-            withSpan "block_repo.get_block"
-                $ runQuery "get-block"
+            runQuery "get_block"
                 $ getBlockQuery header
         BlockExists blockHash ->
-            withSpan "block_repo.block_exists"
-                $ Singleflight.withCache blockHash
-                $ runQuery "block-exists"
+            Singleflight.withCache blockHash
+                $ runQuery "block_exists"
                 $ blockExistsQuery blockHash
         ClassifyBlock blockHash classification timestamp ->
-            withSpan "block_repo.classify_block"
-                $ runTransaction "classify-block"
+            runTransaction "classify_block"
                 $ classifyBlockTrans blockHash classification timestamp
-        GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> withSpan "block_repo.get_unclassified_blocks" do
-            addAttribute "blocks.until_slot" slot
-            addAttribute "blocks.limit" limit
-            addAttribute "exclude.count" $ Set.size excludeHashes
-            runQuery "get-unclassified-blocks"
+        GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> do
+            runQuery "get_unclassified_blocks"
                 $ getUnclassifiedBlocksQuery slot limit excludeHashes
-        GetViolations mbMinSlot mbMaxSlot -> withSpan "block_repo.get_violations" do
-            traverse_ (addAttribute "filter.min_slot") mbMinSlot
-            traverse_ (addAttribute "filter.max_slot") mbMaxSlot
-            (parseErrors, disputes) <- runQuery "get-violations" $ getViolationsQuery mbMinSlot mbMaxSlot
-
-            -- Log parsing errors before discarding them
-            forM_ parseErrors $ \err ->
-                addEvent "parse_error" [("error", err)]
+        GetViolations mbMinSlot mbMaxSlot -> do
+            (_parseErrors, disputes) <- runQuery "get_violations" $ getViolationsQuery mbMinSlot mbMaxSlot
             pure disputes
-        EvictBlocks -> withSpan "block_repo.evict_blocks" do
-            hashes <- runTransaction "evict-blocks" evictUninterestingBlocksTrans
+        EvictBlocks -> do
+            hashes <- runTransaction "evict_blocks" evictUninterestingBlocksTrans
             -- Remove evicted blocks from cache so future lookups hit the DB
             Singleflight.removeFromCache hashes
-            addAttribute "evicted.count" $ length hashes
             pure $ length hashes
         TagBlock hash tag ->
-            withSpan "block_repo.tag_block"
-                $ runTransaction "tag-block"
+            runTransaction "tag_block"
                 $ tagBlockTrans hash tag
 
 
