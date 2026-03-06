@@ -115,6 +115,7 @@ main =
         . runPubSub @PeerManager.PeerRequested
         . runPubSub @PeerSharing.PeersReceived
         . runPubSub @Sentry.AdversarialBehavior
+        . runPubSub @Sentry.ReceivedUnrequestedBlock
         . runGenUUID
         . runNodeToClient
         . runNodeToNode

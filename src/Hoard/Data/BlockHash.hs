@@ -2,6 +2,7 @@ module Hoard.Data.BlockHash
     ( BlockHash (..)
     , renderHash
     , blockHashFromHeader
+    , blockHashFromBlock
     ) where
 
 import Cardano.Api.LedgerState ()
@@ -26,6 +27,10 @@ newtype BlockHash = BlockHash Text
 
 blockHashFromHeader :: CardanoHeader -> BlockHash
 blockHashFromHeader = BlockHash . renderHash (Proxy @CardanoBlock) . blockHash
+
+
+blockHashFromBlock :: CardanoBlock -> BlockHash
+blockHashFromBlock = BlockHash . renderHash (Proxy @CardanoBlock) . blockHash
 
 
 -- | Hex encode and render a 'HeaderHash' as text.
