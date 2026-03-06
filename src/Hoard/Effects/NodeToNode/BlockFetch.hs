@@ -7,7 +7,7 @@ import Data.List (maximum, minimum)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Timeout (Timeout)
 import Network.Mux (StartOnDemandOrEagerly (..))
-import Ouroboros.Consensus.Block.Abstract (headerPoint)
+import Ouroboros.Consensus.Block.Abstract (blockSlot, headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
@@ -38,12 +38,12 @@ import Hoard.Effects.Publishing (Pub, Sub, listen_, publish)
 import Hoard.Effects.UUID (GenUUID, UUID)
 import Hoard.Events.BlockFetch
     ( BatchCompleted (..)
+    , BatchFailed (..)
     , BlockReceived (..)
     , Request (..)
-    , RequestFailed (..)
     , RequestStarted (..)
     )
-import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
+import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint)
 
 import Hoard.Effects.Chan qualified as Chan
 import Hoard.Effects.Conc qualified as Conc
@@ -60,8 +60,8 @@ miniProtocol
        , Log :> es
        , Metrics :> es
        , Pub BatchCompleted :> es
+       , Pub BatchFailed :> es
        , Pub BlockReceived :> es
-       , Pub RequestFailed :> es
        , Pub RequestStarted :> es
        , Sub Request :> es
        , Timeout :> es
@@ -100,8 +100,8 @@ client
        , GenUUID :> es
        , Metrics :> es
        , Pub BatchCompleted :> es
+       , Pub BatchFailed :> es
        , Pub BlockReceived :> es
-       , Pub RequestFailed :> es
        , Pub RequestStarted :> es
        , Sub Request :> es
        , Timeout :> es
@@ -125,18 +125,19 @@ client unlift cfg peer =
 
         withSpan "block_fetch.start_fetch" do
             requestId <- UUID.gen
-            let points = headerPoint . (.header) <$> reqs
+            let headers = (.header) <$> reqs
+                points = headerPoint <$> headers
                 start = minimum points
                 end = maximum points
                 range = ChainRange start end
-                requestedHashes = Set.fromList $ mkBlockHash . (.header) <$> toList reqs
+                requestedHashes = Set.fromList $ mkBlockHash <$> toList headers
             addAttribute "request.id" $ show @Text requestId
-            addAttribute "request.count" $ length reqs
+            addAttribute "request.count" $ length headers
 
             pure
                 $ BlockFetch.SendMsgRequestRange
                     range
-                    (handleResponse unlift peer requestId requestedHashes reqs range)
+                    (handleResponse unlift peer requestId requestedHashes headers range)
                 $ client unlift cfg peer
 
 
@@ -149,22 +150,26 @@ blockReceiver
     => (forall x. Eff es x -> IO x)
     -> Peer
     -> UUID
+    -> NonEmpty CardanoHeader
     -> Set BlockHash
     -> ChainRange CardanoPoint
     -> Int
     -> BlockFetchReceiver CardanoBlock IO
-blockReceiver unlift peer requestId requestedHashes range blockCount =
+blockReceiver unlift peer requestId reqs requestedHashes range blockCount =
     BlockFetch.BlockFetchReceiver
         { handleBlock = \block -> unlift $ withSpan "block_fetch.handle_block" do
             addAttribute "request.id" $ show @Text requestId
+            let slotNumber = blockSlot block
+                headerWithSameSlotNumber = find ((== slotNumber) . blockSlot) reqs
             publish
                 BlockReceived
                     { peer
                     , block
                     , requestId
+                    , headerWithSameSlotNumber
                     , range
                     }
-            pure $ blockReceiver unlift peer requestId requestedHashes range (blockCount + 1)
+            pure $ blockReceiver unlift peer requestId reqs requestedHashes range (blockCount + 1)
         , handleBatchDone = unlift $ withSpan "block_fetch.handle_batch_done" do
             addAttribute "request.id" $ show @Text requestId
             addAttribute "received.count" blockCount
@@ -180,31 +185,30 @@ handleResponse
     :: ( Clock :> es
        , Metrics :> es
        , Pub BatchCompleted :> es
+       , Pub BatchFailed :> es
        , Pub BlockReceived :> es
-       , Pub RequestFailed :> es
        , Tracing :> es
        )
     => (forall x. Eff es x -> IO x)
     -> Peer
     -> UUID
     -> Set BlockHash
-    -> NonEmpty Request
+    -> NonEmpty CardanoHeader
     -> ChainRange CardanoPoint
     -> BlockFetchResponse CardanoBlock IO ()
-handleResponse unlift peer requestId requestedHashes reqs range =
+handleResponse unlift peer requestId requestedHashes headers range =
     BlockFetch.BlockFetchResponse
         { handleStartBatch = unlift $ withSpan "block_fetch.handle_start_batch" do
             addAttribute "request.id" $ show @Text requestId
-            pure $ blockReceiver unlift peer requestId requestedHashes range 0
+            pure $ blockReceiver unlift peer requestId headers requestedHashes range 0
         , handleNoBlocks = unlift $ withSpan "block_fetch.handle_no_blocks" do
             addAttribute "request.id" $ show @Text requestId
-            addAttribute "request.count" $ length reqs
+            addAttribute "request.count" $ length headers
             recordBlockFetchFailure
-            for_ reqs \req ->
-                publish
-                    $ RequestFailed
-                        { peer
-                        , header = req.header
-                        , errorMessage = "No blocks for point"
-                        }
+            publish
+                BatchFailed
+                    { peer
+                    , headers
+                    , errorMessage = "No blocks for points"
+                    }
         }
