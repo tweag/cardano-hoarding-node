@@ -37,7 +37,7 @@ import Hoard.Effects.Verifier (Verifier, getVerified, verifyBlock, verifyHeader)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
-import Hoard.Sentry (AdversarialBehavior (..), ReceivedBlockOutsideRequestedRange (..))
+import Hoard.Sentry (AdversarialBehavior (..), ReceivedBlockOutsideRequestedRange (..), ReceivedMismatchingBlock (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -70,6 +70,7 @@ component
        , Sub ImmutableTip.Refreshed :> es
        , Sub PeersReceived :> es
        , Sub ReceivedBlockOutsideRequestedRange :> es
+       , Sub ReceivedMismatchingBlock :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -85,6 +86,7 @@ component =
                 , Sub.listen_ noteAdversarialBehavior
                 , Sub.listen_ persistImmutableTipOnRefresh
                 , Sub.listen_ tagBlockFromOutsideRequestedRange
+                , Sub.listen_ tagMismatchedBlock
                 ]
         }
 
@@ -190,6 +192,14 @@ tagBlockFromOutsideRequestedRange
 tagBlockFromOutsideRequestedRange event =
     withSpan "persistence.tag_block_from_outside_requested_range"
         $ BlockRepo.tagBlock hash [BlockTag.OutsideOfRequestedRange]
+  where
+    hash = mkBlockHash event.block
+
+
+tagMismatchedBlock :: (BlockRepo :> es, Tracing :> es) => ReceivedMismatchingBlock -> Eff es ()
+tagMismatchedBlock event =
+    withSpan "persistence.tag_mismatched_block"
+        $ BlockRepo.tagBlock hash [BlockTag.HeaderBlockMismatch]
   where
     hash = mkBlockHash event.block
 
