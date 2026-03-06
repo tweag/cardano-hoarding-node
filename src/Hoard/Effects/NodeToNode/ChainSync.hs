@@ -23,7 +23,6 @@ import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward)
@@ -34,14 +33,11 @@ import Hoard.Events.ChainSync (HeaderReceived (..), IntersectionFound (..), Roll
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
-import Hoard.Effects.Clock qualified as Clock
-
 
 -- | ChainSync mini-protocol (pipelined)
 miniProtocol
     :: forall es
-     . ( Clock :> es
-       , Log :> es
+     . ( Log :> es
        , Metrics :> es
        , Pub HeaderReceived :> es
        , Pub IntersectionFound :> es
@@ -80,8 +76,7 @@ miniProtocol conf unlift codecs peer =
 -- Note: This runs forever, continuously requesting the next header.
 client
     :: forall es
-     . ( Clock :> es
-       , Log :> es
+     . ( Log :> es
        , Metrics :> es
        , Pub HeaderReceived :> es
        , Pub IntersectionFound :> es
@@ -111,11 +106,9 @@ client unlift peer =
                     $ withSpan "chain_sync.intersection_not_found"
                     $ pure requestNext
             ChainSync.MsgIntersectFound point tip -> Effect $ unlift $ withSpan "chain_sync.intersection_found" do
-                timestamp <- Clock.currentTime
                 publish
                     $ IntersectionFound
                         { peer
-                        , timestamp
                         , point
                         , tip
                         }
@@ -126,11 +119,9 @@ client unlift peer =
         Yield ChainSync.MsgRequestNext $ Await $ \case
             ChainSync.MsgRollForward header tip -> Effect $ unlift $ withSpan "chain_sync.rollforward" do
                 recordChainSyncRollforward
-                timestamp <- Clock.currentTime
                 let event =
                         HeaderReceived
                             { peer
-                            , timestamp
                             , header
                             , tip
                             }
@@ -138,11 +129,9 @@ client unlift peer =
                 pure requestNext
             ChainSync.MsgRollBackward point tip -> Effect $ unlift $ withSpan "chain_sync.rollback" do
                 recordChainSyncRollback
-                timestamp <- Clock.currentTime
                 publish
                     $ RollBackward
                         { peer
-                        , timestamp
                         , point
                         , tip
                         }
@@ -150,22 +139,18 @@ client unlift peer =
             ChainSync.MsgAwaitReply -> Await $ \case
                 ChainSync.MsgRollForward header tip -> Effect $ unlift $ withSpan "chain_sync.rollforward_after_await" do
                     recordChainSyncRollforward
-                    timestamp <- Clock.currentTime
                     publish
                         $ HeaderReceived
                             { peer
-                            , timestamp
                             , header
                             , tip
                             }
                     pure requestNext
                 ChainSync.MsgRollBackward point tip -> Effect $ unlift $ withSpan "chain_sync.rollback_after_await" do
                     recordChainSyncRollback
-                    timestamp <- Clock.currentTime
                     publish
                         $ RollBackward
                             { peer
-                            , timestamp
                             , point
                             , tip
                             }

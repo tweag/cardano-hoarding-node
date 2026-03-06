@@ -52,7 +52,7 @@ component
 component =
     defaultComponent
         { name = "Monitoring"
-        , listeners = pure [Sub.listen listener]
+        , listeners = pure [Sub.listen_ listener]
         , triggers = do
             pollingInterval <- asks $ (.pollingIntervalSeconds)
             pure [every pollingInterval $ publish Poll]
