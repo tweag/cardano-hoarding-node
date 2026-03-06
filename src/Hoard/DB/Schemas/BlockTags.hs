@@ -1,7 +1,10 @@
-module Hoard.DB.Schemas.BlockTags (Row (..), schema) where
+module Hoard.DB.Schemas.BlockTags (Row (..), schema, insertTagsStatement) where
 
 import Data.Time (UTCTime)
-import Rel8 (Column, Name, Rel8able, Result, TableSchema)
+import Hasql.Statement (Statement)
+import Rel8 (Column, Name, Rel8able, Result, TableSchema, lit)
+
+import Rel8 qualified
 
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.BlockHash (BlockHash)
@@ -25,3 +28,23 @@ deriving instance Show (Row Result)
 
 schema :: TableSchema (Row Name)
 schema = mkSchema "block_tags"
+
+
+insertTagsStatement :: BlockHash -> [BlockTag] -> Statement () ()
+insertTagsStatement hash tags =
+    Rel8.run_
+        $ Rel8.insert
+            Rel8.Insert
+                { into = schema
+                , rows = Rel8.values $ mkRow <$> tags
+                , onConflict = Rel8.DoNothing
+                , returning = Rel8.NoReturning
+                }
+  where
+    mkRow tag =
+        Row
+            { id = Rel8.unsafeDefault
+            , blockHash = lit hash
+            , tag = lit tag
+            , taggedAt = Rel8.unsafeDefault
+            }

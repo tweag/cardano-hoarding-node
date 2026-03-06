@@ -31,7 +31,7 @@ import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolat
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
-import Hoard.Data.BlockTag (BlockTag)
+import Hoard.Data.BlockTag (BlockTag (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
@@ -137,7 +137,7 @@ blockExistsQuery blockHash =
 
 
 classifyBlockTrans :: BlockHash -> BlockClassification -> UTCTime -> Transaction ()
-classifyBlockTrans blockHash classification timestamp =
+classifyBlockTrans blockHash classification timestamp = do
     TX.statement ()
         . Rel8.run_
         $ Rel8.update
@@ -152,6 +152,8 @@ classifyBlockTrans blockHash classification timestamp =
                         }
                 , returning = Rel8.NoReturning
                 }
+    when (classification == Orphaned)
+        $ TX.statement () (BlockTags.insertTagsStatement blockHash [OrphanBlock])
 
 
 getUnclassifiedBlocksQuery :: Int64 -> Int -> Set BlockHash -> Statement () [Block]
@@ -260,23 +262,7 @@ deleteBlocksByHashesQuery hashes =
 
 tagBlockTrans :: BlockHash -> [BlockTag] -> Transaction ()
 tagBlockTrans hash tags =
-    TX.statement ()
-        $ Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = BlockTags.schema
-                , rows = Rel8.values $ mkRow <$> tags
-                , onConflict = Rel8.DoNothing
-                , returning = Rel8.NoReturning
-                }
-  where
-    mkRow tag =
-        BlockTags.Row
-            { id = Rel8.unsafeDefault
-            , blockHash = lit hash
-            , tag = lit tag
-            , taggedAt = Rel8.unsafeDefault
-            }
+    TX.statement () (BlockTags.insertTagsStatement hash tags)
 
 
 runBlockRepoState
@@ -288,12 +274,14 @@ runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
     GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
     BlockExists blockHash -> gets @[Block] $ isJust . find ((blockHash ==) . (.hash))
-    ClassifyBlock blockHash classification timestamp ->
+    ClassifyBlock blockHash classification timestamp -> do
         modify $ fmap $ \block ->
             if block.hash == blockHash then
                 block {classification = Just classification, classifiedAt = Just timestamp}
             else
                 block
+        when (classification == Orphaned)
+            $ modify @(Set (BlockHash, BlockTag)) (Set.insert (blockHash, OrphanBlock))
     GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes ->
         gets
             $ take limit
