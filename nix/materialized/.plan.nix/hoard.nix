@@ -151,6 +151,7 @@
             (hsPkgs."hasql-transaction" or (errorHandler.buildDepError "hasql-transaction"))
             (hsPkgs."hoard" or (errorHandler.buildDepError "hoard"))
             (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
+            (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
             (hsPkgs."network" or (errorHandler.buildDepError "network"))
