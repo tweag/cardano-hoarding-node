@@ -248,57 +248,65 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ do
                         connection <- ensureConnection
-                        let target =
+                        let chainPoint =
                                 ChainPoint
                                     $ C.ChainPoint (blockSlot header)
                                     $ HeaderHash
                                     $ toShortRawHash (Proxy @CardanoBlock)
                                     $ headerHash
                                     $ header
-                        _ <- makeIntersectRequest connection target
-                        case header of
+                        intersect <-
+                            (=<<) (maybe (throwError IntersectNotFound) pure)
+                                $ (=<<) leftToError
+                                $ makeIntersectRequest connection
+                                $ chainPoint
+                        let target = SpecificPoint $ coerce $ intersect
+                        if intersect == chainPoint then
+                            -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
+                            pure ()
+                        else case header of
                             HeaderByron _ -> throwError NoByronSupport
                             HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraShelley
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     bhbody
                             HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraAllegra
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     bhbody
                             HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraMary
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     bhbody
                             HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraAlonzo
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     bhbody
                             HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraBabbage
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     (protocolHeaderView shelleyHeaderRaw)
                             HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraConway
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     (protocolHeaderView shelleyHeaderRaw)
                             HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraDijkstra
                                     connection
-                                    (SpecificPoint $ coerce $ target)
+                                    target
                                     (protocolHeaderView shelleyHeaderRaw)
             )
 
