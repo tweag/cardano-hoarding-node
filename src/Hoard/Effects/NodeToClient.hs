@@ -10,7 +10,8 @@ module Hoard.Effects.NodeToClient
     ) where
 
 import Cardano.Api
-    ( ChainDepState
+    ( ByronBlock
+    , ChainDepState
     , ConsensusModeParams (CardanoModeParams)
     , ConsensusProtocol
     , Convert (convert)
@@ -106,7 +107,7 @@ import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr (VRFKeyUnknown, VR
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure (AcquireFailurePointNotOnChain, AcquireFailurePointTooOld))
 
 import Cardano.Api qualified as C
 import Cardano.Crypto.VRF qualified as VRF
@@ -130,22 +131,26 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (IntersectNotFound :+ NoByronSupport :+ NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ IntersectNotFound :+ PointPastEpochHorizon :+ NoByronSupport :+ IntersectTooOld :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError = NodeConnectionError SomeException deriving (Show)
+
+
+data IntersectNotFound = IntersectNotFound ChainPoint deriving (Show)
+
+
+data PointPastEpochHorizon = PointPastEpochHorizon ChainPoint ChainPoint deriving (Show)
+data IntersectTooOld = IntersectTooOld (Target C.ChainPoint) deriving (Show)
+
+
+data NoByronSupport = NoByronSupport (Header ByronBlock) deriving (Show)
 
 
 data ElectionValidationError
     = PraosValidationErr (PraosValidationErr Crypto)
     | EraMismatch EraMismatch
     deriving (Show)
-
-
-data NoByronSupport = NoByronSupport deriving (Show)
-
-
-data IntersectNotFound = IntersectNotFound deriving (Show)
 
 
 infixr 6 :+
@@ -156,15 +161,17 @@ makeEffect ''NodeToClient
 
 
 validateVrfSignature
-    :: ( Error AcquireFailure :> es
-       , Error IntersectNotFound :> es
+    :: ( Error IntersectNotFound :> es
+       , Error IntersectTooOld :> es
        , Error NoByronSupport :> es
        , Error NodeConnectionError :> es
+       , Error PointPastEpochHorizon :> es
        , NodeToClient :> es
        )
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
 validateVrfSignature =
     (=<<) leftToError
+        . (=<<) leftToError
         . (=<<) leftToError
         . (=<<) leftToError
         . (=<<) leftToError
@@ -246,6 +253,7 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
+                    $ runErrorNoCallStack
                     $ do
                         connection <- ensureConnection
                         let chainPoint =
@@ -256,58 +264,67 @@ runNodeToClient nodeToClient = do
                                     $ headerHash
                                     $ header
                         intersect <-
-                            (=<<) (maybe (throwError IntersectNotFound) pure)
+                            (=<<) (maybe (throwError $ IntersectNotFound $ chainPoint) pure)
                                 $ (=<<) leftToError
                                 $ makeIntersectRequest connection
                                 $ chainPoint
                         let target = SpecificPoint $ coerce $ intersect
-                        if intersect == chainPoint then
+                        if
                             -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
-                            pure ()
-                        else case header of
-                            HeaderByron _ -> throwError NoByronSupport
-                            HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                validateVrfSignatureTPraos
-                                    ShelleyBasedEraShelley
-                                    connection
-                                    target
-                                    bhbody
-                            HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                validateVrfSignatureTPraos
-                                    ShelleyBasedEraAllegra
-                                    connection
-                                    target
-                                    bhbody
-                            HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                validateVrfSignatureTPraos
-                                    ShelleyBasedEraMary
-                                    connection
-                                    target
-                                    bhbody
-                            HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                validateVrfSignatureTPraos
-                                    ShelleyBasedEraAlonzo
-                                    connection
-                                    target
-                                    bhbody
-                            HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
-                                validateVrfSignaturePraos
-                                    ShelleyBasedEraBabbage
-                                    connection
-                                    target
-                                    (protocolHeaderView shelleyHeaderRaw)
-                            HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
-                                validateVrfSignaturePraos
-                                    ShelleyBasedEraConway
-                                    connection
-                                    target
-                                    (protocolHeaderView shelleyHeaderRaw)
-                            HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
-                                validateVrfSignaturePraos
-                                    ShelleyBasedEraDijkstra
-                                    connection
-                                    target
-                                    (protocolHeaderView shelleyHeaderRaw)
+                            | intersect == chainPoint -> pure ()
+                            | False -> throwError (PointPastEpochHorizon intersect chainPoint) -- to do. condition. and can we distinguish the temprorary cases? also check if the temporary cases do not fail earlier already with an `IntersectNotFound` or something.
+                            | otherwise ->
+                                (=<<)
+                                    ( \case
+                                        Right a -> pure a
+                                        Left AcquireFailurePointTooOld -> throwError (IntersectTooOld target)
+                                        Left AcquireFailurePointNotOnChain -> error "an intersect point should never be not on chain."
+                                    )
+                                    $ runErrorNoCallStack
+                                    $ case header of
+                                        HeaderByron h -> throwError (NoByronSupport h)
+                                        HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                            validateVrfSignatureTPraos
+                                                ShelleyBasedEraShelley
+                                                connection
+                                                target
+                                                bhbody
+                                        HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                            validateVrfSignatureTPraos
+                                                ShelleyBasedEraAllegra
+                                                connection
+                                                target
+                                                bhbody
+                                        HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                            validateVrfSignatureTPraos
+                                                ShelleyBasedEraMary
+                                                connection
+                                                target
+                                                bhbody
+                                        HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                            validateVrfSignatureTPraos
+                                                ShelleyBasedEraAlonzo
+                                                connection
+                                                target
+                                                bhbody
+                                        HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
+                                            validateVrfSignaturePraos
+                                                ShelleyBasedEraBabbage
+                                                connection
+                                                target
+                                                (protocolHeaderView shelleyHeaderRaw)
+                                        HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
+                                            validateVrfSignaturePraos
+                                                ShelleyBasedEraConway
+                                                connection
+                                                target
+                                                (protocolHeaderView shelleyHeaderRaw)
+                                        HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
+                                            validateVrfSignaturePraos
+                                                ShelleyBasedEraDijkstra
+                                                connection
+                                                target
+                                                (protocolHeaderView shelleyHeaderRaw)
             )
 
 
