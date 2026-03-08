@@ -180,43 +180,25 @@ data LocalStateQueryWithResultMVar where
 
 
 executeLocalStateQuery
-    :: ( Conc :> es
-       , Concurrent :> es
-       , IOE :> es
-       , Labeled "nodeToClient" WithSocket :> es
-       , Log :> es
-       , Reader (ProtocolInfo CardanoBlock) :> es
-       , Reader ShelleyConfig :> es
-       , State (Either SomeException Connection) :> es
-       , Tracing :> es
-       )
-    => Target C.ChainPoint
+    :: (Concurrent :> es, IOE :> es)
+    => Connection
+    -> Target C.ChainPoint
     -> QueryInMode result
     -> Eff es (Either NodeConnectionError (Either AcquireFailure result))
-executeLocalStateQuery target localStateQuery =
+executeLocalStateQuery (Connection localStateQueries _ dead) target localStateQuery =
     do
-        Connection localStateQueries _ dead <- ensureConnection
         resultVar <- newEmptyMVar
         liftIO $ writeChan localStateQueries $ LocalStateQueryWithResultMVar resultVar target localStateQuery
         race (NodeConnectionError <$> readMVar dead) (readMVar resultVar)
 
 
 makeIntersectRequest
-    :: ( Conc :> es
-       , Concurrent :> es
-       , IOE :> es
-       , Labeled "nodeToClient" WithSocket :> es
-       , Log :> es
-       , Reader (ProtocolInfo CardanoBlock) :> es
-       , Reader ShelleyConfig :> es
-       , State (Either SomeException Connection) :> es
-       , Tracing :> es
-       )
-    => ChainPoint
+    :: (Concurrent :> es, IOE :> es)
+    => Connection
+    -> ChainPoint
     -> Eff es (Either NodeConnectionError (Maybe ChainPoint))
-makeIntersectRequest chainPoint =
+makeIntersectRequest (Connection _ intersectRequests dead) chainPoint =
     do
-        Connection _ intersectRequests dead <- ensureConnection
         resultVar <- newEmptyMVar
         liftIO $ writeChan intersectRequests (chainPoint, resultVar)
         race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
@@ -236,93 +218,99 @@ runNodeToClient
     => Eff (NodeToClient : es) a
     -> Eff es a
 runNodeToClient nodeToClient = do
-    (connection, newConnectionHandles) <- newConnection
-    evalState (Right connection) $ do
+    (c, newConnectionHandles) <- newConnection
+    evalState (Right c) $ do
         _ <- initializeConnection newConnectionHandles
         interpretWith_
             (inject nodeToClient)
             ( \case
-                ImmutableTip ->
-                    withSpan "node_to_client.immutable_tip"
-                        $ (fmap . fmap) ChainPoint
+                ImmutableTip -> withSpan "node_to_client.immutable_tip" $ do
+                    connection <- ensureConnection
+                    (fmap . fmap) ChainPoint
                         $ (fmap . fmap) (fromRight $ error "`C.ImmutableTip` should never fail to be acquired.")
-                        $ executeLocalStateQuery C.ImmutableTip
+                        $ executeLocalStateQuery connection C.ImmutableTip
                         $ QueryChainPoint
-                IsOnChain point ->
-                    withSpan "node_to_client.is_on_chain"
-                        $ (fmap . fmap) isJust
-                        $ makeIntersectRequest
+                IsOnChain point -> withSpan "node_to_client.is_on_chain" $ do
+                    connection <- ensureConnection
+                    (fmap . fmap) isJust
+                        $ makeIntersectRequest connection
                         $ point
-                ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature"
-                    $ runErrorNoCallStack
-                    $ runErrorNoCallStack
-                    $ runErrorNoCallStack
-                    $ runErrorNoCallStack
-                    $ case header of
-                        HeaderByron _ -> throwError NoByronSupport
-                        HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
-                            validateVrfSignatureTPraos
-                                ShelleyBasedEraShelley
-                                header
-                                bhbody
-                        HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
-                            validateVrfSignatureTPraos
-                                ShelleyBasedEraAllegra
-                                header
-                                bhbody
-                        HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
-                            validateVrfSignatureTPraos
-                                ShelleyBasedEraMary
-                                header
-                                bhbody
-                        HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
-                            validateVrfSignatureTPraos
-                                ShelleyBasedEraAlonzo
-                                header
-                                bhbody
-                        HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraBabbage
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
-                        HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraConway
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
-                        HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
-                            validateVrfSignaturePraos
-                                ShelleyBasedEraDijkstra
-                                header
-                                (protocolHeaderView shelleyHeaderRaw)
+                ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature" $ do
+                    connection <- ensureConnection
+                    let target =
+                            SpecificPoint
+                                $ C.ChainPoint (blockSlot header)
+                                $ HeaderHash
+                                $ toShortRawHash (Proxy @CardanoBlock)
+                                $ headerHash
+                                $ header
+                    runErrorNoCallStack
+                        $ runErrorNoCallStack
+                        $ runErrorNoCallStack
+                        $ runErrorNoCallStack
+                        $ case header of
+                            HeaderByron _ -> throwError NoByronSupport
+                            HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraShelley
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraAllegra
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraMary
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraAlonzo
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraBabbage
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
+                            HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraConway
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
+                            HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraDijkstra
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
             )
 
 
 validateVrfSignatureTPraos
-    :: ( Conc :> es
-       , Concurrent :> es
+    :: ( Concurrent :> es
        , Error AcquireFailure :> es
        , Error ElectionValidationError :> es
        , Error NodeConnectionError :> es
        , IOE :> es
-       , Labeled "nodeToClient" WithSocket :> es
-       , Log :> es
-       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
-       , State (Either SomeException Connection) :> es
-       , Tracing :> es
        , VRFAlgorithm (VRF c)
        )
-    => ShelleyBasedEra era -> CardanoHeader -> BHBody c -> Eff es ()
-validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput = certVRF}}) = do
-    let target =
-            SpecificPoint
-                $ C.ChainPoint (blockSlot header)
-                $ HeaderHash
-                $ toShortRawHash (Proxy @CardanoBlock)
-                $ headerHash
-                $ header
-        blockIssuer = coerceKeyRole (hashKey bheaderVk)
+    => ShelleyBasedEra era
+    -> Connection
+    -> Target C.ChainPoint
+    -> BHBody c
+    -> Eff es ()
+validateVrfSignatureTPraos era connection target (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput = certVRF}}) = do
+    let blockIssuer = coerceKeyRole (hashKey bheaderVk)
     activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
     (=<<) leftToError
         $ (fmap . first)
@@ -351,7 +339,7 @@ validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVR
         $ (=<<) leftToError
         $ (=<<) leftToError
         $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-        $ executeLocalStateQuery target
+        $ executeLocalStateQuery connection target
         $ QueryInEra
         $ QueryInShelleyBasedEra (convert era)
         $ QueryPoolDistribution
@@ -363,33 +351,21 @@ validateVrfSignatureTPraos era header (BHBody {bheaderVk, bheaderL = CertifiedVR
 
 validateVrfSignaturePraos
     :: forall era es
-     . ( Conc :> es
-       , Concurrent :> es
+     . ( Concurrent :> es
        , Consensus.PraosProtocolSupportsNode (ConsensusProtocol era)
        , Error AcquireFailure :> es
        , Error ElectionValidationError :> es
        , Error NodeConnectionError :> es
        , FromCBOR (ChainDepState (ConsensusProtocol era))
        , IOE :> es
-       , Labeled "nodeToClient" WithSocket :> es
-       , Log :> es
-       , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader ShelleyConfig :> es
-       , State (Either SomeException Connection) :> es
-       , Tracing :> es
        )
     => ShelleyBasedEra era
-    -> CardanoHeader
+    -> Connection
+    -> Target C.ChainPoint
     -> HeaderView Crypto
     -> Eff es ()
-validateVrfSignaturePraos era header headerView = do
-    let target =
-            SpecificPoint
-                $ C.ChainPoint (blockSlot header)
-                $ HeaderHash
-                $ toShortRawHash (Proxy @CardanoBlock)
-                $ headerHash
-                $ header
+validateVrfSignaturePraos era connection target headerView = do
     activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
     epochNonce <-
         fmap (Consensus.epochNonce . Consensus.getPraosNonces (Proxy @(ConsensusProtocol era)))
@@ -399,7 +375,7 @@ validateVrfSignaturePraos era header headerView = do
             $ (=<<) leftToError
             $ (=<<) leftToError
             $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-            $ executeLocalStateQuery target
+            $ executeLocalStateQuery connection target
             $ QueryInEra
             $ QueryInShelleyBasedEra (convert era)
             $ QueryProtocolState
@@ -421,7 +397,7 @@ validateVrfSignaturePraos era header headerView = do
         $ (=<<) leftToError
         $ (=<<) leftToError
         $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-        $ executeLocalStateQuery target
+        $ executeLocalStateQuery connection target
         $ QueryInEra
         $ QueryInShelleyBasedEra (convert era)
         $ QueryPoolDistribution
