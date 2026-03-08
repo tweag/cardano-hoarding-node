@@ -130,7 +130,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NoByronSupport :+ NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (IntersectNotFound :+ NoByronSupport :+ NodeConnectionError :+ AcquireFailure :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError = NodeConnectionError SomeException deriving (Show)
@@ -145,6 +145,9 @@ data ElectionValidationError
 data NoByronSupport = NoByronSupport deriving (Show)
 
 
+data IntersectNotFound = IntersectNotFound deriving (Show)
+
+
 infixr 6 :+
 type (:+) = Either
 
@@ -154,6 +157,7 @@ makeEffect ''NodeToClient
 
 validateVrfSignature
     :: ( Error AcquireFailure :> es
+       , Error IntersectNotFound :> es
        , Error NoByronSupport :> es
        , Error NodeConnectionError :> es
        , NodeToClient :> es
@@ -161,6 +165,7 @@ validateVrfSignature
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
 validateVrfSignature =
     (=<<) leftToError
+        . (=<<) leftToError
         . (=<<) leftToError
         . (=<<) leftToError
         . validateVrfSignature_
@@ -235,62 +240,65 @@ runNodeToClient nodeToClient = do
                     (fmap . fmap) isJust
                         $ makeIntersectRequest connection
                         $ point
-                ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature" $ do
-                    connection <- ensureConnection
-                    let target =
-                            SpecificPoint
-                                $ C.ChainPoint (blockSlot header)
-                                $ HeaderHash
-                                $ toShortRawHash (Proxy @CardanoBlock)
-                                $ headerHash
-                                $ header
-                    runErrorNoCallStack
-                        $ runErrorNoCallStack
-                        $ runErrorNoCallStack
-                        $ runErrorNoCallStack
-                        $ case header of
+                ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature"
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ do
+                        connection <- ensureConnection
+                        let target =
+                                ChainPoint
+                                    $ C.ChainPoint (blockSlot header)
+                                    $ HeaderHash
+                                    $ toShortRawHash (Proxy @CardanoBlock)
+                                    $ headerHash
+                                    $ header
+                        _ <- makeIntersectRequest connection target
+                        case header of
                             HeaderByron _ -> throwError NoByronSupport
                             HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraShelley
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     bhbody
                             HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraAllegra
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     bhbody
                             HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraMary
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     bhbody
                             HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
                                 validateVrfSignatureTPraos
                                     ShelleyBasedEraAlonzo
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     bhbody
                             HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraBabbage
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     (protocolHeaderView shelleyHeaderRaw)
                             HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraConway
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     (protocolHeaderView shelleyHeaderRaw)
                             HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
                                 validateVrfSignaturePraos
                                     ShelleyBasedEraDijkstra
                                     connection
-                                    target
+                                    (SpecificPoint $ coerce $ target)
                                     (protocolHeaderView shelleyHeaderRaw)
             )
 
@@ -330,8 +338,8 @@ validateVrfSignatureTPraos era connection target (BHBody {bheaderVk, bheaderL = 
                     Left individualPoolStake
             )
         $ fmap individualPoolStake
-        $ (=<<) leftToError
-        $ fmap (maybeToRight (PraosValidationErr $ VRFKeyUnknown blockIssuer) . M.lookup blockIssuer)
+        $ (=<<) (maybe (throwError $ PraosValidationErr $ VRFKeyUnknown $ blockIssuer) pure)
+        $ fmap (M.lookup blockIssuer)
         $ fmap (SL.unPoolDistr . unPoolDistr)
         $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         $ fmap (decodePoolDistribution era)
