@@ -169,7 +169,7 @@ validateVrfSignature =
 data Connection
     = Connection
     { localStateQueries :: InChan LocalStateQueryWithResultMVar
-    , isOnChainQueries :: InChan (ChainPoint, MVar Bool)
+    , intersectRequests :: InChan (ChainPoint, MVar (Maybe ChainPoint))
     , dead :: MVar SomeException
     -- ^ used to signal that the connection died so queries can stop waiting for responses
     }
@@ -228,10 +228,10 @@ runNodeToClient nodeToClient = do
                         $ executeLocalStateQuery C.ImmutableTip
                         $ QueryChainPoint
                 IsOnChain point -> withSpan "node_to_client.is_on_chain" $ do
-                    Connection _ isOnChainQueries dead <- ensureConnection
+                    Connection _ intersectRequests dead <- ensureConnection
                     resultVar <- newEmptyMVar
-                    liftIO $ writeChan isOnChainQueries (point, resultVar)
-                    race (NodeConnectionError <$> readMVar dead) $ readMVar $ resultVar
+                    liftIO $ writeChan intersectRequests (point, resultVar)
+                    race (NodeConnectionError <$> readMVar dead) $ fmap isJust $ readMVar $ resultVar
                 ValidateVrfSignature_ header -> withSpan "node_to_client.validate_vrf_signature"
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
@@ -420,13 +420,13 @@ leftToError = either throwError pure
 
 newConnection
     :: (Concurrent :> es, IOE :> es)
-    => Eff es (Connection, (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException))
+    => Eff es (Connection, (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar (Maybe ChainPoint)), MVar SomeException))
 newConnection =
     do
         (localStateQueriesIn, localStateQueriesOut) <- liftIO newChan
-        (isOnChainQueriesIn, isOnChainQueriesOut) <- liftIO newChan
+        (intersectRequestsIn, intersectRequestsOut) <- liftIO newChan
         dead <- newEmptyMVar
-        pure (Connection localStateQueriesIn isOnChainQueriesIn dead, (localStateQueriesOut, isOnChainQueriesOut, dead))
+        pure (Connection localStateQueriesIn intersectRequestsIn dead, (localStateQueriesOut, intersectRequestsOut, dead))
 
 
 initializeConnection
@@ -440,9 +440,9 @@ initializeConnection
        , State (Either SomeException Connection) :> es
        , Tracing :> es
        )
-    => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar Bool), MVar SomeException)
+    => (OutChan LocalStateQueryWithResultMVar, OutChan (ChainPoint, MVar (Maybe ChainPoint)), MVar SomeException)
     -> Eff es (Thread ())
-initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = withSpan "node_to_client.initialize_connection" $ do
+initializeConnection (localStateQueriesOut, intersectRequestsOut, dead) = withSpan "node_to_client.initialize_connection" $ do
     protocolInfo <- ask @(ProtocolInfo CardanoBlock)
     epochSize <- asks @ShelleyConfig (.scConfig.sgEpochLength)
     nodeToClientSocket <- labeled @"nodeToClient" getSocket
@@ -463,7 +463,7 @@ initializeConnection (localStateQueriesOut, isOnChainQueriesOut, dead) = withSpa
                 }
             )
             localStateQueriesOut
-            isOnChainQueriesOut
+            intersectRequestsOut
 
 
 ensureConnection
@@ -494,9 +494,9 @@ ensureConnection = withSpan "node_to_client.ensure_connection" $ do
 localNodeClient
     :: LocalNodeConnectInfo
     -> OutChan LocalStateQueryWithResultMVar
-    -> OutChan (ChainPoint, MVar Bool)
+    -> OutChan (ChainPoint, MVar (Maybe ChainPoint))
     -> IO ()
-localNodeClient connectionInfo localStateQueries isOnChainQueries =
+localNodeClient connectionInfo localStateQueries intersectRequests =
     connectToLocalNode
         connectionInfo
         LocalNodeClientProtocols
@@ -521,12 +521,14 @@ localNodeClient connectionInfo localStateQueries isOnChainQueries =
                 }
     queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
     queryIsOnChain = do
-        (point, resultVar) <- readChan isOnChainQueries
+        (point, resultVar) <- readChan intersectRequests
         pure
             $ S.SendMsgFindIntersect [coerce point]
             $ S.ClientStIntersect
-                { recvMsgIntersectFound = \_ _ -> S.ChainSyncClient $ MVar.putMVar resultVar True *> queryIsOnChain
-                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ MVar.putMVar resultVar False *> queryIsOnChain
+                { recvMsgIntersectFound =
+                    \chainPoint _ ->
+                        S.ChainSyncClient $ (MVar.putMVar resultVar $ Just $ ChainPoint $ chainPoint) *> queryIsOnChain
+                , recvMsgIntersectNotFound = \_ -> S.ChainSyncClient $ MVar.putMVar resultVar Nothing *> queryIsOnChain
                 }
 
 
