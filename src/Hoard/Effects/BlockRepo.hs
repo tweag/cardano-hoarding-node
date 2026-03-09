@@ -34,6 +34,7 @@ import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
 import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
@@ -58,7 +59,7 @@ data BlockRepo :: Effect where
 makeEffect ''BlockRepo
 
 
-runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepo action =
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
         InsertBlocks blocks -> do
