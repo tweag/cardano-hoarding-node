@@ -6,9 +6,14 @@ module Hoard.Sentry
     , ReceivedBlockOutsideRequestedRange (..)
     , runDuplicateBlocksReader
 
+      -- * Guards
+    , duplicateBlockGuard
+    , DuplicateBlocksKey (..)
+    , receivedBlockIsOutsideRequestedRangeGuard
+
       -- * Config
     , Config (..)
-    , DuplicateBlocksConfig (..)
+    , AdversarialThresholds (..)
     ) where
 
 import Data.Aeson (FromJSON)
@@ -33,20 +38,21 @@ import Hoard.Effects.Monitoring.Tracing
     , withSpan
     )
 import Hoard.Effects.Publishing (Pub, Sub, publish)
+import Hoard.Effects.Quota (Quota)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
 
 import Hoard.Effects.Publishing qualified as Sub
+import Hoard.Effects.Quota qualified as Quota
 
 
 component
-    :: ( Concurrent :> es
-       , Pub AdversarialBehavior :> es
+    :: ( Pub AdversarialBehavior :> es
        , Pub ReceivedBlockOutsideRequestedRange :> es
+       , Quota DuplicateBlocksKey :> es
        , Reader Config :> es
-       , Reader DuplicateBlocks :> es
        , Sub BlockReceived :> es
        , Tracing :> es
        )
@@ -74,10 +80,9 @@ runDuplicateBlocksReader eff = do
 
 
 duplicateBlockGuard
-    :: ( Concurrent :> es
-       , Pub AdversarialBehavior :> es
+    :: ( Pub AdversarialBehavior :> es
+       , Quota DuplicateBlocksKey :> es
        , Reader Config :> es
-       , Reader DuplicateBlocks :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
@@ -85,16 +90,16 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
     addAttribute "peer.address" event.peer.address
     addAttribute "request.id" $ show @Text event.requestId
     let blockHash = blockHashFromHeader $ getHeader event.block
-    m <- asks @DuplicateBlocks (.duplicateBlocks)
-    let key = (event.peer.id, event.requestId, blockHash)
-    c <- atomically do
-        count <- fromMaybe 0 <$> Map.lookup key m
-        let newCount = count + 1
-        Map.insert newCount key m
-        pure newCount
-    duplicateConfig <- asks @Config (.duplicateBlocks)
+    let key =
+            DuplicateBlocksKey
+                { peerId = event.peer.id
+                , requestId = event.requestId
+                , hash = blockHash
+                }
+    c <- fromIntegral <$> Quota.addHit key
+    cfg <- asks @Config (.duplicateBlocks)
     if
-        | c > duplicateConfig.criticalThreshold -> do
+        | c > cfg.criticalThreshold -> do
             addAttribute @Text "result" "warning"
             publish
                 $ AdversarialBehavior
@@ -102,7 +107,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     , description = "exceeded duplicate block critical threshold"
                     , severity = Critical
                     }
-        | c > duplicateConfig.warningThreshold -> do
+        | c > cfg.warningThreshold -> do
             addAttribute @Text "result" "critical"
             publish
                 $ AdversarialBehavior
@@ -113,6 +118,14 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
         | otherwise -> do
             addAttribute @Text "result" "none"
             pure ()
+
+
+data DuplicateBlocksKey = DuplicateBlocksKey
+    { peerId :: ID Peer
+    , requestId :: UUID
+    , hash :: BlockHash
+    }
+    deriving (Eq, Generic, Hashable, Ord)
 
 
 receivedBlockIsOutsideRequestedRangeGuard
@@ -164,7 +177,7 @@ data ReceivedBlockOutsideRequestedRange = ReceivedBlockOutsideRequestedRange
 
 
 data Config = Config
-    { duplicateBlocks :: DuplicateBlocksConfig
+    { duplicateBlocks :: AdversarialThresholds
     }
     deriving (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -173,23 +186,19 @@ data Config = Config
 instance Default Config where
     def =
         Config
-            { duplicateBlocks = def
+            { duplicateBlocks =
+                AdversarialThresholds
+                    { warningThreshold = 1
+                    , criticalThreshold = 20
+                    }
             }
 
 
-data DuplicateBlocksConfig = DuplicateBlocksConfig
+data AdversarialThresholds = AdversarialThresholds
     { warningThreshold :: Word
     -- ^ Threshold before the peer is considered to exhibit adversarial behavior.
     , criticalThreshold :: Word
     -- ^ Threshold before the peer is considered adequately adversarial to warrant major action.
     }
     deriving (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake DuplicateBlocksConfig
-
-
-instance Default DuplicateBlocksConfig where
-    def =
-        DuplicateBlocksConfig
-            { warningThreshold = 1
-            , criticalThreshold = 20
-            }
+    deriving (FromJSON) via QuietSnake AdversarialThresholds
