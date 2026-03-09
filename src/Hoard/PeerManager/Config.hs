@@ -13,6 +13,7 @@ data Config = Config
     { maxCollectorLifetimeSeconds :: NominalDiffTime
     , peerFailureCooldownSeconds :: NominalDiffTime
     , maxConcurrentCollectors :: Word
+    , replenishIntervalSeconds :: Int
     }
     deriving (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -24,4 +25,5 @@ instance Default Config where
             { maxCollectorLifetimeSeconds = 60
             , peerFailureCooldownSeconds = 60
             , maxConcurrentCollectors = 100
+            , replenishIntervalSeconds = 20
             }
