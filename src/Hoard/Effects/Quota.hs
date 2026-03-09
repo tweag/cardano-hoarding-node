@@ -29,6 +29,7 @@ module Hoard.Effects.Quota
       Quota
     , MessageStatus (..)
     , withQuotaCheck
+    , addHit
 
       -- * Re-exports
     , module Hoard.Effects.Quota.Config
@@ -83,6 +84,7 @@ data Quota key :: Effect where
     WithQuotaCheck
         :: (Hashable key, Ord key)
         => key -> (Int -> MessageStatus -> m a) -> Quota key m a
+    AddHit :: (Hashable key, Ord key) => key -> Quota key m Int
 
 
 makeEffect ''Quota
@@ -135,6 +137,10 @@ runQuota maxMessages action = do
             (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
 
             unlift $ continuation count status
+        AddHit key -> do
+            now <- currentTime
+            (count, _) <- STM.atomically $ checkAndUpdate store maxMessages now key
+            pure count
 
 
 -- | Atomically check and update quota state for a key

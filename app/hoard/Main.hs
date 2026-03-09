@@ -97,6 +97,7 @@ main =
         . Sentry.runDuplicateBlocksReader
         . runConcByConfig
         . runQuota @Persistence.PeerSlotKey 1
+        . runQuota @Sentry.DuplicateBlocksKey 1
         . runPubSub @BlockFetch.BatchCompleted
         . runPubSub @BlockFetch.BlockReceived
         . runPubSub @BlockFetch.Request
