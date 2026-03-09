@@ -50,7 +50,6 @@ headerReceived =
     HeaderReceived
         { peer = testPeer
         , header = testHeader
-        , timestamp = epoch
         , tip = TipGenesis
         }
 
@@ -95,7 +94,6 @@ spec_Collector = do
             reqs
                 `shouldBe` [ BlockFetch.Request
                                 { peer = testPeer
-                                , timestamp = epoch
                                 , header = testHeader
                                 }
                            ]

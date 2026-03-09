@@ -2,21 +2,25 @@ module Hoard.Effects.Publishing
     ( Pub
     , Sub
     , listen
+    , listen_
     , publish
     , runPubSub
     , runPubWriter
     )
 where
 
+import Data.Time (UTCTime)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, localSeqUnlift)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 
 import Hoard.Effects.Chan (Chan)
+import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (SpanContext, Tracing)
 
 import Hoard.Effects.Chan qualified as Chan
+import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 
 
@@ -25,38 +29,50 @@ data Pub (event :: Type) :: Effect where
 
 
 data Sub (event :: Type) :: Effect where
-    Listen :: (event -> m ()) -> Sub event m Void
+    Listen :: (UTCTime -> event -> m ()) -> Sub event m Void
 
 
 makeEffect ''Pub
 makeEffect ''Sub
 
 
+listen_ :: (Sub event :> es) => (event -> Eff es ()) -> Eff es Void
+listen_ listener = listen $ \_timestamp event -> listener event
+
+
 -- | Internal wrapper for events with trace context
 data TracedEvent event = TracedEvent
     { event :: event
+    , timestamp :: UTCTime
     , publisherSpanContext :: Maybe SpanContext
     }
 
 
 -- | Runs Pub and Sub effects with an internal channel for a specific event type.
--- Automatically captures span context from the publisher and propagates it as a span link in listeners.
-runPubSub :: forall event es a. (Chan :> es, Tracing :> es) => Eff (Pub event : Sub event : es) a -> Eff es a
+-- Automatically captures span context from the publisher and creates linked spans in listeners.
+runPubSub
+    :: forall event es a
+     . ( Chan :> es
+       , Clock :> es
+       , Tracing :> es
+       )
+    => Eff (Pub event : Sub event : es) a -> Eff es a
 runPubSub action = do
     (inChan, _) <- Chan.newChan @(TracedEvent event)
 
     let handlePub eff = interpretWith_ eff \case
             Publish event -> do
+                timestamp <- Clock.currentTime
                 -- Capture the current span context from the publisher
                 publisherSpanContext <- Tracing.getSpanContext
-                Chan.writeChan inChan TracedEvent {event, publisherSpanContext}
+                Chan.writeChan inChan TracedEvent {event, timestamp, publisherSpanContext}
 
         handleSub eff = interpretWith eff \env -> \case
             Listen listener -> localSeqUnlift env \unlift -> do
                 chan <- Chan.dupChan inChan
                 forever do
-                    TracedEvent {event, publisherSpanContext} <- Chan.readChan chan
-                    Tracing.withLinkPropagation publisherSpanContext $ unlift $ listener event
+                    TracedEvent {event, timestamp, publisherSpanContext} <- Chan.readChan chan
+                    Tracing.withLinkPropagation publisherSpanContext $ unlift $ listener timestamp event
 
     handleSub . handlePub $ action
 

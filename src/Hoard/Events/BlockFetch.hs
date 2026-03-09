@@ -6,7 +6,6 @@ module Hoard.Events.BlockFetch
     , BatchCompleted (..)
     ) where
 
-import Data.Time (UTCTime)
 import Data.UUID (UUID)
 import Ouroboros.Network.Protocol.BlockFetch.Type (ChainRange)
 
@@ -18,9 +17,8 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 --
 -- BlockFetch is responsible for downloading block bodies after ChainSync
 -- has provided the headers.
-data RequestStarted = RequestStarted
+newtype RequestStarted = RequestStarted
     { peer :: Peer
-    , timestamp :: UTCTime
     }
     deriving (Show, Typeable)
 
@@ -28,7 +26,6 @@ data RequestStarted = RequestStarted
 -- | A request to fetch a single block.
 data Request = Request
     { peer :: Peer
-    , timestamp :: UTCTime
     , header :: CardanoHeader
     }
     deriving (Eq, Show, Typeable)
@@ -36,7 +33,6 @@ data Request = Request
 
 data BlockReceived = BlockReceived
     { peer :: Peer
-    , timestamp :: UTCTime
     , block :: CardanoBlock
     , requestId :: UUID
     , range :: ChainRange CardanoPoint
@@ -46,7 +42,6 @@ data BlockReceived = BlockReceived
 
 data RequestFailed = RequestFailed
     { peer :: Peer
-    , timestamp :: UTCTime
     , header :: CardanoHeader
     , errorMessage :: Text
     }
@@ -55,7 +50,6 @@ data RequestFailed = RequestFailed
 
 data BatchCompleted = BatchCompleted
     { peer :: Peer
-    , timestamp :: UTCTime
     , blockCount :: Int
     }
     deriving (Show, Typeable)

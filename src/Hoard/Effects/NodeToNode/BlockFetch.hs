@@ -34,7 +34,7 @@ import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
-import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
+import Hoard.Effects.Publishing (Pub, Sub, listen_, publish)
 import Hoard.Effects.UUID (GenUUID, UUID)
 import Hoard.Events.BlockFetch
     ( BatchCompleted (..)
@@ -46,7 +46,6 @@ import Hoard.Events.BlockFetch
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoMiniProtocol, CardanoPoint)
 
 import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.UUID qualified as UUID
 
@@ -114,13 +113,12 @@ client
     -> BlockFetch.BlockFetchClient CardanoBlock CardanoPoint IO ()
 client unlift cfg peer =
     BlockFetch.BlockFetchClient $ unlift do
-        timestamp <- Clock.currentTime
-        publish $ RequestStarted {peer, timestamp}
+        publish $ RequestStarted peer
 
         reqs <- do
             (inChan, outChan) <- Chan.newChan
 
-            Conc.fork_ $ listen \(req :: Request) ->
+            Conc.fork_ $ listen_ \(req :: Request) ->
                 when (req.peer.id == peer.id) $ Chan.writeChan inChan req
 
             readChanBatched cfg.batchTimeoutMicroseconds cfg.batchSize outChan
@@ -159,11 +157,9 @@ blockReceiver unlift peer requestId requestedHashes range blockCount =
     BlockFetch.BlockFetchReceiver
         { handleBlock = \block -> unlift $ withSpan "block_fetch.handle_block" do
             addAttribute "request.id" $ show @Text requestId
-            timestamp <- Clock.currentTime
             publish
                 BlockReceived
                     { peer
-                    , timestamp
                     , block
                     , requestId
                     , range
@@ -172,11 +168,9 @@ blockReceiver unlift peer requestId requestedHashes range blockCount =
         , handleBatchDone = unlift $ withSpan "block_fetch.handle_batch_done" do
             addAttribute "request.id" $ show @Text requestId
             addAttribute "received.count" blockCount
-            timestamp <- Clock.currentTime
             publish
                 $ BatchCompleted
                     { peer
-                    , timestamp
                     , blockCount
                     }
         }
@@ -206,12 +200,10 @@ handleResponse unlift peer requestId requestedHashes reqs range =
             addAttribute "request.id" $ show @Text requestId
             addAttribute "request.count" $ length reqs
             recordBlockFetchFailure
-            timestamp <- Clock.currentTime
             for_ reqs \req ->
                 publish
                     $ RequestFailed
                         { peer
-                        , timestamp
                         , header = req.header
                         , errorMessage = "No blocks for point"
                         }

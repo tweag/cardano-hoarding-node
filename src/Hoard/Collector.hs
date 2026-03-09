@@ -14,7 +14,7 @@ import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
-import Hoard.Effects.Publishing (Pub, Sub, listen, publish)
+import Hoard.Effects.Publishing (Pub, Sub, listen_, publish)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyCardanoHeader)
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.PeerManager.Peers (Connection (..), awaitTermination, signalTermination)
@@ -48,7 +48,7 @@ collectFromPeer peer conn = do
     -- when the connection terminates (either normally or exceptionally)
     result <- Conc.scoped $ do
         _ <- Conc.fork_ do
-            listen $ filterHeaderReceived peer.id
+            listen_ $ filterHeaderReceived peer.id
 
         _ <- Conc.fork do
             res <- connectToPeer peer
@@ -100,7 +100,6 @@ filterHeaderReceived myPeerId event =
                     addAttribute "duplicate_header" False
                     publish
                         BlockFetch.Request
-                            { timestamp = event.timestamp
-                            , peer = event.peer
+                            { peer = event.peer
                             , header
                             }

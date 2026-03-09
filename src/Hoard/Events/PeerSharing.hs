@@ -2,8 +2,6 @@ module Hoard.Events.PeerSharing
     ( PeersReceived (..)
     ) where
 
-import Data.Time (UTCTime)
-
 import Hoard.Data.Peer (Peer, PeerAddress)
 
 
@@ -17,7 +15,6 @@ import Hoard.Data.Peer (Peer, PeerAddress)
 -- from connected nodes.
 data PeersReceived = PeersReceived
     { peer :: Peer
-    , timestamp :: UTCTime
     , peerAddresses :: Set PeerAddress -- The peer addresses we received
     }
     deriving (Show, Typeable)

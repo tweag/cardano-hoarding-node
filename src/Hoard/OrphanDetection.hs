@@ -45,7 +45,7 @@ component =
                             Right () -> pure ()
             in
                 pure
-                    [ Sub.listen $ withErrorHandling Listeners.blockReceivedClassifier
-                    , Sub.listen $ withErrorHandling Listeners.immutableTipUpdatedAger
+                    [ Sub.listen_ $ withErrorHandling Listeners.blockReceivedClassifier
+                    , Sub.listen_ $ withErrorHandling Listeners.immutableTipUpdatedAger
                     ]
         }
