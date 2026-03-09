@@ -5,6 +5,7 @@
 module Hoard.Effects.Conc.Traced
     ( -- * Interpreters
       runConc
+    , runConcByConfig
     , runConcTraced
 
       -- * Interposers
@@ -14,12 +15,14 @@ where
 
 import Effectful (IOE, raise, withEffToIO)
 import Effectful.Dispatch.Dynamic (interpose, localLend, localUnlift, passthrough)
+import Effectful.Reader.Static (Reader, asks)
 
 import Ki qualified
 
 import Hoard.Effects.Conc (Conc (..), Scope (..), concStrat, fork, forkTry, fork_, runConcBase)
-import Hoard.Effects.Monitoring.Tracing (Tracing)
+import Hoard.Effects.Monitoring.Tracing (Tracing, TracingConfig (..))
 
+import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 
 
@@ -28,6 +31,16 @@ runConc :: (IOE :> es, Tracing :> es) => Eff (Conc : es) a -> Eff es a
 runConc eff = withEffToIO concStrat $ \unlift ->
     Ki.scoped $ \scope ->
         unlift $ runConcTraced (Scope scope) eff
+
+
+-- | Run 'Conc' effect, selecting the interpreter based on tracing config.
+--
+-- If tracing is enabled, uses 'runConc' for automatic span link propagation.
+-- If tracing is disabled, falls back to 'Conc.runConc' to skip the overhead.
+runConcByConfig :: (IOE :> es, Reader TracingConfig :> es, Tracing :> es) => Eff (Conc : es) a -> Eff es a
+runConcByConfig eff = do
+    tracingEnabled <- asks @TracingConfig (.enabled)
+    if tracingEnabled then runConc eff else Conc.runConc eff
 
 
 -- | Run 'Conc' effect with automatic trace context propagation.

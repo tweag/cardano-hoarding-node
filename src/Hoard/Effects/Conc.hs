@@ -14,6 +14,7 @@ module Hoard.Effects.Conc
 
       -- * Interpreters
     , runConcBase
+    , runConc
 
       -- * Unlift Strategy
     , concStrat
@@ -79,6 +80,15 @@ runConcBase (Scope scope0) = interpret $ handler @es scope0
                                 . interpose (handler subScope)
                                 . raise @IOE
                                 $ m
+
+
+-- | Run 'Conc' in a new Ki scope without trace context propagation.
+--
+-- Suitable for tests and contexts where tracing is not needed.
+runConc :: (IOE :> es) => Eff (Conc : es) a -> Eff es a
+runConc eff = withEffToIO concStrat $ \unlift ->
+    Ki.scoped $ \scope ->
+        unlift $ runConcBase (Scope scope) eff
 
 
 concStrat :: UnliftStrategy
