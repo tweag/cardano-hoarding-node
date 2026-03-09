@@ -26,6 +26,7 @@ module Hoard.Effects.Monitoring.Metrics.Definitions
       -- ** Histograms
     , metricBlockFetchDuration
     , metricDBQueryDuration
+    , metricPeerConnectionEstablishment
     , metricPeerManagerCullBatches
     , metricPeerManagerReplenishedCollector
     , metricDBPoolAcquisitionDuration
@@ -116,6 +117,10 @@ metricDBQueryDuration = "hoard_db_query_duration_seconds"
 
 metricDBPoolAcquisitionDuration :: Text
 metricDBPoolAcquisitionDuration = "hoard_db_pool_acquisition_duration_seconds"
+
+
+metricPeerConnectionEstablishment :: Text
+metricPeerConnectionEstablishment = "hoard_peer_connection_establishment_seconds"
 
 
 metricPeerManagerCullBatches :: Text
