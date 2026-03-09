@@ -16,7 +16,7 @@ import Data.Default (Default (..))
 import Data.UUID (UUID)
 import Effectful.Concurrent.STM (Concurrent, atomically)
 import Effectful.Reader.Static (Reader, asks, runReader)
-import Ouroboros.Consensus.Block (SlotNo (..), getHeader)
+import Ouroboros.Consensus.Block (SlotNo (..))
 import StmContainers.Map (Map)
 
 import Ouroboros.Consensus.Block.Abstract qualified as Block
@@ -24,7 +24,7 @@ import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import StmContainers.Map qualified as Map
 
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Monitoring.Tracing
@@ -84,7 +84,7 @@ duplicateBlockGuard
 duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
     addAttribute "peer.address" event.peer.address
     addAttribute "request.id" $ show @Text event.requestId
-    let blockHash = blockHashFromHeader $ getHeader event.block
+    let blockHash = mkBlockHash event.block
     m <- asks @DuplicateBlocks (.duplicateBlocks)
     let key = (event.peer.id, event.requestId, blockHash)
     c <- atomically do

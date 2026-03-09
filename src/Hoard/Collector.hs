@@ -6,7 +6,7 @@ module Hoard.Collector
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.MVar (newEmptyMVar, putMVar, tryReadMVar)
 
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
@@ -83,7 +83,7 @@ filterHeaderReceived
     -> Eff es ()
 filterHeaderReceived myPeerId event =
     unless (event.peer.id /= myPeerId) $ withSpan "collector.filter_header_received" do
-        let hash = blockHashFromHeader event.header
+        let hash = mkBlockHash event.header
         addAttribute "peer.address" event.peer.address
         verifyCardanoHeader event.header >>= \case
             Left _invalidHeader -> do

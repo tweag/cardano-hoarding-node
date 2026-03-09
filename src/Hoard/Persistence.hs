@@ -6,11 +6,11 @@ module Hoard.Persistence
 import Data.Time (UTCTime)
 import Effectful.State.Static.Shared (State, gets)
 import Ouroboros.Consensus.Block (BlockNo (..))
-import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, getHeader, unSlotNo)
+import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, unSlotNo)
 
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
@@ -191,13 +191,13 @@ tagBlockFromOutsideRequestedRange event =
     withSpan "persistence.tag_block_from_outside_requested_range"
         $ BlockRepo.tagBlock hash [BlockTag.OutsideOfRequestedRange]
   where
-    hash = blockHashFromHeader $ getHeader event.block
+    hash = mkBlockHash event.block
 
 
 extractHeaderData :: UTCTime -> CardanoHeader -> Header
 extractHeaderData timestamp header =
     Header
-        { hash = blockHashFromHeader header
+        { hash = mkBlockHash header
         , headerData = header
         , slotNumber = unSlotNo $ blockSlot header
         , blockNumber = unBlockNo $ blockNo header
@@ -208,7 +208,7 @@ extractHeaderData timestamp header =
 extractBlockData :: UTCTime -> CardanoBlock -> Block
 extractBlockData timestamp block =
     Block
-        { hash = blockHashFromHeader $ getHeader block
+        { hash = mkBlockHash block
         , slotNumber = fromIntegral $ unSlotNo $ blockSlot block
         , poolId = mkPoolID block
         , blockData = block

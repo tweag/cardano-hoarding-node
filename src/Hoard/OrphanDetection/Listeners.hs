@@ -14,7 +14,7 @@ import Ouroboros.Network.Block (blockHash)
 import Data.Set qualified as Set
 
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock, currentTime)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
@@ -45,7 +45,7 @@ classifyBlockByChainStatus
     -> Eff es ()
 classifyBlockByChainStatus blockData = withSpan "classify_block_by_chain_status" do
     let header = getHeader blockData
-        hash = blockHashFromHeader header
+        hash = mkBlockHash header
 
     apiHash <- deserialiseBlockHeaderHash blockData
     let blockChainPoint = Hoard.ChainPoint (ChainPoint (blockSlot blockData) apiHash)
