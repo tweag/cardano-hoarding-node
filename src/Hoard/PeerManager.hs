@@ -123,8 +123,9 @@ triggerReplenish
        )
     => Eff es Void
 triggerReplenish = do
+    interval <- asks (.replenishIntervalSeconds)
     replenish
-    every 20 replenish
+    every interval replenish
   where
     replenish = do
         limit <- asks $ fromIntegral . (.maxConcurrentCollectors)
@@ -184,10 +185,9 @@ cullAdversarialPeers event = do
         pure ()
 
 
-noteDisconnectedPeer :: (PeerRepo :> es, Pub PeerRequested :> es, Tracing :> es) => UTCTime -> PeerDisconnected -> Eff es ()
+noteDisconnectedPeer :: (PeerRepo :> es, Tracing :> es) => UTCTime -> PeerDisconnected -> Eff es ()
 noteDisconnectedPeer timestamp event = withSpan "peer_manager.note_disconnected_peer" do
     PeerRepo.updateLastConnected event.peerId timestamp
-    publish $ PeerRequested 1
 
 
 replenishCollectors

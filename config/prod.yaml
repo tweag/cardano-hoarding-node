@@ -46,6 +46,7 @@ peer_manager:
   peer_failure_cooldown_seconds: 300
   max_collector_lifetime_seconds: 3000 # 50 minutes
   max_concurrent_collectors: 100
+  replenish_interval_seconds: 20
 
 sentry:
   duplicate_blocks:
