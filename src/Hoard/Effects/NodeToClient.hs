@@ -28,9 +28,10 @@ import Cardano.Api
         )
     , LocalNodeConnectInfo (LocalNodeConnectInfo)
     , NetworkId (Mainnet, Testnet)
+    , PastHorizonException
     , PoolDistribution (unPoolDistr)
     , QueryInEra (QueryInShelleyBasedEra)
-    , QueryInMode (QueryChainPoint, QueryInEra)
+    , QueryInMode (QueryChainPoint, QueryEraHistory, QueryInEra)
     , QueryInShelleyBasedEra (QueryPoolDistribution, QueryProtocolState)
     , ShelleyBasedEra
         ( ShelleyBasedEraAllegra
@@ -43,9 +44,11 @@ import Cardano.Api
         )
     , ShelleyConfig
     , Target (SpecificPoint)
+    , chainPointToSlotNo
     , connectToLocalNode
     , decodePoolDistribution
     , decodeProtocolState
+    , slotToEpoch
     )
 import Cardano.Crypto.VRF (CertifiedVRF (CertifiedVRF, certifiedOutput), VRFAlgorithm)
 import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff)
@@ -131,20 +134,21 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (NodeConnectionError :+ IntersectNotFound :+ PointPastEpochHorizon :+ NoByronSupport :+ IntersectTooOld :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (HeaderAtGenesis :+ PastHorizonException :+ NodeConnectionError :+ IntersectNotFound :+ PointPastEpochHorizon :+ NoByronSupport :+ IntersectTooOld :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError = NodeConnectionError SomeException deriving (Show)
 
 
-data IntersectNotFound = IntersectNotFound ChainPoint deriving (Show)
+data IntersectNotFound = IntersectNotFound (Header CardanoBlock) ChainPoint deriving (Show)
 
 
-data PointPastEpochHorizon = PointPastEpochHorizon ChainPoint ChainPoint deriving (Show)
-data IntersectTooOld = IntersectTooOld (Target C.ChainPoint) deriving (Show)
+data PointPastEpochHorizon = PointPastEpochHorizon (Header CardanoBlock) ChainPoint ChainPoint deriving (Show)
+data IntersectTooOld = IntersectTooOld (Header CardanoBlock) (Target C.ChainPoint) deriving (Show)
 
 
 data NoByronSupport = NoByronSupport (Header ByronBlock) deriving (Show)
+data HeaderAtGenesis = HeaderAtGenesis (Header CardanoBlock) deriving (Show)
 
 
 data ElectionValidationError
@@ -161,16 +165,20 @@ makeEffect ''NodeToClient
 
 
 validateVrfSignature
-    :: ( Error IntersectNotFound :> es
+    :: ( Error HeaderAtGenesis :> es
+       , Error IntersectNotFound :> es
        , Error IntersectTooOld :> es
        , Error NoByronSupport :> es
        , Error NodeConnectionError :> es
+       , Error PastHorizonException :> es
        , Error PointPastEpochHorizon :> es
        , NodeToClient :> es
        )
     => CardanoHeader -> Eff es (Either ElectionValidationError ())
 validateVrfSignature =
     (=<<) leftToError
+        . (=<<) leftToError
+        . (=<<) leftToError
         . (=<<) leftToError
         . (=<<) leftToError
         . (=<<) leftToError
@@ -254,6 +262,8 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
+                    $ runErrorNoCallStack
+                    $ runErrorNoCallStack
                     $ do
                         connection <- ensureConnection
                         let chainPoint =
@@ -264,20 +274,37 @@ runNodeToClient nodeToClient = do
                                     $ headerHash
                                     $ header
                         intersect <-
-                            (=<<) (maybe (throwError $ IntersectNotFound $ chainPoint) pure)
+                            (=<<) (maybe (throwError $ IntersectNotFound header $ chainPoint) pure)
                                 $ (=<<) leftToError
                                 $ makeIntersectRequest connection
                                 $ chainPoint
                         let target = SpecificPoint $ coerce $ intersect
-                        if
-                            -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
-                            | intersect == chainPoint -> pure ()
-                            | False -> throwError (PointPastEpochHorizon intersect chainPoint) -- to do. condition. and can we distinguish the temprorary cases? also check if the temporary cases do not fail earlier already with an `IntersectNotFound` or something.
-                            | otherwise ->
-                                (=<<)
+                        if intersect == chainPoint then
+                            pure () -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
+                        else do
+                            eraHistory <- -- to do. cache
+                                fmap (fromRight $ error "`C.VolatileTip` should never fail to be acquired.")
+                                    $ (=<<) leftToError
+                                    $ executeLocalStateQuery connection C.VolatileTip
+                                    $ QueryEraHistory
+                            let
+                                toEpoch =
+                                    (fmap . fmap) (\(a, _, _) -> a)
+                                        . fmap (flip slotToEpoch eraHistory)
+                                        . maybe (throwError $ HeaderAtGenesis header) pure
+                                        . chainPointToSlotNo
+                                        . coerce
+                            chainPointEpoch <- leftToError =<< toEpoch chainPoint -- to do. refresh cached `EraHistory`, that is `toEpoch`, on `PastHorizonException`s
+                            intersectEpoch <- either throwIO pure =<< toEpoch intersect -- intersect should never be past the horizon because it is less than `VolatileTip`.
+                            if intersectEpoch < chainPointEpoch then
+                                throwError (PointPastEpochHorizon header intersect chainPoint) -- to do. attach the distance between intersect and the volatile tip which encodes the probability of the epoch horizon reaching the chain point, so the caller can decide if and when to retry.
+                            else
+                                if chainPointEpoch < intersectEpoch then
+                                    error "a chain point should never be less than its intersect." -- to do. remove?
+                                else (=<<)
                                     ( \case
                                         Right a -> pure a
-                                        Left AcquireFailurePointTooOld -> throwError (IntersectTooOld target)
+                                        Left AcquireFailurePointTooOld -> throwError (IntersectTooOld header target)
                                         Left AcquireFailurePointNotOnChain -> error "an intersect point should never be not on chain."
                                     )
                                     $ runErrorNoCallStack
@@ -369,9 +396,9 @@ validateVrfSignatureTPraos era connection target (BHBody {bheaderVk, bheaderL = 
         $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
         $ fmap (decodePoolDistribution era)
         $ (=<<) leftToError
+        $ (fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
         $ (=<<) leftToError
         $ (=<<) leftToError
-        $ (fmap . fmap . fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
         $ executeLocalStateQuery connection target
         $ QueryInEra
         $ QueryInShelleyBasedEra (convert era)
