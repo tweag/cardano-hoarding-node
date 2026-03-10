@@ -89,8 +89,7 @@ import Effectful.State.Static.Shared (State, evalState, put, stateM)
 import Effectful.TH (makeEffect)
 import Ouroboros.Consensus.Block (ConvertRawHash (toShortRawHash), blockSlot, headerHash)
 import Ouroboros.Consensus.Cardano.Block
-    ( HardForkLedgerConfig (CardanoLedgerConfig)
-    , Header
+    ( Header
         ( HeaderAllegra
         , HeaderAlonzo
         , HeaderBabbage
@@ -101,7 +100,7 @@ import Ouroboros.Consensus.Cardano.Block
         , HeaderShelley
         )
     )
-import Ouroboros.Consensus.Config (configBlock, configLedger)
+import Ouroboros.Consensus.Config (configBlock)
 import Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (getNetworkMagic))
 import Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr (VRFKeyUnknown, VRFLeaderValueTooBig), doValidateVRFSignature)
@@ -256,9 +255,6 @@ runNodeToClient nodeToClient = do
                     $ runErrorNoCallStack
                     $ runErrorNoCallStack
                     $ do
-                        protocolInfo <- ask @(ProtocolInfo CardanoBlock)
-                        let a = (\case CardanoLedgerConfig _ s _ _ _ _ c _ -> c) $ configLedger $ pInfoConfig $ protocolInfo
-                        -- http://localhost:8080/file/nix/store/4pdgnanfq90hrpfnaf5n8z8ps4823w1i-ouroboros-consensus-cardano-lib-ouroboros-consensus-cardano-0.26.0.2-haddock-doc/share/doc/ouroboros-consensus-cardano/html/Ouroboros-Consensus-Shelley-Ledger.html#v:shelleyLedgerConfig
                         connection <- ensureConnection
                         let chainPoint =
                                 ChainPoint
