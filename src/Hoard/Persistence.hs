@@ -37,7 +37,7 @@ import Hoard.Effects.Verifier (Verifier, getVerified, verifyBlock, verifyHeader)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
-import Hoard.Sentry (AdversarialBehavior (..))
+import Hoard.Sentry (AdversarialBehavior (..), ReceivedBlockOutsideRequestedRange (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -69,6 +69,7 @@ component
        , Sub HeaderReceived :> es
        , Sub ImmutableTip.Refreshed :> es
        , Sub PeersReceived :> es
+       , Sub ReceivedBlockOutsideRequestedRange :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -83,6 +84,7 @@ component =
                 , Sub.listen peersReceived
                 , Sub.listen_ noteAdversarialBehavior
                 , Sub.listen_ persistImmutableTipOnRefresh
+                , Sub.listen_ tagBlockFromOutsideRequestedRange
                 ]
         }
 
@@ -180,6 +182,16 @@ persistImmutableTipOnRefresh
 persistImmutableTipOnRefresh ImmutableTip.Refreshed = withSpan "immutable_tip.persist" do
     tip <- gets (.immutableTip)
     HoardStateRepo.persistImmutableTip tip
+
+
+tagBlockFromOutsideRequestedRange
+    :: (BlockRepo :> es, Tracing :> es)
+    => ReceivedBlockOutsideRequestedRange -> Eff es ()
+tagBlockFromOutsideRequestedRange event =
+    withSpan "persistence.tag_block_from_outside_requested_range"
+        $ BlockRepo.tagBlock hash [BlockTag.OutsideOfRequestedRange]
+  where
+    hash = blockHashFromHeader $ getHeader event.block
 
 
 extractHeaderData :: UTCTime -> CardanoHeader -> Header

@@ -3,7 +3,8 @@
 BEGIN;
 
 CREATE TYPE hoard.block_tag_kind AS ENUM (
-  'CorruptBlockIntegrity'
+  'CorruptBlockIntegrity',
+  'OutsideOfRequestedRange'
 );
 
 CREATE TABLE hoard.block_tags (

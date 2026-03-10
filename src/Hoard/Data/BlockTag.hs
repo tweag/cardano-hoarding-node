@@ -7,6 +7,7 @@ import Rel8 qualified
 
 data BlockTag
     = CorruptBlockIntegrity
+    | OutsideOfRequestedRange
     deriving stock (Bounded, Enum, Eq, Generic, Ord, Show)
     deriving (DBType) via Rel8.Enum BlockTag
 
