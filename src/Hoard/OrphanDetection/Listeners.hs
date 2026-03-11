@@ -51,11 +51,11 @@ classifyBlockByChainStatus blockData = withSpan "classify_block_by_chain_status"
     let blockChainPoint = Hoard.ChainPoint (ChainPoint (blockSlot blockData) apiHash)
 
     NodeToClient.isOnChain blockChainPoint >>= \case
-        Nothing -> do
+        Left _ -> do
             setStatus $ Error "Failed to query isOnChain"
             -- Remove from being classified set even on failure to prevent permanent blocking
             modify $ \s -> s {blocksBeingClassified = Set.delete hash s.blocksBeingClassified}
-        Just isOnChain -> do
+        Right isOnChain -> do
             timestamp <- currentTime
             let classification = if isOnChain then Canonical else Orphaned
             BlockRepo.classifyBlock hash classification timestamp

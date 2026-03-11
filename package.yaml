@@ -58,10 +58,12 @@ library:
     - time
     - bytestring
     - cardano-api
+    - cardano-crypto-class
     - cardano-ledger-binary
     - cardano-ledger-byron
     - cardano-ledger-core
     - cardano-ledger-shelley
+    - cardano-protocol-tpraos
     - casing
     - cborg
     - containers

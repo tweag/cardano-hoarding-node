@@ -14,6 +14,7 @@ module Hoard.Sentry
       -- * Config
     , Config (..)
     , AdversarialThresholds (..)
+    , receivedHeaderElectionProofGuard
     ) where
 
 import Data.Aeson (FromJSON)
@@ -37,23 +38,29 @@ import Hoard.Effects.Monitoring.Tracing
     , addAttribute
     , withSpan
     )
+import Hoard.Effects.NodeToClient (NodeToClient, validateVrfSignature_)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Quota (Quota)
 import Hoard.Events.BlockFetch (BlockReceived (..))
+import Hoard.Events.ChainSync (HeaderReceived (HeaderReceived))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
 
+import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Effects.Quota qualified as Quota
 
 
 component
-    :: ( Pub AdversarialBehavior :> es
+    :: ( Log.Log :> es
+       , NodeToClient :> es
+       , Pub AdversarialBehavior :> es
        , Pub ReceivedBlockOutsideRequestedRange :> es
        , Quota DuplicateBlocksKey :> es
        , Reader Config :> es
        , Sub BlockReceived :> es
+       , Sub HeaderReceived :> es
        , Tracing :> es
        )
     => Component es
@@ -64,6 +71,7 @@ component =
             pure
                 [ Sub.listen_ duplicateBlockGuard
                 , Sub.listen_ receivedBlockIsOutsideRequestedRangeGuard
+                , Sub.listen_ receivedHeaderElectionProofGuard
                 ]
         }
 
@@ -157,6 +165,15 @@ receivedBlockIsOutsideRequestedRangeGuard event =
     pointToNo = \case
         Block.GenesisPoint -> 0
         Block.BlockPoint (SlotNo n) _ -> n
+
+
+receivedHeaderElectionProofGuard :: (Log.Log :> es, NodeToClient :> es) => HeaderReceived -> Eff es ()
+receivedHeaderElectionProofGuard (HeaderReceived _peer header _tip) =
+    Log.withNamespace "sentry.header_election_proof_guard"
+        $ (=<<) Log.err
+        $ fmap show
+        $ validateVrfSignature_
+        $ header
 
 
 data AdversarialSeverity
