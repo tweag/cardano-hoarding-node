@@ -14,6 +14,7 @@ module Hoard.Sentry
       -- * Config
     , Config (..)
     , AdversarialThresholds (..)
+    , receivedHeaderElectionProofGuard
     ) where
 
 import Data.Aeson (FromJSON)
@@ -40,6 +41,7 @@ import Hoard.Effects.Monitoring.Tracing
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Quota (Quota)
 import Hoard.Events.BlockFetch (BlockReceived (..))
+import Hoard.Events.ChainSync (HeaderReceived (HeaderReceived))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
@@ -157,6 +159,10 @@ receivedBlockIsOutsideRequestedRangeGuard event =
     pointToNo = \case
         Block.GenesisPoint -> 0
         Block.BlockPoint (SlotNo n) _ -> n
+
+
+receivedHeaderElectionProofGuard :: HeaderReceived -> Eff es ()
+receivedHeaderElectionProofGuard (HeaderReceived peer header tip) = error "to do"
 
 
 data AdversarialSeverity

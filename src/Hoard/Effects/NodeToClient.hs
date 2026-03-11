@@ -290,7 +290,7 @@ runNodeToClient nodeToClient = do
                                 toEpoch (ChainPoint p) =
                                     (fmap . fmap) (\(a, _, _) -> a)
                                         $ fmap (flip slotToEpoch eraHistory)
-                                        $ maybe (throwError $ HeaderAtGenesis header) pure
+                                        $ maybe (throwError $ HeaderAtGenesis header) pure -- to do. can we just use slot number 0 for `ChainPointAtGenesis`?
                                         $ chainPointToSlotNo
                                         $ p
                             chainPointEpoch <- leftToError @PastHorizonException =<< toEpoch chainPoint -- to do. refresh cached `EraHistory`, that is `toEpoch`, on `PastHorizonException`s
