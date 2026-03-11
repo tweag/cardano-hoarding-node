@@ -1,20 +1,20 @@
 module Hoard.Data.BlockHash
     ( BlockHash (..)
     , renderHash
-    , mkBlockHash
+    , blockHashFromHeader
     ) where
 
 import Cardano.Api.LedgerState ()
 import Data.Aeson (FromJSON, ToJSON)
 import Ouroboros.Consensus.Block.Abstract (ConvertRawHash, toRawHash)
-import Ouroboros.Network.Block (HasHeader, HeaderHash, blockHash)
+import Ouroboros.Network.Block (HeaderHash, blockHash)
 import Rel8 (DBEq, DBOrd, DBType)
 
 import Data.ByteString.Base16 qualified as B16
 import Data.Text.Encoding qualified as Text
 
 import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
-import Hoard.Types.Cardano (CardanoBlock)
+import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
 -- | Newtype wrapper for block hash
@@ -24,8 +24,8 @@ newtype BlockHash = BlockHash Text
     deriving (ToAttribute) via ToAttributeShow BlockHash
 
 
-mkBlockHash :: (HasHeader blk, HeaderHash blk ~ HeaderHash CardanoBlock) => blk -> BlockHash
-mkBlockHash = BlockHash . renderHash (Proxy @CardanoBlock) . blockHash
+blockHashFromHeader :: CardanoHeader -> BlockHash
+blockHashFromHeader = BlockHash . renderHash (Proxy @CardanoBlock) . blockHash
 
 
 -- | Hex encode and render a 'HeaderHash' as text.
