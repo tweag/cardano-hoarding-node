@@ -110,7 +110,7 @@ import Ouroboros.Consensus.Protocol.Praos (PraosValidationErr (VRFKeyUnknown, VR
 import Ouroboros.Consensus.Protocol.Praos.Views (HeaderView (hvVK))
 import Ouroboros.Consensus.Shelley.Ledger (Header (ShelleyHeader))
 import Ouroboros.Consensus.Shelley.Protocol.Abstract (ProtocolHeaderSupportsProtocol (protocolHeaderView))
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure (AcquireFailurePointNotOnChain, AcquireFailurePointTooOld))
+import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 
 import Cardano.Api qualified as C
 import Cardano.Crypto.VRF qualified as VRF
@@ -134,7 +134,7 @@ import Hoard.Effects.Log qualified as Log
 data NodeToClient :: Effect where
     ImmutableTip :: NodeToClient m (Either NodeConnectionError ChainPoint)
     IsOnChain :: ChainPoint -> NodeToClient m (Either NodeConnectionError Bool)
-    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (HeaderAtGenesis :+ PastHorizonException :+ NodeConnectionError :+ IntersectNotFound :+ PointPastEpochHorizon :+ NoByronSupport :+ IntersectTooOld :+ ElectionValidationError :+ ())
+    ValidateVrfSignature_ :: CardanoHeader -> NodeToClient m (HeaderAtGenesis :+ PastHorizonException :+ NodeConnectionError :+ IntersectNotFound :+ PointPastEpochHorizon :+ NoByronSupport :+ AcquireFailure :+ ElectionValidationError :+ ())
 
 
 data NodeConnectionError = NodeConnectionError SomeException deriving (Show)
@@ -144,7 +144,6 @@ data IntersectNotFound = IntersectNotFound (Header CardanoBlock) ChainPoint deri
 
 
 data PointPastEpochHorizon = PointPastEpochHorizon (Header CardanoBlock) ChainPoint ChainPoint deriving (Show)
-data IntersectTooOld = IntersectTooOld (Header CardanoBlock) (Target C.ChainPoint) deriving (Show)
 
 
 data NoByronSupport = NoByronSupport (Header ByronBlock) deriving (Show)
@@ -165,9 +164,9 @@ makeEffect ''NodeToClient
 
 
 validateVrfSignature
-    :: ( Error HeaderAtGenesis :> es
+    :: ( Error AcquireFailure :> es
+       , Error HeaderAtGenesis :> es
        , Error IntersectNotFound :> es
-       , Error IntersectTooOld :> es
        , Error NoByronSupport :> es
        , Error NodeConnectionError :> es
        , Error PastHorizonException :> es
@@ -275,7 +274,7 @@ runNodeToClient nodeToClient = do
                                     $ header
                         intersect <-
                             (=<<) (maybe (throwError $ IntersectNotFound header $ chainPoint) pure)
-                                $ (=<<) leftToError
+                                $ (=<<) (leftToError @NodeConnectionError)
                                 $ makeIntersectRequest connection
                                 $ chainPoint
                         let target = SpecificPoint $ coerce $ intersect
@@ -283,130 +282,69 @@ runNodeToClient nodeToClient = do
                             pure () -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
                         else do
                             eraHistory <- -- to do. cache
-                                fmap (fromRight $ error "`C.VolatileTip` should never fail to be acquired.")
-                                    $ (=<<) leftToError
+                                fmap (fromRight @_ @AcquireFailure $ error "`C.VolatileTip` should never fail to be acquired.")
+                                    $ (=<<) (leftToError @NodeConnectionError)
                                     $ executeLocalStateQuery connection C.VolatileTip
                                     $ QueryEraHistory
                             let
-                                toEpoch =
+                                toEpoch (ChainPoint p) =
                                     (fmap . fmap) (\(a, _, _) -> a)
-                                        . fmap (flip slotToEpoch eraHistory)
-                                        . maybe (throwError $ HeaderAtGenesis header) pure
-                                        . chainPointToSlotNo
-                                        . coerce
-                            chainPointEpoch <- leftToError =<< toEpoch chainPoint -- to do. refresh cached `EraHistory`, that is `toEpoch`, on `PastHorizonException`s
-                            intersectEpoch <- either throwIO pure =<< toEpoch intersect -- intersect should never be past the horizon because it is less than `VolatileTip`.
+                                        $ fmap (flip slotToEpoch eraHistory)
+                                        $ maybe (throwError $ HeaderAtGenesis header) pure
+                                        $ chainPointToSlotNo
+                                        $ p
+                            chainPointEpoch <- leftToError @PastHorizonException =<< toEpoch chainPoint -- to do. refresh cached `EraHistory`, that is `toEpoch`, on `PastHorizonException`s
+                            intersectEpoch <- either (throwIO @PastHorizonException) pure =<< toEpoch intersect -- intersect should never be past the horizon because it is less than `VolatileTip`.
                             if intersectEpoch < chainPointEpoch then
                                 throwError (PointPastEpochHorizon header intersect chainPoint) -- to do. attach the distance between intersect and the volatile tip which encodes the probability of the epoch horizon reaching the chain point, so the caller can decide if and when to retry.
                             else
                                 if chainPointEpoch < intersectEpoch then
                                     error "a chain point should never be less than its intersect." -- to do. remove?
-                                else (=<<)
-                                    ( \case
-                                        Right a -> pure a
-                                        Left AcquireFailurePointTooOld -> throwError (IntersectTooOld header target)
-                                        Left AcquireFailurePointNotOnChain -> error "an intersect point should never be not on chain."
-                                    )
-                                    $ runErrorNoCallStack
-                                    $ case header of
-                                        HeaderByron h -> throwError (NoByronSupport h)
-                                        HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                            validateVrfSignatureTPraos
-                                                ShelleyBasedEraShelley
-                                                connection
-                                                target
-                                                bhbody
-                                        HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                            validateVrfSignatureTPraos
-                                                ShelleyBasedEraAllegra
-                                                connection
-                                                target
-                                                bhbody
-                                        HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                            validateVrfSignatureTPraos
-                                                ShelleyBasedEraMary
-                                                connection
-                                                target
-                                                bhbody
-                                        HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                            validateVrfSignatureTPraos
-                                                ShelleyBasedEraAlonzo
-                                                connection
-                                                target
-                                                bhbody
-                                        HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
-                                            validateVrfSignaturePraos
-                                                ShelleyBasedEraBabbage
-                                                connection
-                                                target
-                                                (protocolHeaderView shelleyHeaderRaw)
-                                        HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
-                                            validateVrfSignaturePraos
-                                                ShelleyBasedEraConway
-                                                connection
-                                                target
-                                                (protocolHeaderView shelleyHeaderRaw)
-                                        HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
-                                            validateVrfSignaturePraos
-                                                ShelleyBasedEraDijkstra
-                                                connection
-                                                target
-                                                (protocolHeaderView shelleyHeaderRaw)
+                                else case header of
+                                    HeaderByron h -> throwError (NoByronSupport h)
+                                    HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                        validateVrfSignatureTPraos
+                                            ShelleyBasedEraShelley
+                                            connection
+                                            target
+                                            bhbody
+                                    HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                        validateVrfSignatureTPraos
+                                            ShelleyBasedEraAllegra
+                                            connection
+                                            target
+                                            bhbody
+                                    HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                        validateVrfSignatureTPraos
+                                            ShelleyBasedEraMary
+                                            connection
+                                            target
+                                            bhbody
+                                    HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                        validateVrfSignatureTPraos
+                                            ShelleyBasedEraAlonzo
+                                            connection
+                                            target
+                                            bhbody
+                                    HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
+                                        validateVrfSignaturePraos
+                                            ShelleyBasedEraBabbage
+                                            connection
+                                            target
+                                            (protocolHeaderView shelleyHeaderRaw)
+                                    HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
+                                        validateVrfSignaturePraos
+                                            ShelleyBasedEraConway
+                                            connection
+                                            target
+                                            (protocolHeaderView shelleyHeaderRaw)
+                                    HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
+                                        validateVrfSignaturePraos
+                                            ShelleyBasedEraDijkstra
+                                            connection
+                                            target
+                                            (protocolHeaderView shelleyHeaderRaw)
             )
-
-
-validateVrfSignatureTPraos
-    :: ( Concurrent :> es
-       , Error AcquireFailure :> es
-       , Error ElectionValidationError :> es
-       , Error NodeConnectionError :> es
-       , IOE :> es
-       , Reader ShelleyConfig :> es
-       , VRFAlgorithm (VRF c)
-       )
-    => ShelleyBasedEra era
-    -> Connection
-    -> Target C.ChainPoint
-    -> BHBody c
-    -> Eff es ()
-validateVrfSignatureTPraos era connection target (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput = certVRF}}) = do
-    let blockIssuer = coerceKeyRole (hashKey bheaderVk)
-    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
-    (=<<) leftToError
-        $ (fmap . first)
-            ( \sigma ->
-                -- copied from https://github.com/IntersectMBO/cardano-ledger/blob/f3c4a2cacd829d002530b6884dfa42d0cc642dcb/libs/cardano-protocol-tpraos/src/Cardano/Protocol/TPraos/BHeader.hs#L335-L338
-                let vrfLeaderVal = assertBoundedNatural certNatMax (VRF.getOutputVRFNatural certVRF)
-                    certNatMax :: Natural
-                    certNatMax = (2 :: Natural) ^ (8 * VRF.sizeOutputVRF certVRF)
-                in  -- copied from https://github.com/IntersectMBO/ouroboros-consensus/blob/7908694b77ed52d51c098bec1ac39134a6c28c0c/ouroboros-consensus-protocol/src/ouroboros-consensus-protocol/Ouroboros/Consensus/Protocol/Praos.hs#L595
-                    PraosValidationErr $ VRFLeaderValueTooBig (bvValue vrfLeaderVal) sigma activeSlotsCoeff
-            )
-        $ fmap
-            ( \individualPoolStake ->
-                if checkLeaderValue certVRF individualPoolStake activeSlotsCoeff then
-                    Right ()
-                else
-                    Left individualPoolStake
-            )
-        $ fmap individualPoolStake
-        $ (=<<) (maybe (throwError $ PraosValidationErr $ VRFKeyUnknown $ blockIssuer) pure)
-        $ fmap (M.lookup blockIssuer)
-        $ fmap (SL.unPoolDistr . unPoolDistr)
-        $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
-        $ fmap (decodePoolDistribution era)
-        $ (=<<) leftToError
-        $ (fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
-        $ (=<<) leftToError
-        $ (=<<) leftToError
-        $ executeLocalStateQuery connection target
-        $ QueryInEra
-        $ QueryInShelleyBasedEra (convert era)
-        $ QueryPoolDistribution
-        $ Just
-        $ S.singleton
-        $ StakePoolKeyHash
-        $ blockIssuer
 
 
 validateVrfSignaturePraos
@@ -469,6 +407,60 @@ validateVrfSignaturePraos era connection target headerView = do
         $ hashKey
         $ hvVK
         $ headerView
+
+
+validateVrfSignatureTPraos
+    :: ( Concurrent :> es
+       , Error AcquireFailure :> es
+       , Error ElectionValidationError :> es
+       , Error NodeConnectionError :> es
+       , IOE :> es
+       , Reader ShelleyConfig :> es
+       , VRFAlgorithm (VRF c)
+       )
+    => ShelleyBasedEra era
+    -> Connection
+    -> Target C.ChainPoint
+    -> BHBody c
+    -> Eff es ()
+validateVrfSignatureTPraos era connection target (BHBody {bheaderVk, bheaderL = CertifiedVRF {certifiedOutput = certVRF}}) = do
+    let blockIssuer = coerceKeyRole (hashKey bheaderVk)
+    activeSlotsCoeff <- mkActiveSlotCoeff <$> asks @ShelleyConfig (.scConfig.sgActiveSlotsCoeff)
+    (=<<) leftToError
+        $ (fmap . first)
+            ( \sigma ->
+                -- copied from https://github.com/IntersectMBO/cardano-ledger/blob/f3c4a2cacd829d002530b6884dfa42d0cc642dcb/libs/cardano-protocol-tpraos/src/Cardano/Protocol/TPraos/BHeader.hs#L335-L338
+                let vrfLeaderVal = assertBoundedNatural certNatMax (VRF.getOutputVRFNatural certVRF)
+                    certNatMax :: Natural
+                    certNatMax = (2 :: Natural) ^ (8 * VRF.sizeOutputVRF certVRF)
+                in  -- copied from https://github.com/IntersectMBO/ouroboros-consensus/blob/7908694b77ed52d51c098bec1ac39134a6c28c0c/ouroboros-consensus-protocol/src/ouroboros-consensus-protocol/Ouroboros/Consensus/Protocol/Praos.hs#L595
+                    PraosValidationErr $ VRFLeaderValueTooBig (bvValue vrfLeaderVal) sigma activeSlotsCoeff
+            )
+        $ fmap
+            ( \individualPoolStake ->
+                if checkLeaderValue certVRF individualPoolStake activeSlotsCoeff then
+                    Right ()
+                else
+                    Left individualPoolStake
+            )
+        $ fmap individualPoolStake
+        $ (=<<) (maybe (throwError $ PraosValidationErr $ VRFKeyUnknown $ blockIssuer) pure)
+        $ fmap (M.lookup blockIssuer)
+        $ fmap (SL.unPoolDistr . unPoolDistr)
+        $ (=<<) (either throwIO pure) -- `decodePoolDistribution` should never fail to decode the pool distribution, should it?
+        $ fmap (decodePoolDistribution era)
+        $ (=<<) leftToError
+        $ (fmap . first) EraMismatch -- wrap `EraMismatch` into an `ElectionValidationError`
+        $ (=<<) leftToError
+        $ (=<<) leftToError
+        $ executeLocalStateQuery connection target
+        $ QueryInEra
+        $ QueryInShelleyBasedEra (convert era)
+        $ QueryPoolDistribution
+        $ Just
+        $ S.singleton
+        $ StakePoolKeyHash
+        $ blockIssuer
 
 
 leftToError :: (Error e :> es, Show e) => Either e a -> Eff es a
