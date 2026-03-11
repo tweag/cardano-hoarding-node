@@ -17,19 +17,26 @@ module Hoard.Sentry
     , receivedHeaderElectionProofGuard
     ) where
 
-import Cardano.Api (PastHorizonException)
-import Effectful.Error.Static (runErrorNoCallStack)
-import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
+import Data.Aeson (FromJSON)
+import Data.Default (Default (..))
+import Data.UUID (UUID)
+import Effectful.Concurrent.STM (Concurrent, atomically)
+import Effectful.Reader.Static (Reader, asks, runReader)
+import Ouroboros.Consensus.Block (SlotNo (..))
+import StmContainers.Map (Map)
 
-import Hoard.Effects.NodeToClient
-    ( ElectionValidationError
-    , HeaderAtGenesis
-    , IntersectNotFound
-    , NoByronSupport
-    , NodeConnectionError
-    , NodeToClient
-    , PointPastEpochHorizon
-    , validateVrfSignature
+import Ouroboros.Consensus.Block.Abstract qualified as Block
+import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
+import StmContainers.Map qualified as Map
+
+import Hoard.Component (Component (..), defaultComponent)
+import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (Peer (..))
+import Hoard.Effects.Monitoring.Tracing
+    ( Tracing
+    , addAttribute
+    , withSpan
     )
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Quota (Quota)
@@ -154,75 +161,8 @@ receivedBlockIsOutsideRequestedRangeGuard event =
         Block.BlockPoint (SlotNo n) _ -> n
 
 
-receivedHeaderElectionProofGuard
-    :: ( NodeToClient :> es
-       , Pub AdversarialBehavior :> es
-       , Tracing :> es
-       )
-    => HeaderReceived -> Eff es ()
-receivedHeaderElectionProofGuard (HeaderReceived peer header _tip) =
-    withSpan "sentry.received_header_election_proof_guard" do
-        addAttribute "peer.address" peer.address
-        -- Run all infrastructure/protocol Error effects locally, treating them as
-        -- indeterminate (we cannot blame the peer for node connectivity issues,
-        -- epoch horizon gaps, genesis edge-cases, or Byron headers).
-        result <-
-            runErrorNoCallStack @PointPastEpochHorizon
-                . runErrorNoCallStack @PastHorizonException
-                . runErrorNoCallStack @NodeConnectionError
-                . runErrorNoCallStack @NoByronSupport
-                . runErrorNoCallStack @IntersectNotFound
-                . runErrorNoCallStack @HeaderAtGenesis
-                . runErrorNoCallStack @AcquireFailure
-                $ validateVrfSignature header
-        case flattenIndeterminate result of
-            Nothing ->
-                addAttribute @Text "result" "indeterminate"
-            Just (Left err) -> do
-                addAttribute @Text "result" "invalid_election_proof"
-                addAttribute "error" $ show @Text err
-                publish
-                    AdversarialBehavior
-                        { peer = peer
-                        , severity = Critical
-                        , description = "invalid VRF election proof in block header"
-                        }
-            Just (Right ()) ->
-                addAttribute @Text "result" "valid"
-  where
-    -- Collapse any Left at any nesting level (infrastructure error) into Nothing.
-    flattenIndeterminate
-        :: Either
-            PointPastEpochHorizon
-            ( Either
-                PastHorizonException
-                ( Either
-                    NodeConnectionError
-                    ( Either
-                        NoByronSupport
-                        ( Either
-                            IntersectNotFound
-                            ( Either
-                                HeaderAtGenesis
-                                ( Either
-                                    AcquireFailure
-                                    (Either ElectionValidationError ())
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        -> Maybe (Either ElectionValidationError ())
-    flattenIndeterminate = \case
-        Left _ -> Nothing
-        Right (Left _) -> Nothing
-        Right (Right (Left _)) -> Nothing
-        Right (Right (Right (Left _))) -> Nothing
-        Right (Right (Right (Right (Left _)))) -> Nothing
-        Right (Right (Right (Right (Right (Left _))))) -> Nothing
-        Right (Right (Right (Right (Right (Right (Left _)))))) -> Nothing
-        Right (Right (Right (Right (Right (Right (Right r)))))) -> Just r
+receivedHeaderElectionProofGuard :: HeaderReceived -> Eff es ()
+receivedHeaderElectionProofGuard (HeaderReceived peer header tip) = error "to do"
 
 
 data AdversarialSeverity
