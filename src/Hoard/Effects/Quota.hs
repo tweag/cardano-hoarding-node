@@ -1,35 +1,33 @@
 -- | Quota tracking effect for message limits
 --
--- Tracks the total number of messages per key, enforcing a hard limit on
--- messages per key with time-based eviction.
+-- Tracks the total number of messages per key with time-based eviction.
 --
 -- Quota entries are evicted after a configurable TTL (time-to-live), allowing
 -- the cache to naturally clean up old entries and prevent unbounded memory growth.
 --
--- The effect is polymorphic over the key type, allowing it to be used for
--- various tracking scenarios (e.g., per-peer-per-slot for blocks).
+-- The effect is polymorphic over both the key type and the status type returned
+-- by a caller-supplied classifier function. This allows callers to define their
+-- own thresholds and result types rather than relying on a single hard limit.
 --
 -- == Basic Usage
 --
 -- @
--- handleBlock :: (Quota (ID Peer, Int64) :> es) => Block -> Eff es ()
--- handleBlock block = do
---     let key = (block.peerId, block.slotNumber)
---     withQuotaCheck key $ \\count status -> do
---         case status of
---             Accepted -> insertBlock block
---             Overflow 1 -> do
---                 warn $ "Peer " <> show block.peerId <> " exceeded quota at slot " <> show block.slotNumber
---                 markPeerAsSpam block.peerId
---             Overflow _ ->
---                 debug $ "Additional spam from " <> show block.peerId <> " (count: " <> show count <> ")"
+-- checkDuplicate :: (Quota DuplicateKey :> es) => DuplicateKey -> Config -> Eff es ()
+-- checkDuplicate key cfg =
+--     withQuotaCheck key classify $ \case
+--         Nothing      -> pure ()
+--         Just Minor   -> warnAboutPeer
+--         Just Critical -> banPeer
+--   where
+--     classify c
+--         | c > cfg.criticalThreshold = Just Critical
+--         | c > cfg.warningThreshold  = Just Minor
+--         | otherwise                 = Nothing
 -- @
 module Hoard.Effects.Quota
     ( -- * Effect
       Quota
-    , MessageStatus (..)
     , withQuotaCheck
-    , addHit
 
       -- * Re-exports
     , module Hoard.Effects.Quota.Config
@@ -61,30 +59,15 @@ import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.Log qualified as Log
 
 
--- | Status of a message with respect to quota limits
---
--- The 'Int' in 'Overflow' is a count of how many times this key has
--- exceeded its quota, so callers can pattern match on @Overflow 1@ to react
--- specifically to the first violation without comparing counts manually.
-data MessageStatus
-    = -- | Message is within quota limits
-      Accepted
-    | -- | Message exceeds quota; the 'Int' is the number of overflows so far
-      Overflow Int
-    deriving stock (Eq, Show)
-
-
 -- | Quota tracking effect parameterized by key type
 data Quota key :: Effect where
-    -- | Execute an action with quota checking
+    -- | Increment the hit count for a key and run an action based on a classifier.
     --
-    -- The action receives:
-    -- - The current message count for this key (after incrementing)
-    -- - The status indicating whether the quota is exceeded
+    -- The classifier receives the new count and produces a status value of any
+    -- type the caller chooses. The continuation then receives that status.
     WithQuotaCheck
         :: (Hashable key, Ord key)
-        => key -> (Int -> MessageStatus -> m a) -> Quota key m a
-    AddHit :: (Hashable key, Ord key) => key -> Quota key m Int
+        => key -> (Int -> status) -> (status -> m a) -> Quota key m a
 
 
 makeEffect ''Quota
@@ -111,11 +94,9 @@ runQuota
        , Log :> es
        , Reader Config :> es
        )
-    => Int
-    -- ^ Maximum number of messages allowed per key
-    -> Eff (Quota key : es) a
+    => Eff (Quota key : es) a
     -> Eff es a
-runQuota maxMessages action = do
+runQuota action = do
     quotaConfig <- ask @Config
     let ttl = quotaConfig.entryTtl
         intervalMicros = round (realToFrac quotaConfig.cleanupInterval * 1_000_000 :: Double)
@@ -132,40 +113,28 @@ runQuota maxMessages action = do
             $ "Evicted " <> show evicted <> " entries"
 
     interpretWith action $ \env -> \case
-        WithQuotaCheck key continuation -> localSeqUnlift env $ \unlift -> do
+        WithQuotaCheck key classify continuation -> localSeqUnlift env $ \unlift -> do
             now <- currentTime
-            (count, status) <- STM.atomically $ checkAndUpdate store maxMessages now key
-
-            unlift $ continuation count status
-        AddHit key -> do
-            now <- currentTime
-            (count, _) <- STM.atomically $ checkAndUpdate store maxMessages now key
-            pure count
+            count <- STM.atomically $ incrementAndGet store now key
+            unlift $ continuation (classify count)
 
 
--- | Atomically check and update quota state for a key
-checkAndUpdate
+-- | Atomically increment the hit count for a key and return the new count
+incrementAndGet
     :: (Hashable key)
     => Map key QuotaState
-    -> Int
     -> UTCTime
     -> key
-    -> STM (Int, MessageStatus)
-checkAndUpdate store maxMessages now key = do
+    -> STM Int
+incrementAndGet store now key = do
     mst <- Map.lookup key store
 
     let newState = case mst of
             Nothing -> QuotaState {messageCount = 1, createdAt = now}
             Just st -> st {messageCount = st.messageCount + 1}
 
-        newCount = newState.messageCount
-
-        status
-            | newCount <= maxMessages = Accepted
-            | otherwise = Overflow (newCount - maxMessages)
-
     Map.insert newState key store
-    pure (newCount, status)
+    pure newState.messageCount
 
 
 -- | Remove all entries whose TTL has expired. Returns the number of evicted entries.
