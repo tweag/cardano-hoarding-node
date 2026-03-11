@@ -17,7 +17,7 @@ import Data.UUID qualified as UUID
 
 import Hoard.Collector (filterHeaderReceived)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
@@ -57,7 +57,7 @@ headerReceived =
 dbBlock :: Block
 dbBlock =
     Block
-        { hash = blockHashFromHeader testHeader
+        { hash = mkBlockHash testHeader
         , slotNumber = 1
         , poolId = PoolID "1"
         , blockData = testBlock

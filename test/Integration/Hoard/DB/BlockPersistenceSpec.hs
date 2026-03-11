@@ -35,7 +35,7 @@ import Data.List qualified as List
 import Rel8 qualified
 
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (blockHashFromHeader)
+import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
 import Hoard.Effects.Clock (runClock)
@@ -219,7 +219,7 @@ mkTestBlock n =
             $ fmap (fromJust . rightToMaybe)
             $ Verifier.verifyBlock
             $ Block
-                { hash = blockHashFromHeader header
+                { hash = mkBlockHash header
                 , slotNumber = n
                 , poolId = PoolID "test-pool"
                 , blockData = cardanoBlock

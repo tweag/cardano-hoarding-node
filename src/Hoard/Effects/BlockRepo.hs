@@ -30,7 +30,7 @@ import Rel8 qualified
 import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolation, groupIntoDisputes)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
-import Hoard.Data.BlockHash (BlockHash (..), blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
@@ -115,7 +115,7 @@ getBlockQuery header =
         $ do
             block <- Rel8.each Blocks.schema
             where_
-                $ block.hash ==. (lit $ blockHashFromHeader header)
+                $ block.hash ==. (lit $ mkBlockHash header)
             pure block
   where
     -- The unique constraint over the `hash` column ensures we get either 1 or
@@ -287,7 +287,7 @@ runBlockRepoState
     => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
-    GetBlock header -> gets $ find ((blockHashFromHeader header ==) . (.hash))
+    GetBlock header -> gets $ find ((mkBlockHash header ==) . (.hash))
     BlockExists blockHash -> gets @[Block] $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp ->
         modify $ fmap $ \block ->

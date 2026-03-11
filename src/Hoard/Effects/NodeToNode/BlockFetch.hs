@@ -24,7 +24,7 @@ import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 
 import Hoard.Control.Exception (withExceptionLogging)
-import Hoard.Data.BlockHash (BlockHash, blockHashFromHeader)
+import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Clock (Clock)
@@ -129,7 +129,7 @@ client unlift cfg peer =
                 start = minimum points
                 end = maximum points
                 range = ChainRange start end
-                requestedHashes = Set.fromList $ blockHashFromHeader . (.header) <$> toList reqs
+                requestedHashes = Set.fromList $ mkBlockHash . (.header) <$> toList reqs
             addAttribute "request.id" $ show @Text requestId
             addAttribute "request.count" $ length reqs
 
