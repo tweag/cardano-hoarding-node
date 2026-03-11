@@ -7,6 +7,7 @@ module Hoard.Effects.NodeToClient
     , immutableTip
     , isOnChain
     , validateVrfSignature
+    , validateVrfSignature_
     ) where
 
 import Cardano.Api
