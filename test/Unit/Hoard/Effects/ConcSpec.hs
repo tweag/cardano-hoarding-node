@@ -6,9 +6,7 @@ import Test.Hspec (Spec, context, describe, it, shouldBe, shouldSatisfy)
 
 import Data.IORef qualified as IORef
 
-import Hoard.Effects.Conc (Conc, fork_, scoped)
-import Hoard.Effects.Conc.Traced (runConc)
-import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
+import Hoard.Effects.Conc (Conc, fork_, runConc, scoped)
 
 
 spec_Conc :: Spec
@@ -82,5 +80,5 @@ spec_Conc = do
 -- Test Helpers
 --------------------------------------------------------------------------------
 
-runTest :: Eff '[Conc, Tracing, Concurrent, IOE] a -> IO a
-runTest = runEff . runConcurrent . runTracingNoOp . runConc
+runTest :: Eff '[Conc, Concurrent, IOE] a -> IO a
+runTest = runEff . runConcurrent . runConc

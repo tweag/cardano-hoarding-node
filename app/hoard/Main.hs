@@ -13,7 +13,7 @@ import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
-import Hoard.Effects.Conc.Traced (runConc)
+import Hoard.Effects.Conc.Traced (runConcByConfig)
 import Hoard.Effects.ConfigPath (runConfig, runConfigPath)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
@@ -95,7 +95,7 @@ main =
         . evalState @HoardState def
         . evalState @Peers def
         . Sentry.runDuplicateBlocksReader
-        . runConc
+        . runConcByConfig
         . runQuota @Persistence.PeerSlotKey 1
         . runPubSub @BlockFetch.BatchCompleted
         . runPubSub @BlockFetch.BlockReceived
