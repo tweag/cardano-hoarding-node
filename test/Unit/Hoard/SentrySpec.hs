@@ -1,6 +1,6 @@
 module Unit.Hoard.SentrySpec (spec_Sentry) where
 
-import Data.Default (def)
+import Data.Default (Default, def)
 import Data.UUID (UUID)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
@@ -28,6 +28,7 @@ import Hoard.Sentry
     , AdversarialThresholds (..)
     , Config (..)
     , ReceivedMismatchingBlock (..)
+    , duplicateBlockGuard
     , headerBlockMismatchGuard
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
@@ -36,6 +37,127 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 spec_Sentry :: Spec
 spec_Sentry = do
     describe "headerBlockMismatchGuard" testHeaderBlockMismatchGuard
+    describe "duplicateBlockGuard" testDuplicateBlockGuard
+
+
+testDuplicateBlockGuard :: Spec
+testDuplicateBlockGuard = do
+    describe "with non-duplicate block" do
+        it "should not flag the peer" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 0
+                            }
+
+            msgs `shouldMatchList` []
+
+    describe "with quota > warningThreshold and quota <= criticalThreshold" do
+        it "should flag the peer" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 2
+                            }
+
+            length msgs `shouldBe` 1
+            let msg = List.head msgs
+            msg.severity `shouldBe` Minor
+
+    describe "with quota > criticalThreshold" do
+        it "should flag the peer" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 2
+                            , quota = 3
+                            }
+
+            length msgs `shouldBe` 1
+            let msg = List.head msgs
+            msg.severity `shouldBe` Critical
+
+    describe "with quota == warningThreshold" do
+        it "should not flag the peer" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 2
+                            , criticalThreshold = 5
+                            , quota = 2
+                            }
+
+            msgs `shouldBe` []
+
+    describe "with quota == criticalThreshold" do
+        it "should flag as minor (not critical)" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 2
+                            , quota = 2
+                            }
+
+            length msgs `shouldBe` 1
+            let msg = List.head msgs
+            msg.severity `shouldBe` Minor
+
+    describe "with duplicate block" do
+        it "should include the correct peer in the published warning message" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 3
+                            , quota = 2
+                            }
+
+            let msg = List.head msgs
+            msg.peer `shouldBe` mockPeer
+
+    describe "with critical severity" do
+        it "should include the correct peer in the published critical message" do
+            let msgs =
+                    runDuplicateBlockGuard
+                        def
+                            { warningThreshold = 1
+                            , criticalThreshold = 2
+                            , quota = 3
+                            }
+
+            let msg = List.head msgs
+            msg.severity `shouldBe` Critical
+            msg.peer `shouldBe` mockPeer
+  where
+    runDuplicateBlockGuard run =
+        runPureEff
+            . runTracingNoOp
+            . runReader
+                def
+                    { duplicateBlocks =
+                        AdversarialThresholds
+                            { warningThreshold = run.warningThreshold
+                            , criticalThreshold = run.criticalThreshold
+                            }
+                    }
+            . runQuotaConst run.quota
+            . execWriter @[AdversarialBehavior]
+            . runPubWriter @AdversarialBehavior
+            $ duplicateBlockGuard blockReceived
+    blockReceived =
+        BlockReceived
+            { peer = mockPeer
+            , block = block1
+            , requestId = mockUUID
+            , range = mockChainRange
+            , headerWithSameSlotNumber = Nothing
+            }
 
 
 testHeaderBlockMismatchGuard :: Spec
@@ -258,6 +380,17 @@ data Run = Run
     , block :: CardanoBlock
     , header :: Maybe CardanoHeader
     }
+
+
+instance Default Run where
+    def =
+        Run
+            { warningThreshold = 1
+            , criticalThreshold = 5
+            , quota = 0
+            , block = block1
+            , header = Nothing
+            }
 
 
 block1 :: CardanoBlock
