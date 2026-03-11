@@ -32,7 +32,7 @@ import Hoard.Effects.Monitoring.Tracing
 import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Effects.Publishing (Sub)
-import Hoard.Effects.Quota (MessageStatus (..), Quota)
+import Hoard.Effects.Quota (Quota)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyBlock, verifyHeader)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
@@ -137,11 +137,11 @@ blockReceived timestamp event = withSpan "persistence.block_received" do
         Right validBlock -> do
             addAttribute "block.valid" True
 
-            Quota.withQuotaCheck quotaKey \_ -> \case
-                Accepted -> do
+            Quota.withQuotaCheck quotaKey equivocationStatus \case
+                UniqueBlock -> do
                     recordBlockReceived
                     BlockRepo.insertBlocks [validBlock]
-                Overflow overflowCount -> do
+                Equivocation equivocationCount -> do
                     addAttribute "quota.exceeded" True
                     Log.warn
                         $ mconcat
@@ -150,7 +150,7 @@ blockReceived timestamp event = withSpan "persistence.block_received" do
                             , " for slot "
                             , show block.slotNumber
                             , " "
-                            , show overflowCount
+                            , show equivocationCount
                             , " times"
                             ]
 
@@ -218,3 +218,12 @@ extractBlockData timestamp block =
         , classification = Nothing
         , classifiedAt = Nothing
         }
+
+
+data EquivocationStatus = UniqueBlock | Equivocation Int deriving stock (Eq, Show)
+
+
+equivocationStatus :: Int -> EquivocationStatus
+equivocationStatus c
+    | c <= 1 = UniqueBlock
+    | otherwise = Equivocation (c - 1)

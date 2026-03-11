@@ -96,7 +96,8 @@ main =
         . evalState @Peers def
         . Sentry.runDuplicateBlocksReader
         . runConcByConfig
-        . runQuota @Persistence.PeerSlotKey 1
+        . runQuota @Persistence.PeerSlotKey
+        . runQuota @Sentry.DuplicateBlocksKey
         . runPubSub @BlockFetch.BatchCompleted
         . runPubSub @BlockFetch.BlockReceived
         . runPubSub @BlockFetch.Request
