@@ -162,7 +162,6 @@
             (hsPkgs."ouroboros-consensus-cardano".components.sublibs.unstable-shelley-testlib or (errorHandler.buildDepError "ouroboros-consensus-cardano:unstable-shelley-testlib"))
             (hsPkgs."ouroboros-consensus".components.sublibs.unstable-consensus-testlib or (errorHandler.buildDepError "ouroboros-consensus:unstable-consensus-testlib"))
             (hsPkgs."ouroboros-network-api" or (errorHandler.buildDepError "ouroboros-network-api"))
-            (hsPkgs."ouroboros-network-protocols" or (errorHandler.buildDepError "ouroboros-network-protocols"))
             (hsPkgs."postgres-options" or (errorHandler.buildDepError "postgres-options"))
             (hsPkgs."process" or (errorHandler.buildDepError "process"))
             (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))

@@ -96,10 +96,10 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                 , requestId = event.requestId
                 , hash = blockHash
                 }
-    c <- fromIntegral <$> Quota.addHit key
     cfg <- asks @Config (.duplicateBlocks)
-    if
-        | c > cfg.criticalThreshold -> do
+    Quota.withQuotaCheck key (classify cfg) $ \case
+        Nothing -> addAttribute @Text "result" "none"
+        Just Critical -> do
             addAttribute @Text "result" "warning"
             publish
                 $ AdversarialBehavior
@@ -107,7 +107,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     , description = "exceeded duplicate block critical threshold"
                     , severity = Critical
                     }
-        | c > cfg.warningThreshold -> do
+        Just Minor -> do
             addAttribute @Text "result" "critical"
             publish
                 $ AdversarialBehavior
@@ -115,9 +115,11 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                     , description = "exceeded duplicate block warning threshold"
                     , severity = Minor
                     }
-        | otherwise -> do
-            addAttribute @Text "result" "none"
-            pure ()
+  where
+    classify cfg c
+        | c > fromIntegral cfg.criticalThreshold = Just Critical
+        | c > fromIntegral cfg.warningThreshold = Just Minor
+        | otherwise = Nothing
 
 
 data DuplicateBlocksKey = DuplicateBlocksKey
