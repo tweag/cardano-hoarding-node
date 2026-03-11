@@ -28,6 +28,7 @@ import Hoard.Sentry
     , AdversarialThresholds (..)
     , Config (..)
     , ReceivedMismatchingBlock (..)
+    , duplicateBlockGuard
     , headerBlockHashMismatchGuard
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
@@ -36,6 +37,146 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 spec_Sentry :: Spec
 spec_Sentry = do
     describe "headerBlockHashMismatchGuard" testHeaderBlockHashMismatchGuard
+    describe "duplicateBlockGuard" testDuplicateBlockGuard
+
+
+testDuplicateBlockGuard :: Spec
+testDuplicateBlockGuard = do
+    it "should not flag the peer if block is not duplicate" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader def
+                    . runQuotaConst 1
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        msgs `shouldMatchList` []
+
+    it "should flag the peer if block breaches the warning threshold" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 1
+                                    , criticalThreshold = 5
+                                    }
+                            }
+                    . runQuotaConst 2
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        length msgs `shouldBe` 1
+        let msg = List.head msgs
+        msg.severity `shouldBe` Minor
+
+    it "should flag the peer if block breaches the critical threshold" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 1
+                                    , criticalThreshold = 2
+                                    }
+                            }
+                    . runQuotaConst 3
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        length msgs `shouldBe` 1
+        let msg = List.head msgs
+        msg.severity `shouldBe` Critical
+
+    it "should not flag the peer if block count equals the warning threshold" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 2
+                                    , criticalThreshold = 5
+                                    }
+                            }
+                    . runQuotaConst 2
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        msgs `shouldBe` []
+
+    it "should flag as minor (not critical) when block count equals the critical threshold" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 1
+                                    , criticalThreshold = 5
+                                    }
+                            }
+                    . runQuotaConst 5
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        length msgs `shouldBe` 1
+        let msg = List.head msgs
+        msg.severity `shouldBe` Minor
+
+    it "should include the correct peer in the published warning message" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 1
+                                    , criticalThreshold = 5
+                                    }
+                            }
+                    . runQuotaConst 2
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        let msg = List.head msgs
+        msg.peer `shouldBe` mockPeer
+
+    it "should include the correct peer in the published critical message" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . runReader
+                        def
+                            { duplicateBlocks =
+                                AdversarialThresholds
+                                    { warningThreshold = 1
+                                    , criticalThreshold = 2
+                                    }
+                            }
+                    . runQuotaConst 3
+                    . execWriter @[AdversarialBehavior]
+                    . runPubWriter @AdversarialBehavior
+                    $ duplicateBlockGuard blockReceived
+        let msg = List.head msgs
+        msg.peer `shouldBe` mockPeer
+  where
+    blockReceived =
+        BlockReceived
+            { peer = mockPeer
+            , block = block1
+            , requestId = mockUUID
+            , range = mockChainRange
+            , headerWithSameSlotNumber = Nothing
+            }
 
 
 testHeaderBlockHashMismatchGuard :: Spec
