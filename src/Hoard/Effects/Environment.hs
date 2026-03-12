@@ -13,7 +13,7 @@ import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, ask, runReader)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo)
 import Ouroboros.Network.IOManager (IOManager, withIOManager)
-import System.Directory (makeAbsolute)
+import System.Directory (doesDirectoryExist, makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 
@@ -176,7 +176,11 @@ loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
     protocolInfo <- loadProtocolInfo nodeConfig
     (_, peerSnapshot) <- loadTopology configFile.protocolConfigPath
 
-    resolvedHost <- liftIO $ makeAbsolute $ toString configFile.database.host
+    resolvedHost <- liftIO $ do
+        let rawHost = toString configFile.database.host
+        absPath <- makeAbsolute rawHost
+        isSocketDir <- doesDirectoryExist absPath
+        pure $ if isSocketDir then absPath else rawHost
     let db = configFile.database
         database =
             DatabaseConfigFile
