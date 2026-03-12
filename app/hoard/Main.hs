@@ -14,7 +14,7 @@ import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.Chan (runChan)
 import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.Conc.Traced (runConcByConfig)
-import Hoard.Effects.ConfigPath (runConfig, runConfigPath)
+import Hoard.Effects.ConfigPath (runConfig, runConfigRoot)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
 import Hoard.Effects.Environment (loadEnv)
@@ -64,7 +64,7 @@ main =
         . runTimeout
         . runChan
         . loadOptions
-        . runConfigPath
+        . runConfigRoot
         . loadEnv
         . runConfig @"server" @Server.Config
         . runConfig @"monitoring" @Monitoring.Config

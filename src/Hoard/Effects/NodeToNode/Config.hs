@@ -121,3 +121,13 @@ data ProtocolsConfig = ProtocolsConfig
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake ProtocolsConfig
+
+
+instance Default ProtocolsConfig where
+    def =
+        ProtocolsConfig
+            { blockFetch = def
+            , chainSync = def
+            , keepAlive = def
+            , peerSharing = def
+            }

@@ -18,6 +18,7 @@ module Hoard.Effects.WithSocket
 
 import Cardano.Api (File (File), SocketPath)
 import Data.Aeson (FromJSON)
+import Data.Default (Default (..))
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Labeled (Labeled, runLabeled)
@@ -35,6 +36,10 @@ data NodeSocketsConfig
     | Local Local
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake NodeSocketsConfig
+
+
+instance Default NodeSocketsConfig where
+    def = Local MakeLocal {nodeToClientSocket = "", tracerSocket = ""}
 
 
 data SshTunnel = MakeSshTunnel

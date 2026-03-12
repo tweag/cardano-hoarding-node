@@ -290,6 +290,7 @@ test-suite hoard-test
       Integration.Hoard.IntegrationSpec
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
+      Unit.Hoard.ConfigSpec
       Unit.Hoard.Data.BlockHashSpec
       Unit.Hoard.Data.BlockSpec
       Unit.Hoard.Data.HeaderSpec
@@ -329,6 +330,7 @@ test-suite hoard-test
       tasty-discover:tasty-discover
   build-depends:
       QuickCheck
+    , aeson
     , async
     , base
     , cardano-api
