@@ -32,7 +32,7 @@ import Cardano.Api
     , PastHorizonException
     , PoolDistribution (unPoolDistr)
     , QueryInEra (QueryInShelleyBasedEra)
-    , QueryInMode (QueryChainPoint, QueryEraHistory, QueryInEra)
+    , QueryInMode (QueryChainPoint, QueryInEra)
     , QueryInShelleyBasedEra (QueryPoolDistribution, QueryProtocolState)
     , ShelleyBasedEra
         ( ShelleyBasedEraAllegra
@@ -45,11 +45,9 @@ import Cardano.Api
         )
     , ShelleyConfig
     , Target (SpecificPoint)
-    , chainPointToSlotNo
     , connectToLocalNode
     , decodePoolDistribution
     , decodeProtocolState
-    , slotToEpoch
     )
 import Cardano.Crypto.VRF (CertifiedVRF (CertifiedVRF, certifiedOutput), VRFAlgorithm)
 import Cardano.Ledger.BaseTypes (mkActiveSlotCoeff)
@@ -273,78 +271,51 @@ runNodeToClient nodeToClient = do
                                     $ toShortRawHash (Proxy @CardanoBlock)
                                     $ headerHash
                                     $ header
-                        intersect <-
-                            (=<<) (maybe (throwError $ IntersectNotFound header $ chainPoint) pure)
-                                $ (=<<) (leftToError @NodeConnectionError)
-                                $ makeIntersectRequest connection
-                                $ chainPoint
-                        let target = SpecificPoint $ coerce $ intersect
-                        if intersect == chainPoint then
-                            pure () -- the block is already part of our cardano node's chain. so our cardano node considers it valid.
-                        else do
-                            eraHistory <- -- to do. cache
-                                fmap (fromRight @_ @AcquireFailure $ error "`C.VolatileTip` should never fail to be acquired.")
-                                    $ (=<<) (leftToError @NodeConnectionError)
-                                    $ executeLocalStateQuery connection C.VolatileTip
-                                    $ QueryEraHistory
-                            let
-                                toEpoch (ChainPoint p) =
-                                    (fmap . fmap) (\(a, _, _) -> a)
-                                        $ fmap (flip slotToEpoch eraHistory)
-                                        $ maybe (throwError $ HeaderAtGenesis header) pure -- to do. can we just use slot number 0 for `ChainPointAtGenesis`?
-                                        $ chainPointToSlotNo
-                                        $ p
-                            chainPointEpoch <- leftToError @PastHorizonException =<< toEpoch chainPoint -- to do. refresh cached `EraHistory`, that is `toEpoch`, on `PastHorizonException`s
-                            intersectEpoch <- either (throwIO @PastHorizonException) pure =<< toEpoch intersect -- intersect should never be past the horizon because it is less than `VolatileTip`.
-                            if intersectEpoch < chainPointEpoch then
-                                throwError (PointPastEpochHorizon header intersect chainPoint) -- to do. attach the distance between intersect and the volatile tip which encodes the probability of the epoch horizon reaching the chain point, so the caller can decide if and when to retry.
-                            else
-                                if chainPointEpoch < intersectEpoch then
-                                    error "a chain point should never be less than its intersect." -- to do. remove?
-                                else case header of
-                                    HeaderByron h -> throwError (NoByronSupport h)
-                                    HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                        validateVrfSignatureTPraos
-                                            ShelleyBasedEraShelley
-                                            connection
-                                            target
-                                            bhbody
-                                    HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                        validateVrfSignatureTPraos
-                                            ShelleyBasedEraAllegra
-                                            connection
-                                            target
-                                            bhbody
-                                    HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                        validateVrfSignatureTPraos
-                                            ShelleyBasedEraMary
-                                            connection
-                                            target
-                                            bhbody
-                                    HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
-                                        validateVrfSignatureTPraos
-                                            ShelleyBasedEraAlonzo
-                                            connection
-                                            target
-                                            bhbody
-                                    HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
-                                        validateVrfSignaturePraos
-                                            ShelleyBasedEraBabbage
-                                            connection
-                                            target
-                                            (protocolHeaderView shelleyHeaderRaw)
-                                    HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
-                                        validateVrfSignaturePraos
-                                            ShelleyBasedEraConway
-                                            connection
-                                            target
-                                            (protocolHeaderView shelleyHeaderRaw)
-                                    HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
-                                        validateVrfSignaturePraos
-                                            ShelleyBasedEraDijkstra
-                                            connection
-                                            target
-                                            (protocolHeaderView shelleyHeaderRaw)
+                        let target = SpecificPoint $ coerce $ chainPoint
+                        case header of
+                            HeaderByron h -> throwError (NoByronSupport h)
+                            HeaderShelley (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraShelley
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderAllegra (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraAllegra
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderMary (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraMary
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderAlonzo (ShelleyHeader (BHeader bhbody _signed) _) ->
+                                validateVrfSignatureTPraos
+                                    ShelleyBasedEraAlonzo
+                                    connection
+                                    target
+                                    bhbody
+                            HeaderBabbage (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraBabbage
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
+                            HeaderConway (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraConway
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
+                            HeaderDijkstra (ShelleyHeader shelleyHeaderRaw _) ->
+                                validateVrfSignaturePraos
+                                    ShelleyBasedEraDijkstra
+                                    connection
+                                    target
+                                    (protocolHeaderView shelleyHeaderRaw)
             )
 
 
