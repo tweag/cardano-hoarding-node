@@ -340,6 +340,7 @@ test-suite hoard-test
     , async
     , base
     , cardano-api
+    , cardano-ledger-core
     , containers
     , data-default
     , directory
@@ -359,6 +360,7 @@ test-suite hoard-test
     , ouroboros-consensus-cardano
     , ouroboros-consensus-cardano:unstable-byron-testlib
     , ouroboros-consensus-cardano:unstable-shelley-testlib
+    , ouroboros-consensus-protocol
     , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network-api
     , ouroboros-network-protocols

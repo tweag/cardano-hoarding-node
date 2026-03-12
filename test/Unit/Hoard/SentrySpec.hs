@@ -1,12 +1,17 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unit.Hoard.SentrySpec (spec_Sentry) where
 
+import Cardano.Ledger.Block (Block (..))
 import Data.Default (Default, def)
 import Data.UUID (UUID)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.Writer.Static.Shared (execWriter, runWriter)
-import Ouroboros.Consensus.Block (getHeader, headerPoint)
+import Ouroboros.Consensus.Block (SlotNo (..), getHeader, headerPoint)
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..))
+import Ouroboros.Consensus.Protocol.Praos.Header (Header (..), HeaderBody (..))
+import Ouroboros.Consensus.Shelley.Ledger.Block (ShelleyBlock (..), mkShelleyBlock)
 import Ouroboros.Network.Protocol.BlockFetch.Type (ChainRange (..))
 import Test.Consensus.Shelley.Examples (examplesBabbage, examplesShelley)
 import Test.Hspec
@@ -27,9 +32,11 @@ import Hoard.Sentry
     , AdversarialSeverity (..)
     , AdversarialThresholds (..)
     , Config (..)
+    , ReceivedBlockOutsideRequestedRange (..)
     , ReceivedMismatchingBlock (..)
     , duplicateBlockGuard
     , headerBlockMismatchGuard
+    , receivedBlockIsOutsideRequestedRangeGuard
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 
@@ -38,6 +45,7 @@ spec_Sentry :: Spec
 spec_Sentry = do
     describe "headerBlockMismatchGuard" testHeaderBlockMismatchGuard
     describe "duplicateBlockGuard" testDuplicateBlockGuard
+    describe "receivedBlockIsOutsideRequestedRangeGuard" testReceivedBlockIsOutsideRequestedRangeGuard
 
 
 testDuplicateBlockGuard :: Spec
@@ -373,6 +381,76 @@ testHeaderBlockMismatchGuard = do
             }
 
 
+testReceivedBlockIsOutsideRequestedRangeGuard :: Spec
+testReceivedBlockIsOutsideRequestedRangeGuard = do
+    describe "with block in requested range" do
+        it "should not flag" do
+            let msgs = runGuard block1 block1Point block1Point
+            msgs `shouldBe` ([], [])
+
+    -- block2 (Babbage) has a higher slot than block1 (Shelley), so block1 is before the range
+    describe "with block before start of range" do
+        it "should flag" do
+            let (adversarialMsgs, outsideMsgs) = runGuard block1 block2Point block2Point
+            length adversarialMsgs `shouldBe` 1
+            length outsideMsgs `shouldBe` 1
+
+    -- block2 (Babbage) has a higher slot than block1 (Shelley), so block2 is after the range
+    describe "with block after end of range" do
+        it "should flag block after range end" do
+            let (adversarialMsgs, outsideMsgs) = runGuard block2 block1Point block1Point
+            length adversarialMsgs `shouldBe` 1
+            length outsideMsgs `shouldBe` 1
+
+    describe "with duplicate block" do
+        describe "with Minor severity" do
+            it "should publish AdversarialBehavior" do
+                let (adversarialMsgs, _) = runGuard block2 block1Point block1Point
+                let msg = List.head adversarialMsgs
+                msg.severity `shouldBe` Minor
+
+        it "should publish AdversarialBehavior with correct peer" do
+            let (adversarialMsgs, _) = runGuard block2 block1Point block1Point
+            let msg = List.head adversarialMsgs
+            msg.peer `shouldBe` mockPeer
+
+        it "should publish ReceivedBlockOutsideRequestedRange with correct peer and block" do
+            let (_, outsideMsgs) = runGuard block2 block1Point block1Point
+            let msg = List.head outsideMsgs
+            msg.peer `shouldBe` mockPeer
+            msg.block `shouldBe` block2
+
+    describe "with block at start of range" do
+        it "should not flag block at exact range start boundary" do
+            -- Range spans block1's slot to block2's slot; block1 is at the start
+            let msgs = runGuard block1 block1Point block2Point
+            msgs `shouldBe` ([], [])
+
+    describe "with block at end of range" do
+        it "should not flag block at exact range end boundary" do
+            -- Range spans block1's slot to block2's slot; block2 is at the end
+            let msgs = runGuard block2 block1Point block2Point
+            msgs `shouldBe` ([], [])
+  where
+    block1Point = headerPoint $ getHeader block1
+    block2Point = headerPoint $ getHeader block2
+    runGuard block point1 point2 =
+        runPureEff
+            . runTracingNoOp
+            . runWriter @[ReceivedBlockOutsideRequestedRange]
+            . execWriter @[AdversarialBehavior]
+            . runPubWriter @ReceivedBlockOutsideRequestedRange
+            . runPubWriter @AdversarialBehavior
+            . receivedBlockIsOutsideRequestedRangeGuard
+            $ BlockReceived
+                { peer = mockPeer
+                , block
+                , requestId = mockUUID
+                , range = ChainRange point1 point2
+                , headerWithSameSlotNumber = Nothing
+                }
+
+
 data Run = Run
     { warningThreshold :: Word
     , criticalThreshold :: Word
@@ -402,7 +480,13 @@ header1 = getHeader block1
 
 
 block2 :: CardanoBlock
-block2 = BlockBabbage $ snd $ List.head $ examplesBabbage.exampleBlock
+block2 =
+    let original = snd $ List.head $ examplesBabbage.exampleBlock
+        Block hdr body = original.shelleyBlockRaw
+        Header hdrBody sig = hdr
+        newHdrBody = hdrBody {hbSlotNo = SlotNo 9999}
+        newRawBlock = Block (Header newHdrBody sig) body
+    in  BlockBabbage (mkShelleyBlock newRawBlock)
 
 
 header2 :: CardanoHeader
