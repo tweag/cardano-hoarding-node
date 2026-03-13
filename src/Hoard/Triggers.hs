@@ -7,5 +7,5 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 -- Returns Void since it runs forever. Caller is responsible for forking.
 every :: (Concurrent :> es) => Int -> Eff es () -> Eff es Void
 every delay action = forever $ do
-    threadDelay (delay * 1000000)
     action
+    threadDelay (delay * 1000000)

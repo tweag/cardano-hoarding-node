@@ -124,7 +124,6 @@ triggerReplenish
     => Eff es Void
 triggerReplenish = do
     interval <- asks (.replenishIntervalSeconds)
-    replenish
     every interval replenish
   where
     replenish = do
