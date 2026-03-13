@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unit.Hoard.SentrySpec (spec_Sentry) where
 
 import Data.Default (def)
@@ -5,8 +7,11 @@ import Data.UUID (UUID)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.Writer.Static.Shared (execWriter, runWriter)
-import Ouroboros.Consensus.Block (getHeader, headerPoint)
+import Cardano.Ledger.Block (Block (..))
+import Ouroboros.Consensus.Block (SlotNo (..), getHeader, headerPoint)
 import Ouroboros.Consensus.Cardano.Block (HardForkBlock (..))
+import Ouroboros.Consensus.Protocol.Praos.Header (Header (..), HeaderBody (..))
+import Ouroboros.Consensus.Shelley.Ledger.Block (ShelleyBlock (..), mkShelleyBlock)
 import Ouroboros.Network.Protocol.BlockFetch.Type (ChainRange (..))
 import Test.Consensus.Shelley.Examples (examplesBabbage, examplesShelley)
 import Test.Hspec
@@ -27,9 +32,11 @@ import Hoard.Sentry
     , AdversarialSeverity (..)
     , AdversarialThresholds (..)
     , Config (..)
+    , ReceivedBlockOutsideRequestedRange (..)
     , ReceivedMismatchingBlock (..)
     , duplicateBlockGuard
     , headerBlockHashMismatchGuard
+    , receivedBlockIsOutsideRequestedRangeGuard
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 
@@ -38,6 +45,7 @@ spec_Sentry :: Spec
 spec_Sentry = do
     describe "headerBlockHashMismatchGuard" testHeaderBlockHashMismatchGuard
     describe "duplicateBlockGuard" testDuplicateBlockGuard
+    describe "receivedBlockIsOutsideRequestedRangeGuard" testReceivedBlockIsOutsideRequestedRangeGuard
 
 
 testDuplicateBlockGuard :: Spec
@@ -398,6 +406,106 @@ testHeaderBlockHashMismatchGuard = do
             }
 
 
+testReceivedBlockIsOutsideRequestedRangeGuard :: Spec
+testReceivedBlockIsOutsideRequestedRangeGuard = do
+    it "should not flag block within range" do
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block1 (ChainRange mockPoint mockPoint)
+        msgs `shouldBe` ([], [])
+
+    -- block2 (Babbage) has a higher slot than block1 (Shelley), so block1 is before the range
+    it "should flag block before range start" do
+        let (adversarialMsgs, outsideMsgs) =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block1 (ChainRange block2Point block2Point)
+        length adversarialMsgs `shouldBe` 1
+        length outsideMsgs `shouldBe` 1
+
+    -- block2 (Babbage) has a higher slot than block1 (Shelley), so block2 is after the range
+    it "should flag block after range end" do
+        let (adversarialMsgs, outsideMsgs) =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block2 (ChainRange mockPoint mockPoint)
+        length adversarialMsgs `shouldBe` 1
+        length outsideMsgs `shouldBe` 1
+
+    it "should publish AdversarialBehavior with severity Minor" do
+        let (adversarialMsgs, _) =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block2 (ChainRange mockPoint mockPoint)
+        let msg = List.head adversarialMsgs
+        msg.severity `shouldBe` Minor
+
+    it "should publish AdversarialBehavior with correct peer" do
+        let (adversarialMsgs, _) =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block2 (ChainRange mockPoint mockPoint)
+        let msg = List.head adversarialMsgs
+        msg.peer `shouldBe` mockPeer
+
+    it "should publish ReceivedBlockOutsideRequestedRange with correct peer and block" do
+        let (_, outsideMsgs) =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block2 (ChainRange mockPoint mockPoint)
+        let msg = List.head outsideMsgs
+        msg.peer `shouldBe` mockPeer
+        msg.block `shouldBe` block2
+
+    it "should not flag block at exact range start boundary" do
+        -- Range spans block1's slot to block2's slot; block1 is at the start
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block1 (ChainRange mockPoint block2Point)
+        msgs `shouldBe` ([], [])
+
+    it "should not flag block at exact range end boundary" do
+        -- Range spans block1's slot to block2's slot; block2 is at the end
+        let msgs =
+                runPureEff
+                    . runTracingNoOp
+                    . collectPubs
+                    . receivedBlockIsOutsideRequestedRangeGuard
+                    $ mkBlockReceived block2 (ChainRange mockPoint block2Point)
+        msgs `shouldBe` ([], [])
+  where
+    block2Point = headerPoint $ getHeader block2
+    collectPubs =
+        runWriter @[ReceivedBlockOutsideRequestedRange]
+            . execWriter @[AdversarialBehavior]
+            . runPubWriter @ReceivedBlockOutsideRequestedRange
+            . runPubWriter @AdversarialBehavior
+    mkBlockReceived block range =
+        BlockReceived
+            { peer = mockPeer
+            , block
+            , requestId = mockUUID
+            , range
+            , headerWithSameSlotNumber = Nothing
+            }
+
+
 block1 :: CardanoBlock
 block1 = BlockShelley $ snd $ List.head $ examplesShelley.exampleBlock
 
@@ -407,7 +515,13 @@ header1 = getHeader block1
 
 
 block2 :: CardanoBlock
-block2 = BlockBabbage $ snd $ List.head $ examplesBabbage.exampleBlock
+block2 =
+    let original = snd $ List.head $ examplesBabbage.exampleBlock
+        Block hdr body = original.shelleyBlockRaw
+        Header hdrBody sig = hdr
+        newHdrBody = hdrBody{hbSlotNo = SlotNo 9999}
+        newRawBlock = Block (Header newHdrBody sig) body
+     in BlockBabbage (mkShelleyBlock newRawBlock)
 
 
 header2 :: CardanoHeader
