@@ -123,8 +123,8 @@ runNodeToNode
        , Log :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BatchFailed :> es
        , Pub BlockFetch.BlockReceived :> es
-       , Pub BlockFetch.RequestFailed :> es
        , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSync.IntersectionFound :> es
@@ -269,8 +269,8 @@ mkApplication
        , Log :> es
        , Metrics :> es
        , Pub BlockFetch.BatchCompleted :> es
+       , Pub BlockFetch.BatchFailed :> es
        , Pub BlockFetch.BlockReceived :> es
-       , Pub BlockFetch.RequestFailed :> es
        , Pub BlockFetch.RequestStarted :> es
        , Pub ChainSync.HeaderReceived :> es
        , Pub ChainSync.IntersectionFound :> es

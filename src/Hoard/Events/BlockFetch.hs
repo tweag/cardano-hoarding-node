@@ -3,6 +3,7 @@ module Hoard.Events.BlockFetch
     , RequestStarted (..)
     , BlockReceived (..)
     , RequestFailed (..)
+    , BatchFailed (..)
     , BatchCompleted (..)
     ) where
 
@@ -36,6 +37,7 @@ data BlockReceived = BlockReceived
     , block :: CardanoBlock
     , requestId :: UUID
     , range :: ChainRange CardanoPoint
+    , headerWithSameSlotNumber :: Maybe CardanoHeader
     }
     deriving (Typeable)
 
@@ -46,6 +48,13 @@ data RequestFailed = RequestFailed
     , errorMessage :: Text
     }
     deriving (Typeable)
+
+
+data BatchFailed = BatchFailed
+    { peer :: Peer
+    , headers :: NonEmpty CardanoHeader
+    , errorMessage :: Text
+    }
 
 
 data BatchCompleted = BatchCompleted

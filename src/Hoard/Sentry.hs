@@ -10,6 +10,8 @@ module Hoard.Sentry
     , duplicateBlockGuard
     , DuplicateBlocksKey (..)
     , receivedBlockIsOutsideRequestedRangeGuard
+    , headerBlockHashMismatchGuard
+    , ReceivedMismatchingBlock (..)
 
       -- * Config
     , Config (..)
@@ -21,7 +23,7 @@ import Data.Default (Default (..))
 import Data.UUID (UUID)
 import Effectful.Concurrent.STM (Concurrent, atomically)
 import Effectful.Reader.Static (Reader, asks, runReader)
-import Ouroboros.Consensus.Block (SlotNo (..))
+import Ouroboros.Consensus.Block (SlotNo (..), blockMatchesHeader, blockSlot)
 import StmContainers.Map (Map)
 
 import Ouroboros.Consensus.Block.Abstract qualified as Block
@@ -159,6 +161,64 @@ receivedBlockIsOutsideRequestedRangeGuard event =
         Block.BlockPoint (SlotNo n) _ -> n
 
 
+headerBlockHashMismatchGuard
+    :: ( Pub AdversarialBehavior :> es
+       , Pub ReceivedMismatchingBlock :> es
+       , Quota HashMismatchKey :> es
+       , Reader Config :> es
+       , Tracing :> es
+       )
+    => BlockReceived -> Eff es ()
+headerBlockHashMismatchGuard event =
+    withSpan "sentry.header_block_mismatch_guard" do
+        cfg <- asks (.hashMismatch)
+        let classify hits
+                | hits > cfg.criticalThreshold = Just Critical
+                | hits > cfg.warningThreshold = Just Minor
+                | otherwise = Nothing
+        case event.headerWithSameSlotNumber of
+            Just header | not (blockMatchesHeader header event.block) -> do
+                Quota.withQuotaCheck quotaKey (classify . fromIntegral) \case
+                    Just severity -> do
+                        addAttribute "result" $ show @Text severity
+                        publish
+                            AdversarialBehavior
+                                { peer = event.peer
+                                , severity
+                                , description = "exceeded header-block hash mismatch " <> show severity <> " threshold"
+                                }
+                        publish
+                            ReceivedMismatchingBlock
+                                { peer = event.peer
+                                , block = event.block
+                                }
+                    Nothing -> do
+                        addAttribute @Text "result" "None"
+            _ -> pure ()
+  where
+    quotaKey =
+        HashMismatchKey
+            { peerId = event.peer.id
+            , slotNumber = unSlotNo $ blockSlot event.block
+            , requestId = event.requestId
+            }
+
+
+data HashMismatchKey = HashMismatchKey
+    { peerId :: ID Peer
+    , slotNumber :: Word64
+    , requestId :: UUID
+    }
+    deriving (Eq, Generic, Hashable, Ord)
+
+
+data ReceivedMismatchingBlock = ReceivedMismatchingBlock
+    { peer :: Peer
+    , block :: CardanoBlock
+    }
+    deriving (Eq, Show)
+
+
 data AdversarialSeverity
     = Minor
     | Critical
@@ -170,16 +230,19 @@ data AdversarialBehavior = AdversarialBehavior
     , severity :: AdversarialSeverity
     , description :: Text
     }
+    deriving (Eq, Show)
 
 
 data ReceivedBlockOutsideRequestedRange = ReceivedBlockOutsideRequestedRange
     { peer :: Peer
     , block :: CardanoBlock
     }
+    deriving (Eq, Show)
 
 
 data Config = Config
     { duplicateBlocks :: AdversarialThresholds
+    , hashMismatch :: AdversarialThresholds
     }
     deriving (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -192,6 +255,11 @@ instance Default Config where
                 AdversarialThresholds
                     { warningThreshold = 1
                     , criticalThreshold = 20
+                    }
+            , hashMismatch =
+                AdversarialThresholds
+                    { warningThreshold = 0
+                    , criticalThreshold = 5
                     }
             }
 

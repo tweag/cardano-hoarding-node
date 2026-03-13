@@ -303,6 +303,7 @@ test-suite hoard-test
       Unit.Hoard.Effects.PublishingSpec
       Unit.Hoard.Effects.QuotaSpec
       Unit.Hoard.MonitoringSpec
+      Unit.Hoard.SentrySpec
       Paths_hoard
   autogen-modules:
       Paths_hoard
@@ -354,6 +355,7 @@ test-suite hoard-test
     , ouroboros-consensus-cardano:unstable-shelley-testlib
     , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network-api
+    , ouroboros-network-protocols
     , postgres-options
     , process
     , rel8

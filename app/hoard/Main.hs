@@ -99,6 +99,7 @@ main =
         . runQuota @Persistence.PeerSlotKey
         . runQuota @Sentry.DuplicateBlocksKey
         . runPubSub @BlockFetch.BatchCompleted
+        . runPubSub @BlockFetch.BatchFailed
         . runPubSub @BlockFetch.BlockReceived
         . runPubSub @BlockFetch.Request
         . runPubSub @BlockFetch.RequestFailed

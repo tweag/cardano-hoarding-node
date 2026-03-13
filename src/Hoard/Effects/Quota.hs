@@ -34,13 +34,14 @@ module Hoard.Effects.Quota
 
       -- * Interpreters
     , runQuota
+    , runQuotaConst
     ) where
 
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Concurrent.STM (STM)
-import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift)
+import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 import StmContainers.Map (Map)
@@ -154,3 +155,8 @@ evictExpiredEntries store ttl now = do
         )
         0
         $ Map.listT store
+
+
+runQuotaConst :: Int -> Eff (Quota key : es) a -> Eff es a
+runQuotaConst c = interpret \env -> \case
+    WithQuotaCheck _ classify f -> localSeqUnlift env \unlift -> unlift $ f (classify c)
