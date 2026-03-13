@@ -7,7 +7,7 @@ module Hoard.Effects.Environment
 
 import Cardano.Api (File (..), NodeConfig, mkProtocolInfoCardano, readCardanoGenesisConfig, readNodeConfig)
 import Control.Monad.Trans.Except (runExceptT)
-import Data.Aeson (FromJSON (..), eitherDecodeFileStrict)
+import Data.Aeson (FromJSON (..), Value, eitherDecodeFileStrict)
 import Effectful (IOE, withSeqEffToIO)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, ask, runReader)
@@ -17,7 +17,9 @@ import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory, (</>))
 import System.IO.Error (userError)
 
-import Hoard.Effects.ConfigPath (ConfigPath, loadYaml)
+import Data.Aeson qualified as Aeson
+
+import Hoard.Effects.ConfigPath (LoadedConfig (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
@@ -27,11 +29,11 @@ import Hoard.Types.Environment
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
--- | Top-level config file structure (YAML) — only the fields needed to bootstrap
+-- | Top-level config file structure — only the fields needed to bootstrap
 -- the application environment. Component-specific configs are loaded separately.
+-- Secrets (database passwords) are merged in from secrets/{env}.yaml by the config loader.
 data ConfigFile = ConfigFile
     { database :: DatabaseConfigFile
-    , secretsFile :: ConfigPath
     , protocolConfigPath :: FilePath
     }
     deriving stock (Eq, Generic, Show)
@@ -143,16 +145,16 @@ toDBConfig dbCfg credentials =
         }
 
 
-lookupNonEmpty :: (MonadIO m) => Text -> m (Maybe Text)
-lookupNonEmpty n =
-    lookupEnv (toString n) <&> \case
-        Just [] -> Nothing
-        s -> toText <$> s
+-- | Decode a value from the root config Value, throwing on parse failure.
+decodeRoot :: forall a es. (FromJSON a) => Value -> Eff es a
+decodeRoot v = case Aeson.fromJSON v of
+    Aeson.Success a -> pure a
+    Aeson.Error e -> throwIO $ userError $ "Failed to parse root config: " <> e
 
 
 -- | Load the full application environment for a given deployment.
--- Loads both the public config YAML and the secrets YAML file,
--- then acquires all necessary runtime handles.
+-- The root config Value has already been assembled from config/{env}.yaml,
+-- secrets/{env}.yaml, and environment variables by the config loader.
 --
 -- Provides individual Reader effects for:
 -- - IOManager (network IO manager)
@@ -162,29 +164,26 @@ lookupNonEmpty n =
 -- - DBPools (database connection pools)
 loadEnv
     :: ( IOE :> es
-       , Reader ConfigPath :> es
+       , Reader LoadedConfig :> es
        )
     => Eff (Reader IOManager : Reader (ProtocolInfo CardanoBlock) : Reader NodeConfig : Reader PeerSnapshotFile : Reader DBPools : es) a
     -> Eff es a
 loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
-    configPath <- ask @ConfigPath
-    putTextLn $ "Loading configuration from: " <> show configPath
-    configFile <- loadYaml @ConfigFile configPath
-    secrets <- loadYaml @SecretConfig $ configFile.secretsFile
+    LoadedConfig root <- ask
+    configFile <- decodeRoot @ConfigFile root
+    secrets <- decodeRoot @SecretConfig root
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
     protocolInfo <- loadProtocolInfo nodeConfig
     (_, peerSnapshot) <- loadTopology configFile.protocolConfigPath
 
-    databaseHost <- lookupNonEmpty "DB_HOST"
-    databasePort <- (>>= readMaybe . toString) <$> lookupNonEmpty "DB_PORT"
-    databaseName <- lookupNonEmpty "DB_NAME"
-    resolvedHost <- liftIO $ makeAbsolute $ toString $ fromMaybe configFile.database.host databaseHost
-    let database =
+    resolvedHost <- liftIO $ makeAbsolute $ toString configFile.database.host
+    let db = configFile.database
+        database =
             DatabaseConfigFile
                 { host = toText resolvedHost
-                , port = fromMaybe configFile.database.port databasePort
-                , databaseName = fromMaybe configFile.database.databaseName databaseName
-                , pool = configFile.database.pool
+                , port = db.port
+                , databaseName = db.databaseName
+                , pool = db.pool
                 }
     let readerConfig = toDBConfig database secrets.database.users.reader
     let writerConfig = toDBConfig database secrets.database.users.writer
