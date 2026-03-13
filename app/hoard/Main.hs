@@ -17,6 +17,7 @@ import Hoard.Effects.Conc.Traced (runConcByConfig)
 import Hoard.Effects.ConfigPath (runConfig, runConfigRoot)
 import Hoard.Effects.DBRead (runDBRead)
 import Hoard.Effects.DBWrite (runDBWrite)
+import Hoard.Effects.Delay (runDelay)
 import Hoard.Effects.Environment (loadEnv)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.HoardStateRepo (runHoardStateRepo)
@@ -61,6 +62,7 @@ main :: IO ()
 main =
     runEff
         . runConcurrent
+        . runDelay
         . runTimeout
         . runChan
         . loadOptions

@@ -55,6 +55,7 @@ library
       Hoard.Effects.ConfigPath
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
+      Hoard.Effects.Delay
       Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
       Hoard.Effects.HoardStateRepo
@@ -99,7 +100,6 @@ library
       Hoard.Sentry
       Hoard.Server
       Hoard.Server.Config
-      Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.DBConfig
       Hoard.Types.Deployment
