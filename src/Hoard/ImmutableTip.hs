@@ -6,7 +6,7 @@ module Hoard.ImmutableTip
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
-import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, modifyM)
 
@@ -43,10 +43,13 @@ component =
             -- Load immutable tip from DB and set in state
             immutableTip <- HoardStateRepo.getImmutableTip
             modify (\hoardState -> hoardState {immutableTip = immutableTip})
+            immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
         , triggers = do
             refreshInterval <- asks @Config $ (.immutableTipRefreshSeconds)
             pure
-                [ every refreshInterval $ publish ImmutableTipRefreshTriggered
+                [ do
+                    threadDelay $ refreshInterval * 1_000_000
+                    every refreshInterval $ publish ImmutableTipRefreshTriggered
                 ]
         , listeners =
             pure
