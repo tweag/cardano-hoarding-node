@@ -4,13 +4,13 @@ import Control.Exception (finally)
 import Data.Aeson (FromJSON, Value (..), object)
 import Data.Default (Default (..))
 import Effectful (runEff)
-import Effectful.Reader.Static (ask, runReader)
+import Effectful.Reader.Static (Reader, ask, runReader)
 import System.Environment (getEnvironment, setEnv, unsetEnv)
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldSatisfy)
 
 import Data.Aeson.KeyMap qualified as KM
 
-import Hoard.Effects.ConfigPath (deepMerge, envOverrides, runConfig)
+import Hoard.Effects.ConfigPath (LoadedConfig (..), deepMerge, envOverrides, runConfig)
 
 
 spec_Config :: Spec
@@ -162,6 +162,8 @@ runConfigSpec = describe "runConfig" do
 -- Helpers
 --------------------------------------------------------------------------------
 
+runLoadedConfigReader :: Value -> Eff (Reader LoadedConfig : es) a -> Eff es a
+runLoadedConfigReader = runReader . LoadedConfig
 
 
 lookupNested :: [Text] -> Value -> Maybe Value

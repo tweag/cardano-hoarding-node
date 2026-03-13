@@ -3,6 +3,7 @@
 module Hoard.Effects.ConfigPath
     ( envOverrides
     , deepMerge
+    , LoadedConfig (..)
     , loadHoardConfig
     , runConfigRoot
     , runConfig
@@ -80,9 +81,12 @@ deepMerge (Object l) (Object r) = Object $ KM.unionWith deepMerge l r
 deepMerge _ r = r
 
 
+newtype LoadedConfig = LoadedConfig Value
+
+
 -- | Load the full configuration for a deployment.
 -- Priority (highest to lowest): env vars > secrets/{env}.yaml > config/{env}.yaml.
-loadHoardConfig :: Deployment -> IO Value
+loadHoardConfig :: Deployment -> IO LoadedConfig
 loadHoardConfig deployment = do
     let env = toString (deploymentName deployment)
         configYaml = "config" </> env <> ".yaml"
@@ -90,7 +94,7 @@ loadHoardConfig deployment = do
     base <- loadOptional configYaml
     secrets <- loadOptional secretsYaml
     envVars <- envOverrides "HOARD"
-    pure $ deepMerge (deepMerge base secrets) envVars
+    pure $ LoadedConfig $ deepMerge (deepMerge base secrets) envVars
   where
     loadOptional path =
         doesFileExist path >>= \case
@@ -98,7 +102,7 @@ loadHoardConfig deployment = do
             False -> pure (Object KM.empty)
 
 
-runConfigRoot :: (IOE :> es, Reader Options :> es) => Eff (Reader Value : es) a -> Eff es a
+runConfigRoot :: (IOE :> es, Reader Options :> es) => Eff (Reader LoadedConfig : es) a -> Eff es a
 runConfigRoot eff = do
     deployment <- asks $ fromMaybe Dev . Options.deployment
     root <- liftIO $ loadHoardConfig deployment
@@ -107,11 +111,11 @@ runConfigRoot eff = do
 
 runConfig
     :: forall (key :: Symbol) r es a
-     . (Default r, FromJSON r, KnownSymbol key, Reader Value :> es)
+     . (Default r, FromJSON r, KnownSymbol key, Reader LoadedConfig :> es)
     => Eff (Reader r : es) a
     -> Eff es a
 runConfig eff = do
-    root <- asks @Value id
+    LoadedConfig root <- ask
     r <- case root of
         Aeson.Object m ->
             case KM.lookup (fromString (symbolVal (Proxy @key))) m of

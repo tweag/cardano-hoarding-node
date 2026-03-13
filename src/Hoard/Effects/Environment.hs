@@ -19,6 +19,7 @@ import System.IO.Error (userError)
 
 import Data.Aeson qualified as Aeson
 
+import Hoard.Effects.ConfigPath (LoadedConfig (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
@@ -163,12 +164,12 @@ decodeRoot v = case Aeson.fromJSON v of
 -- - DBPools (database connection pools)
 loadEnv
     :: ( IOE :> es
-       , Reader Value :> es
+       , Reader LoadedConfig :> es
        )
     => Eff (Reader IOManager : Reader (ProtocolInfo CardanoBlock) : Reader NodeConfig : Reader PeerSnapshotFile : Reader DBPools : es) a
     -> Eff es a
 loadEnv eff = withSeqEffToIO \unlift -> withIOManager \ioManager -> unlift do
-    root <- ask @Value
+    LoadedConfig root <- ask
     configFile <- decodeRoot @ConfigFile root
     secrets <- decodeRoot @SecretConfig root
     nodeConfig <- loadNodeConfig configFile.protocolConfigPath
