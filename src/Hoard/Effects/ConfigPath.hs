@@ -12,7 +12,7 @@ import Data.Aeson (FromJSON (..), Value (..))
 import Data.Default (Default (..))
 import Effectful (IOE)
 import Effectful.Exception (throwIO)
-import Effectful.Reader.Static (Reader, asks, runReader)
+import Effectful.Reader.Static (Reader, ask, asks, runReader)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import System.Directory (doesFileExist)
 import System.Environment (getEnvironment)
@@ -21,7 +21,6 @@ import System.IO.Error (userError)
 
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
-import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Yaml qualified as Yaml
@@ -70,7 +69,8 @@ envOverrides prefix = do
 parseScalar :: Text -> Value
 parseScalar t =
     fromMaybe (String t)
-        $ Aeson.decode (BL.fromStrict (TE.encodeUtf8 t))
+        $ Aeson.decodeStrict
+        $ TE.encodeUtf8 t
 
 
 -- | Deep merge two JSON values. Right wins on conflict for non-Object values;
