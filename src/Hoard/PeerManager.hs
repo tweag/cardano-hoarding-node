@@ -27,7 +27,7 @@ import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
-import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
+import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerConnectionEstablishment, metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
@@ -93,7 +93,7 @@ component =
                 Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
         , listeners =
             pure
-                [ Sub.listen_ updatePeerConnectionState
+                [ Sub.listen updatePeerConnectionState
                 , Sub.listen_ cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen_ replenishCollectors
@@ -138,8 +138,14 @@ triggerReplenish = do
 -- * Listeners
 
 
-updatePeerConnectionState :: (State Peers :> es) => KeepAlive.Ping -> Eff es ()
-updatePeerConnectionState event =
+updatePeerConnectionState :: (Metrics :> es, State Peers :> es) => UTCTime -> KeepAlive.Ping -> Eff es ()
+updatePeerConnectionState timestamp event = do
+    conn <- gets $ Map.lookup event.peer.id . (.peers)
+    forM_ conn \c ->
+        when (c.state == Connecting)
+            $ histogramObserve metricPeerConnectionEstablishment
+            $ realToFrac
+            $ diffUTCTime timestamp c.connectedAt
     modify
         $ Peers
             . Map.adjust (\c -> c {state = Connected}) event.peer.id
