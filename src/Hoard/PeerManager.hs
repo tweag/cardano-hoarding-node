@@ -93,7 +93,7 @@ component =
                 Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
         , listeners =
             pure
-                [ Sub.listen_ updatePeerConnectionState
+                [ Sub.listen updatePeerConnectionState
                 , Sub.listen_ cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen_ replenishCollectors
@@ -138,14 +138,14 @@ triggerReplenish = do
 -- * Listeners
 
 
-updatePeerConnectionState :: (Metrics :> es, State Peers :> es) => KeepAlive.Ping -> Eff es ()
-updatePeerConnectionState event = do
+updatePeerConnectionState :: (Metrics :> es, State Peers :> es) => UTCTime -> KeepAlive.Ping -> Eff es ()
+updatePeerConnectionState timestamp event = do
     conn <- gets $ Map.lookup event.peer.id . (.peers)
     forM_ conn \c ->
         when (c.state == Connecting)
             $ histogramObserve metricPeerConnectionEstablishment
             $ realToFrac
-            $ diffUTCTime event.timestamp c.connectedAt
+            $ diffUTCTime timestamp c.connectedAt
     modify
         $ Peers
             . Map.adjust (\c -> c {state = Connected}) event.peer.id
