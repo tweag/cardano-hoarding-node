@@ -8,7 +8,6 @@ module Hoard.Monitoring
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.List (partition)
-import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Rel8 (isNull)
@@ -18,6 +17,7 @@ import Data.Set qualified as S
 import Data.Text qualified as T
 
 import Atelier.Component (Component (..), defaultComponent)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics, gaugeSet)
 import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
@@ -27,18 +27,18 @@ import Hoard.DB.Schema (countRows, countRowsWhere)
 import Hoard.Effects.DB (DBRead)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksBeingClassified, metricBlocksInDB, metricConnectedPeers, metricUnclassifiedBlocks)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
-import Hoard.Triggers (every)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
+import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing qualified as Sub
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 
 
 component
-    :: ( Concurrent :> es
-       , DBRead :> es
+    :: ( DBRead :> es
+       , Delay :> es
        , Log :> es
        , Metrics :> es
        , Pub Poll :> es
@@ -54,8 +54,8 @@ component =
         { name = "Monitoring"
         , listeners = pure [Sub.listen_ listener]
         , triggers = do
-            pollingInterval <- asks $ (.pollingIntervalSeconds)
-            pure [every pollingInterval $ publish Poll]
+            pollingInterval <- Delay.seconds <$> asks (.pollingIntervalSeconds)
+            pure [Delay.every pollingInterval $ publish Poll]
         }
 
 

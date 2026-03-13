@@ -39,7 +39,7 @@ module Atelier.Effects.Quota
 
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
 import Effectful (Effect)
-import Effectful.Concurrent (Concurrent, threadDelay)
+import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (STM)
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
 import Effectful.Reader.Static (Reader, ask)
@@ -52,11 +52,13 @@ import StmContainers.Map qualified as Map
 
 import Atelier.Effects.Clock (Clock, currentTime)
 import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Quota.Config
 import Prelude hiding (Map)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Log qualified as Log
 
 
@@ -91,6 +93,7 @@ runQuota
      . ( Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Delay :> es
        , Hashable key
        , Log :> es
        , Reader Config :> es
@@ -100,12 +103,11 @@ runQuota
 runQuota action = do
     quotaConfig <- ask @Config
     let ttl = quotaConfig.entryTtl
-        intervalMicros = round (realToFrac quotaConfig.cleanupInterval * 1_000_000 :: Double)
 
     store <- STM.atomically Map.new
 
     Conc.fork_ $ forever $ Log.withNamespace "Quota" do
-        threadDelay intervalMicros
+        Delay.wait $ Delay.nominalDiffTime quotaConfig.cleanupInterval
         now <- currentTime
         evicted <- STM.atomically $ evictExpiredEntries store ttl now
 

@@ -6,26 +6,26 @@ module Hoard.ImmutableTip
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
-import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, modifyM)
 
 import Atelier.Component (Component (..), defaultComponent)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Atelier.Effects.Publishing (Pub, Sub, publish)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
-import Hoard.Triggers (every)
 import Hoard.Types.HoardState (HoardState (..))
 
+import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Publishing qualified as Sub
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.NodeToClient qualified as NodeToClient
 
 
 component
-    :: ( Concurrent :> es
+    :: ( Delay :> es
        , HoardStateRepo.HoardStateRepo :> es
        , NodeToClient :> es
        , Pub ImmutableTipRefreshTriggered :> es
@@ -45,11 +45,11 @@ component =
             modify (\hoardState -> hoardState {immutableTip = immutableTip})
             immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
         , triggers = do
-            refreshInterval <- asks @Config $ (.immutableTipRefreshSeconds)
+            refreshInterval <- Delay.seconds <$> asks @Config (.immutableTipRefreshSeconds)
             pure
                 [ do
-                    threadDelay $ refreshInterval * 1_000_000
-                    every refreshInterval $ publish ImmutableTipRefreshTriggered
+                    Delay.wait refreshInterval
+                    Delay.every refreshInterval $ publish ImmutableTipRefreshTriggered
                 ]
         , listeners =
             pure

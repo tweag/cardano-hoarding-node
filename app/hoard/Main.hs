@@ -12,6 +12,7 @@ import Atelier.Component (runSystem)
 import Atelier.Effects.Chan (runChan)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc.Traced (runConcByConfig)
+import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Log (runLog)
 import Atelier.Effects.Monitoring.Metrics (runMetrics)
 import Atelier.Effects.Monitoring.Tracing (TracingConfig, runTracingFromConfig)
@@ -60,6 +61,7 @@ main :: IO ()
 main =
     runEff
         . runConcurrent
+        . runDelay
         . runTimeout
         . runChan
         . loadOptions

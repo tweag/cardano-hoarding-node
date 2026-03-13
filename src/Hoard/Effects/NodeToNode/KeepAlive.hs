@@ -2,7 +2,6 @@ module Hoard.Effects.NodeToNode.KeepAlive
     ( miniProtocol
     ) where
 
-import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
@@ -16,6 +15,7 @@ import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Atelier.Effects.Publishing (Pub, publish)
@@ -25,10 +25,12 @@ import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
 import Hoard.Events.KeepAlive (Ping (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
+import Atelier.Effects.Delay qualified as Delay
+
 
 miniProtocol
     :: forall es
-     . ( Concurrent :> es
+     . ( Delay :> es
        , Log :> es
        , Pub Ping :> es
        , Tracing :> es
@@ -66,7 +68,7 @@ miniProtocol conf unlift codecs peer =
 -- and detect network failures. It sends a message immediately, then waits
 -- for the configured interval before sending the next one.
 client
-    :: ( Concurrent :> es
+    :: ( Delay :> es
        , Pub Ping :> es
        )
     => (forall x. Eff es x -> IO x)
@@ -80,6 +82,6 @@ client unlift conf peer = KeepAliveClient sendFirst
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
-        threadDelay conf.intervalMicroseconds
+        Delay.wait $ Delay.micros conf.intervalMicroseconds
         publish $ Ping peer
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

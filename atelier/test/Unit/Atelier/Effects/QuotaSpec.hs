@@ -10,6 +10,7 @@ import Data.IORef qualified as IORef
 
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, runConc)
+import Atelier.Effects.Delay (Delay, runDelay)
 import Atelier.Effects.Log (Log, runLogNoOp)
 import Atelier.Effects.Quota (Config (..), Quota, runQuota, withQuotaCheck)
 
@@ -176,12 +177,13 @@ spec_Quota = do
 --------------------------------------------------------------------------------
 
 -- | Run a quota test
-runQuotaTest :: Eff '[Quota Int, Reader Config, Clock, Conc, Log, Concurrent, IOE] a -> IO a
+runQuotaTest :: Eff '[Quota Int, Reader Config, Clock, Delay, Conc, Log, Concurrent, IOE] a -> IO a
 runQuotaTest action =
     runEff
         . runConcurrent
         . runLogNoOp
         . runConc
+        . runDelay
         . runClock
         . runReader (Config {entryTtl = 3600, cleanupInterval = 3600})
         . runQuota @Int
