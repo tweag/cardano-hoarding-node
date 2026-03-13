@@ -8,7 +8,6 @@ module Hoard.Monitoring
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.List (partition)
-import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, gets)
 import Rel8 (isNull)
@@ -20,13 +19,13 @@ import Data.Text qualified as T
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.DB.Schema (countRows, countRowsWhere)
 import Hoard.Effects.DBRead (DBRead)
+import Hoard.Effects.Delay (Delay, every)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics, gaugeSet)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksBeingClassified, metricBlocksInDB, metricConnectedPeers, metricUnclassifiedBlocks)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
-import Hoard.Triggers (every)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
@@ -37,8 +36,8 @@ import Hoard.Effects.Publishing qualified as Sub
 
 
 component
-    :: ( Concurrent :> es
-       , DBRead :> es
+    :: ( DBRead :> es
+       , Delay :> es
        , Log :> es
        , Metrics :> es
        , Pub Poll :> es

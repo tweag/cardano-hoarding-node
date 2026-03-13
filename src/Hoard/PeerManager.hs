@@ -25,6 +25,7 @@ import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
+import Hoard.Effects.Delay (Delay, every)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerConnectionEstablishment, metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
@@ -36,7 +37,6 @@ import Hoard.Effects.Verifier (Verifier)
 import Hoard.PeerManager.Config (Config (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Sentry (AdversarialBehavior (..))
-import Hoard.Triggers (every)
 import Hoard.Types.Environment (PeerSnapshotFile)
 
 import Hoard.Effects.Clock qualified as Clock
@@ -58,6 +58,7 @@ component
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Delay :> es
        , IOE :> es
        , Log :> es
        , Metrics :> es
@@ -110,13 +111,13 @@ component =
 -- * Triggers
 
 
-triggerCull :: (Concurrent :> es, Pub CullRequested :> es) => Eff es Void
+triggerCull :: (Delay :> es, Pub CullRequested :> es) => Eff es Void
 triggerCull = every 10 do
     publish CullRequested
 
 
 triggerReplenish
-    :: ( Concurrent :> es
+    :: ( Delay :> es
        , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es

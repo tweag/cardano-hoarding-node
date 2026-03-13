@@ -11,11 +11,11 @@ import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, modifyM)
 
 import Hoard.Component (Component (..), defaultComponent)
+import Hoard.Effects.Delay (Delay, every)
 import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
-import Hoard.Triggers (every)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
@@ -26,6 +26,7 @@ import Hoard.Effects.Publishing qualified as Sub
 
 component
     :: ( Concurrent :> es
+       , Delay :> es
        , HoardStateRepo.HoardStateRepo :> es
        , NodeToClient :> es
        , Pub ImmutableTipRefreshTriggered :> es
