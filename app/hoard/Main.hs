@@ -111,6 +111,7 @@ main =
         . runPubSub @Monitoring.Poll
         . runPubSub @NodeToClient.ImmutableTipRefreshTriggered
         . runPubSub @ImmutableTip.Refreshed
+        . runPubSub @PeerManager.CollectorRequested
         . runPubSub @PeerManager.CullRequested
         . runPubSub @PeerManager.PeerDisconnected
         . runPubSub @PeerManager.PeerRequested
