@@ -28,225 +28,219 @@ import Hoard.Sentry
     , AdversarialThresholds (..)
     , Config (..)
     , ReceivedMismatchingBlock (..)
-    , headerBlockHashMismatchGuard
+    , headerBlockMismatchGuard
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 
 
 spec_Sentry :: Spec
 spec_Sentry = do
-    describe "headerBlockHashMismatchGuard" testHeaderBlockHashMismatchGuard
+    describe "headerBlockMismatchGuard" testHeaderBlockMismatchGuard
 
 
-testHeaderBlockHashMismatchGuard :: Spec
-testHeaderBlockHashMismatchGuard = do
-    it "should not flag block without associated header" do
-        let msgs =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 10
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    $ mkBlockReceived block1 Nothing
-        msgs `shouldBe` ([], [])
-
-    it "should not flag block with mismatching header if below quota" do
-        let msgs =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 0
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-        msgs `shouldBe` ([], [])
-
-    it "should not flag block with matching header" do
-        let msgs =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 100
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header1
-        msgs `shouldBe` ([], [])
-
-    it "should flag block as critical with mismatching header over critical threshold" do
-        let (adversarialMsgs, mismatchMsgs) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 100
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-
-        length mismatchMsgs `shouldBe` 1
-        length adversarialMsgs `shouldBe` 1
-        let adversarial = List.head adversarialMsgs
-        adversarial.severity `shouldBe` Critical
-
-    it "should flag block as minor with mismatching header over warning threshold" do
-        let (adversarialMsgs, mismatchMsgs) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config
-                        def
-                            { hashMismatch =
-                                AdversarialThresholds
-                                    { warningThreshold = 1
-                                    , criticalThreshold = 10
-                                    }
+testHeaderBlockMismatchGuard :: Spec
+testHeaderBlockMismatchGuard = do
+    describe "with quota < warningThreshold" do
+        it "should not flag block with mismatching header" do
+            let msgs =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 2
+                            , criticalThreshold = 5
+                            , quota = 1
+                            , block = block1
+                            , header = Just header2
                             }
-                    . runQuotaConst 5
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
+            msgs `shouldBe` ([], [])
 
-        length mismatchMsgs `shouldBe` 1
-        length adversarialMsgs `shouldBe` 1
-        let adversarial = List.head adversarialMsgs
-        adversarial.severity `shouldBe` Minor
-
-    -- Boundary: quota == criticalThreshold uses >, so this should be Minor not Critical
-    it "should flag as minor (not critical) when quota equals critical threshold" do
-        let (adversarialMsgs, _) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def -- criticalThreshold = 5
-                    . runQuotaConst 5
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-
-        length adversarialMsgs `shouldBe` 1
-        let adversarial = List.head adversarialMsgs
-        adversarial.severity `shouldBe` Minor
-
-    -- Boundary: quota == criticalThreshold + 1 should be Critical
-    it "should flag as critical when quota is one above critical threshold" do
-        let (adversarialMsgs, _) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def -- criticalThreshold = 5
-                    . runQuotaConst 6
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-
-        length adversarialMsgs `shouldBe` 1
-        let adversarial = List.head adversarialMsgs
-        adversarial.severity `shouldBe` Critical
-
-    -- Boundary: quota == warningThreshold uses >, so exactly at threshold should not flag
-    it "should not flag when quota equals a non-zero warning threshold" do
-        let msgs =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config
-                        def
-                            { hashMismatch =
-                                AdversarialThresholds
-                                    { warningThreshold = 3
-                                    , criticalThreshold = 10
-                                    }
+    describe "with quota > criticalThreshold" do
+        it "should flag block as critical with mismatching header" do
+            let (adversarialMsgs, mismatchMsgs) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 2
+                            , quota = 3
+                            , block = block1
+                            , header = Just header2
                             }
-                    . runQuotaConst 3
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-        msgs `shouldBe` ([], [])
 
-    -- Boundary: quota == warningThreshold + 1 should flag as Minor
-    it "should flag as minor when quota is one above a non-zero warning threshold" do
-        let (adversarialMsgs, mismatchMsgs) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config
-                        def
-                            { hashMismatch =
-                                AdversarialThresholds
-                                    { warningThreshold = 3
-                                    , criticalThreshold = 10
-                                    }
+            length mismatchMsgs `shouldBe` 1
+            length adversarialMsgs `shouldBe` 1
+            let adversarial = List.head adversarialMsgs
+            adversarial.severity `shouldBe` Critical
+
+    describe "with quota > warningThreshold and quota <= criticalThreshold" do
+        it "should flag block as minor with mismatching header" do
+            let (adversarialMsgs, mismatchMsgs) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 10
+                            , quota = 5
+                            , block = block1
+                            , header = Just header2
                             }
-                    . runQuotaConst 4
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
 
-        length mismatchMsgs `shouldBe` 1
-        length adversarialMsgs `shouldBe` 1
-        let adversarial = List.head adversarialMsgs
-        adversarial.severity `shouldBe` Minor
+            length mismatchMsgs `shouldBe` 1
+            length adversarialMsgs `shouldBe` 1
+            let adversarial = List.head adversarialMsgs
+            adversarial.severity `shouldBe` Minor
 
-    it "should publish ReceivedMismatchingBlock with correct peer and block" do
-        let (_, mismatchMsgs) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 100
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-
-        let mismatch = List.head mismatchMsgs
-        mismatch.peer `shouldBe` mockPeer
-        mismatch.block `shouldBe` block1
-
-    it "should publish AdversarialBehavior with correct peer and description when critical" do
-        let (adversarialMsgs, _) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config def
-                    . runQuotaConst 100
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
-
-        let adversarial = List.head adversarialMsgs
-        adversarial.peer `shouldBe` mockPeer
-        adversarial.description `shouldBe` "exceeded header-block hash mismatch Critical threshold"
-
-    it "should publish AdversarialBehavior with correct peer and description when minor" do
-        let (adversarialMsgs, _) =
-                runPureEff
-                    . runTracingNoOp
-                    . runReader @Config
-                        def
-                            { hashMismatch =
-                                AdversarialThresholds
-                                    { warningThreshold = 1
-                                    , criticalThreshold = 10
-                                    }
+    describe "with quota == criticalThreshold" do
+        it "should flag as minor (not critical) when quota equals critical threshold" do
+            let (adversarialMsgs, _) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 5
+                            , block = block1
+                            , header = Just header2
                             }
-                    . runQuotaConst 5
-                    . collectPubs
-                    . headerBlockHashMismatchGuard
-                    . mkBlockReceived block1
-                    $ Just header2
 
-        let adversarial = List.head adversarialMsgs
-        adversarial.peer `shouldBe` mockPeer
-        adversarial.description `shouldBe` "exceeded header-block hash mismatch Minor threshold"
+            length adversarialMsgs `shouldBe` 1
+            let adversarial = List.head adversarialMsgs
+            adversarial.severity `shouldBe` Minor
+
+    describe "with quota == criticalThreshold + 1" do
+        it "should flag as critical" do
+            let (adversarialMsgs, _) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 6
+                            , block = block1
+                            , header = Just header2
+                            }
+
+            length adversarialMsgs `shouldBe` 1
+            let adversarial = List.head adversarialMsgs
+            adversarial.severity `shouldBe` Critical
+
+    describe "with quota == warningThreshold" do
+        it "should not flag" do
+            let msgs =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 3
+                            , criticalThreshold = 5
+                            , quota = 3
+                            , block = block1
+                            , header = Just header2
+                            }
+            msgs `shouldBe` ([], [])
+
+    describe "with quota == warningThreshold + 1" do
+        it "should flag as minor" do
+            let (adversarialMsgs, mismatchMsgs) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 3
+                            , criticalThreshold = 10
+                            , quota = 4
+                            , block = block1
+                            , header = Just header2
+                            }
+
+            length mismatchMsgs `shouldBe` 1
+            length adversarialMsgs `shouldBe` 1
+            let adversarial = List.head adversarialMsgs
+            adversarial.severity `shouldBe` Minor
+
+    describe "with no associated header" do
+        it "should not flag block without associated header" do
+            let msgs =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 10
+                            , quota = 10
+                            , block = block1
+                            , header = Nothing
+                            }
+            msgs `shouldBe` ([], [])
+
+    describe "with matching associated header" do
+        it "should not flag block with matching header" do
+            let msgs =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 100
+                            , block = block1
+                            , header = Just header1
+                            }
+            msgs `shouldBe` ([], [])
+
+    describe "with mismatch" do
+        it "should publish ReceivedMismatchingBlock with correct peer and block" do
+            let (_, mismatchMsgs) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 100
+                            , block = block1
+                            , header = Just header2
+                            }
+
+            let mismatch = List.head mismatchMsgs
+            mismatch.peer `shouldBe` mockPeer
+            mismatch.block `shouldBe` block1
+
+    describe "with critical severity" do
+        it "should publish AdversarialBehavior with correct peer and description" do
+            let (adversarialMsgs, _) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 5
+                            , quota = 100
+                            , block = block1
+                            , header = Just header2
+                            }
+
+            let adversarial = List.head adversarialMsgs
+            adversarial.peer `shouldBe` mockPeer
+            adversarial.description `shouldBe` "exceeded header-block hash mismatch Critical threshold"
+
+    describe "with minor severity" do
+        it "should publish AdversarialBehavior with correct peer and description" do
+            let (adversarialMsgs, _) =
+                    runHeaderBlockMismatchGuard
+                        Run
+                            { warningThreshold = 1
+                            , criticalThreshold = 10
+                            , quota = 5
+                            , block = block1
+                            , header = (Just header2)
+                            }
+
+            let adversarial = List.head adversarialMsgs
+            adversarial.peer `shouldBe` mockPeer
+            adversarial.description `shouldBe` "exceeded header-block hash mismatch Minor threshold"
   where
-    collectPubs =
-        runWriter @[ReceivedMismatchingBlock]
+    runHeaderBlockMismatchGuard run =
+        runPureEff
+            . runTracingNoOp
+            . runReader
+                def
+                    { hashMismatch =
+                        AdversarialThresholds
+                            { warningThreshold = run.warningThreshold
+                            , criticalThreshold = run.criticalThreshold
+                            }
+                    }
+            . runQuotaConst run.quota
+            . runWriter @[ReceivedMismatchingBlock]
             . execWriter @[AdversarialBehavior]
             . runPubWriter @ReceivedMismatchingBlock
             . runPubWriter @AdversarialBehavior
+            . headerBlockMismatchGuard
+            $ mkBlockReceived run.block run.header
     mkBlockReceived block headerWithSameSlotNumber =
         BlockReceived
             { peer = mockPeer
@@ -255,6 +249,15 @@ testHeaderBlockHashMismatchGuard = do
             , range = mockChainRange
             , headerWithSameSlotNumber
             }
+
+
+data Run = Run
+    { warningThreshold :: Word
+    , criticalThreshold :: Word
+    , quota :: Int
+    , block :: CardanoBlock
+    , header :: Maybe CardanoHeader
+    }
 
 
 block1 :: CardanoBlock

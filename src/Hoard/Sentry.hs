@@ -10,7 +10,7 @@ module Hoard.Sentry
     , duplicateBlockGuard
     , DuplicateBlocksKey (..)
     , receivedBlockIsOutsideRequestedRangeGuard
-    , headerBlockHashMismatchGuard
+    , headerBlockMismatchGuard
     , ReceivedMismatchingBlock (..)
 
       -- * Config
@@ -161,7 +161,7 @@ receivedBlockIsOutsideRequestedRangeGuard event =
         Block.BlockPoint (SlotNo n) _ -> n
 
 
-headerBlockHashMismatchGuard
+headerBlockMismatchGuard
     :: ( Pub AdversarialBehavior :> es
        , Pub ReceivedMismatchingBlock :> es
        , Quota HashMismatchKey :> es
@@ -169,7 +169,7 @@ headerBlockHashMismatchGuard
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
-headerBlockHashMismatchGuard event =
+headerBlockMismatchGuard event =
     withSpan "sentry.header_block_mismatch_guard" do
         cfg <- asks (.hashMismatch)
         let classify hits
