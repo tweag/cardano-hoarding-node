@@ -1,6 +1,7 @@
 module Hoard.PeerManager
     ( component
     , Config (..)
+    , CollectorRequested (..)
     , PeerRequested (..)
     , CullRequested (..)
     , PeerDisconnected (..)
@@ -64,6 +65,7 @@ component
        , NodeToNode :> es
        , PeerRepo :> es
        , Pub BlockFetch.Request :> es
+       , Pub CollectorRequested :> es
        , Pub CullRequested :> es
        , Pub PeerDisconnected :> es
        , Pub PeerRequested :> es
@@ -72,6 +74,7 @@ component
        , State Peers :> es
        , Sub AdversarialBehavior :> es
        , Sub ChainSync.HeaderReceived :> es
+       , Sub CollectorRequested :> es
        , Sub CullRequested :> es
        , Sub KeepAlive.Ping :> es
        , Sub PeerDisconnected :> es
@@ -97,6 +100,7 @@ component =
                 , Sub.listen_ cullOldCollectors
                 , Sub.listen noteDisconnectedPeer
                 , Sub.listen_ replenishCollectors
+                , Sub.listen_ startCollector
                 , Sub.listen_ cullAdversarialPeers
                 ]
         , triggers =
@@ -196,21 +200,12 @@ noteDisconnectedPeer timestamp event = withSpan "peer_manager.note_disconnected_
 
 
 replenishCollectors
-    :: ( BlockRepo :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Log :> es
-       , Metrics :> es
-       , NodeToNode :> es
+    :: ( Metrics :> es
        , PeerRepo :> es
-       , Pub BlockFetch.Request :> es
-       , Pub PeerDisconnected :> es
+       , Pub CollectorRequested :> es
        , Reader Config :> es
        , State Peers :> es
-       , Sub ChainSync.HeaderReceived :> es
        , Tracing :> es
-       , Verifier :> es
        )
     => PeerRequested
     -> Eff es ()
@@ -222,8 +217,27 @@ replenishCollectors (PeerRequested n) = withSpan "peer_manager.replenish_collect
     let actualCount = Set.size potentialPeers
     addAttribute "peers.eligible.count" actualCount
     histogramObserve metricPeerManagerReplenishedCollector $ fromIntegral actualCount
-    withSpan "start_collectors"
-        $ for_ potentialPeers bracketCollector
+    for_ potentialPeers \peer -> publish CollectorRequested {peer}
+
+
+startCollector
+    :: ( BlockRepo :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Log :> es
+       , NodeToNode :> es
+       , PeerRepo :> es
+       , Pub BlockFetch.Request :> es
+       , Pub PeerDisconnected :> es
+       , State Peers :> es
+       , Sub ChainSync.HeaderReceived :> es
+       , Tracing :> es
+       , Verifier :> es
+       )
+    => CollectorRequested
+    -> Eff es ()
+startCollector CollectorRequested {peer} = bracketCollector peer
 
 
 -- * Collector utilities
@@ -296,6 +310,11 @@ bracketCollector peer = withSpan "peer_manager.bracket_collector" do
 
 
 -- * Events
+
+
+data CollectorRequested = CollectorRequested
+    { peer :: Peer
+    }
 
 
 data PeerRequested = PeerRequested Word
