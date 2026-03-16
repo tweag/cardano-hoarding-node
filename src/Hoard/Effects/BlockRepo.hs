@@ -31,7 +31,7 @@ import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolat
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
-import Hoard.Data.BlockTag (BlockTag)
+import Hoard.Data.BlockTag (BlockTag (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 import Hoard.Effects.Monitoring.Tracing (Tracing)
@@ -138,7 +138,7 @@ blockExistsQuery blockHash =
 
 
 classifyBlockTrans :: BlockHash -> BlockClassification -> UTCTime -> Transaction ()
-classifyBlockTrans blockHash classification timestamp =
+classifyBlockTrans blockHash classification timestamp = do
     TX.statement ()
         . Rel8.run_
         $ Rel8.update
@@ -153,6 +153,19 @@ classifyBlockTrans blockHash classification timestamp =
                         }
                 , returning = Rel8.NoReturning
                 }
+    when (classification == Orphaned) $ do
+        hashesAtSlot <- TX.statement () (getBlockHashesAtSameSlotQuery blockHash)
+        TX.statement () (BlockTags.insertTagsStatement hashesAtSlot [SlotDispute])
+
+
+getBlockHashesAtSameSlotQuery :: BlockHash -> Statement () [BlockHash]
+getBlockHashesAtSameSlotQuery blockHash =
+    Rel8.run . Rel8.select $ do
+        targetBlock <- Rel8.each Blocks.schema
+        where_ $ targetBlock.hash ==. lit blockHash
+        block <- Rel8.each Blocks.schema
+        where_ $ block.slotNumber ==. targetBlock.slotNumber
+        pure block.hash
 
 
 getUnclassifiedBlocksQuery :: Int64 -> Int -> Set BlockHash -> Statement () [Block]
@@ -236,7 +249,8 @@ orphanExistsAtSlot orphans slot = Rel8.exists $ do
     pure orphan
 
 
--- | Select canonical blocks that have no orphaned block at the same slot.
+-- | Select canonical blocks that have no orphaned block at the same slot
+-- and have no associated tags.
 getEvictableBlockHashesQuery :: Statement () [BlockHash]
 getEvictableBlockHashesQuery =
     Rel8.run . Rel8.select $ do
@@ -244,7 +258,16 @@ getEvictableBlockHashesQuery =
         where_ $ block.classification ==. lit (Just Canonical)
         hasOrphanAtSameSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
         where_ $ Rel8.not_ hasOrphanAtSameSlot
+        hasTag <- blockHasTag block.hash
+        where_ $ Rel8.not_ hasTag
         pure block.hash
+
+
+blockHasTag :: Rel8.Expr BlockHash -> Rel8.Query (Rel8.Expr Bool)
+blockHasTag hash = Rel8.exists $ do
+    tagRow <- Rel8.each BlockTags.schema
+    where_ $ tagRow.blockHash ==. hash
+    pure tagRow
 
 
 deleteBlocksByHashesQuery :: [BlockHash] -> Statement () ()
@@ -261,23 +284,7 @@ deleteBlocksByHashesQuery hashes =
 
 tagBlockTrans :: BlockHash -> [BlockTag] -> Transaction ()
 tagBlockTrans hash tags =
-    TX.statement ()
-        $ Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = BlockTags.schema
-                , rows = Rel8.values $ mkRow <$> tags
-                , onConflict = Rel8.DoNothing
-                , returning = Rel8.NoReturning
-                }
-  where
-    mkRow tag =
-        BlockTags.Row
-            { id = Rel8.unsafeDefault
-            , blockHash = lit hash
-            , tag = lit tag
-            , taggedAt = Rel8.unsafeDefault
-            }
+    TX.statement () (BlockTags.insertTagsStatement [hash] tags)
 
 
 runBlockRepoState
@@ -289,12 +296,18 @@ runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
     GetBlock header -> gets $ find ((mkBlockHash header ==) . (.hash))
     BlockExists blockHash -> gets @[Block] $ isJust . find ((blockHash ==) . (.hash))
-    ClassifyBlock blockHash classification timestamp ->
+    ClassifyBlock blockHash classification timestamp -> do
         modify $ fmap $ \block ->
             if block.hash == blockHash then
                 block {classification = Just classification, classifiedAt = Just timestamp}
             else
                 block
+        when (classification == Orphaned) $ do
+            blocks <- get @[Block]
+            let hashesAtSlot = case find ((blockHash ==) . (.hash)) blocks of
+                    Nothing -> [blockHash]
+                    Just b -> map (.hash) $ filter (\b' -> b'.slotNumber == b.slotNumber) blocks
+            modify @(Set (BlockHash, BlockTag)) $ Set.union $ Set.fromList $ (,SlotDispute) <$> hashesAtSlot
     GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes ->
         gets
             $ take limit
@@ -313,10 +326,13 @@ runBlockRepoState = interpret_ \case
         pure $ groupIntoDisputes $ fmap (\block -> blockToViolation block []) blocks
     EvictBlocks -> do
         blocks <- get
-        let orphanedSlots = map (.slotNumber) $ filter (\b -> b.classification == Just Orphaned) blocks
+        tags <- get @(Set (BlockHash, BlockTag))
+        let taggedHashes = Set.map fst tags
+            orphanedSlots = map (.slotNumber) $ filter (\b -> b.classification == Just Orphaned) blocks
             isEvictable b =
                 b.classification == Just Canonical
                     && b.slotNumber `notElem` orphanedSlots
+                    && Set.notMember b.hash taggedHashes
             (evictable, keep) = partition isEvictable blocks
         put keep
         pure (length evictable)
