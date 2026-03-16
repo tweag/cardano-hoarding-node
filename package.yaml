@@ -51,6 +51,7 @@ library:
       mixin:
         - hiding (Prelude)
     - hoard-prelude
+    - atelier
     - aeson
     - async
     - base16-bytestring
@@ -123,6 +124,16 @@ internal-libraries:
     - relude
     - effectful
 
+  atelier:
+    source-dirs: atelier
+    dependencies:
+    - name: base
+      mixin:
+        - hiding (Prelude)
+    - hoard-prelude
+    - effectful
+    - unagi-chan
+
 executables:
   hoard-exe:
     main:                Main.hs
@@ -135,6 +146,7 @@ executables:
         - hiding (Prelude)
     - hoard-prelude
     - hoard
+    - atelier
     - data-default
     - effectful
 
@@ -152,6 +164,7 @@ tests:
         - hiding (Prelude)
     - hoard-prelude
     - hoard
+    - atelier
     - "ouroboros-consensus-cardano:unstable-byron-testlib"
     - "ouroboros-consensus-cardano:unstable-shelley-testlib"
     - "ouroboros-consensus:unstable-consensus-testlib"

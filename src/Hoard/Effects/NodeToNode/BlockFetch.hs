@@ -23,10 +23,10 @@ import Data.Set qualified as Set
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 
+import Atelier.Effects.Chan (Chan, readChanBatched)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Chan (Chan, readChanBatched)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)
@@ -45,7 +45,7 @@ import Hoard.Events.BlockFetch
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint)
 
-import Hoard.Effects.Chan qualified as Chan
+import Atelier.Effects.Chan qualified as Chan
 import Hoard.Effects.Conc qualified as Conc
 import Hoard.Effects.UUID qualified as UUID
 

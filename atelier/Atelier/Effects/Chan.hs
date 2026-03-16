@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
--- | Module: Hoard.Effects.Chan
+-- | Module: Atelier.Effects.Chan
 -- Description: Effect for creating and operating on bidirectional channels
-module Hoard.Effects.Chan
+module Atelier.Effects.Chan
     ( -- * Effect
       Chan
     , newChan

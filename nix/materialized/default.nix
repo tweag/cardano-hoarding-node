@@ -1410,6 +1410,7 @@
           "fast-logger".components.library.planned = lib.mkOverride 900 true;
           "th-lift".components.library.planned = lib.mkOverride 900 true;
           "mtl".components.library.planned = lib.mkOverride 900 true;
+          "hoard".components.sublibs."atelier".planned = lib.mkOverride 900 true;
           "logict".components.library.planned = lib.mkOverride 900 true;
           "statistics-linreg".components.library.planned = lib.mkOverride 900 true;
           "nonempty-vector".components.library.planned = lib.mkOverride 900 true;

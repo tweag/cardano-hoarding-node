@@ -61,8 +61,8 @@ import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
 import System.Timeout qualified as Timeout
 
+import Atelier.Effects.Chan (Chan)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Conc (Conc)
 import Hoard.Effects.Log (Log)

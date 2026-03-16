@@ -15,11 +15,11 @@ import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, interpret_, lo
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 
-import Hoard.Effects.Chan (Chan)
+import Atelier.Effects.Chan (Chan)
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (SpanContext, Tracing)
 
-import Hoard.Effects.Chan qualified as Chan
+import Atelier.Effects.Chan qualified as Chan
 import Hoard.Effects.Clock qualified as Clock
 import Hoard.Effects.Monitoring.Tracing qualified as Tracing
 

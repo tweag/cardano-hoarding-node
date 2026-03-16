@@ -35,6 +35,7 @@
         depends = [
           (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
           (hsPkgs."async" or (errorHandler.buildDepError "async"))
+          (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
           (hsPkgs."base" or (errorHandler.buildDepError "base"))
           (hsPkgs."base16-bytestring" or (errorHandler.buildDepError "base16-bytestring"))
           (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
@@ -106,6 +107,19 @@
         hsSourceDirs = [ "src" ];
       };
       sublibs = {
+        "atelier" = {
+          depends = [
+            (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
+            (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
+            (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
+            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
+            (hsPkgs."unagi-chan" or (errorHandler.buildDepError "unagi-chan"))
+          ];
+          buildable = true;
+          modules = [ "Paths_hoard" ];
+          hsSourceDirs = [ "atelier" ];
+        };
         "hoard-prelude" = {
           depends = [
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
@@ -122,6 +136,7 @@
       exes = {
         "hoard-exe" = {
           depends = [
+            (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
             (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
@@ -142,6 +157,7 @@
             (hsPkgs."QuickCheck" or (errorHandler.buildDepError "QuickCheck"))
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
             (hsPkgs."async" or (errorHandler.buildDepError "async"))
+            (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."cardano-api" or (errorHandler.buildDepError "cardano-api"))
             (hsPkgs."cardano-ledger-core" or (errorHandler.buildDepError "cardano-ledger-core"))

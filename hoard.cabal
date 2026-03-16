@@ -50,7 +50,6 @@ library
       Hoard.DB.Schemas.SelectedPeers
       Hoard.Effects.BlockRepo
       Hoard.Effects.Cache.Singleflight
-      Hoard.Effects.Chan
       Hoard.Effects.Clock
       Hoard.Effects.Conc
       Hoard.Effects.Conc.Traced
@@ -137,6 +136,7 @@ library
   build-depends:
       aeson
     , async
+    , atelier
     , base
     , base16-bytestring
     , bytestring
@@ -206,6 +206,44 @@ library
       base hiding (Prelude)
   default-language: GHC2021
 
+library atelier
+  exposed-modules:
+      Atelier.Effects.Chan
+  other-modules:
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      atelier
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      base
+    , effectful
+    , effectful-core
+    , effectful-plugin
+    , hoard-prelude
+    , unagi-chan
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+
 library hoard-prelude
   exposed-modules:
       Prelude
@@ -268,7 +306,8 @@ executable hoard-exe
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      base
+      atelier
+    , base
     , data-default
     , effectful
     , effectful-core
@@ -337,6 +376,7 @@ test-suite hoard-test
       QuickCheck
     , aeson
     , async
+    , atelier
     , base
     , cardano-api
     , cardano-ledger-core

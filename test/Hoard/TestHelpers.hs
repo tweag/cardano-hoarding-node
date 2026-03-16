@@ -25,9 +25,9 @@ import Servant.Client (BaseUrl (..), ClientM, Scheme (..), hoistClient, mkClient
 import Servant.Client.Generic (AsClientT, genericClient)
 import Servant.Server (Handler (..))
 
+import Atelier.Effects.Chan (Chan, runChan)
 import Hoard.API (API, Routes, server)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
-import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
 import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
