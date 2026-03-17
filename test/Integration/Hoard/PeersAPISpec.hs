@@ -76,7 +76,7 @@ spec_PeersAPI = describe "Peers API" $ do
             $ withEffectStackServer
             $ \_ runClient -> do
                 _ <- runClient (client.peers.addPinned testReq)
-                result <- runClient (client.peers.removePinned testReq)
+                result <- runClient (client.peers.removePinned [testAddr])
                 liftIO $ result `shouldSatisfy` isRight
 
         context "multiple pinned peers"
@@ -86,10 +86,11 @@ spec_PeersAPI = describe "Peers API" $ do
             $ \_ runClient -> do
                 let reqs =
                         [ PinPeerRequest {peer = PeerAddress (read "192.168.1.1") 3001, note = Nothing}
-                        , PinPeerRequest {peer = PeerAddress (read "192.168.1.2") 3002, note = Nothing}
+                        , PinPeerRequest {peer = PeerAddress (read "192.168.1.2") 3002, note = Just "second"}
                         ]
+                    addrs = map (.peer) reqs
                 _ <- runClient (client.peers.addPinned reqs)
-                result <- runClient (client.peers.removePinned reqs)
+                result <- runClient (client.peers.removePinned addrs)
                 liftIO $ result `shouldSatisfy` isRight
 
         context "peer not pinned"
@@ -97,7 +98,7 @@ spec_PeersAPI = describe "Peers API" $ do
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                result <- runClient (client.peers.removePinned testReq)
+                result <- runClient (client.peers.removePinned [testAddr])
                 liftIO $ result `shouldSatisfy` isRight
 
         context "peer address not found"
@@ -105,8 +106,7 @@ spec_PeersAPI = describe "Peers API" $ do
             $ void @IO
             $ withEffectStackServer
             $ \_ runClient -> do
-                let unknownReq = [PinPeerRequest {peer = PeerAddress (read "10.0.0.99") 9999, note = Nothing}]
-                result <- runClient (client.peers.removePinned unknownReq)
+                result <- runClient (client.peers.removePinned [PeerAddress (read "10.0.0.99") 9999])
                 liftIO $ result `shouldSatisfy` isRight
 
         context "after unpinning"
@@ -115,7 +115,7 @@ spec_PeersAPI = describe "Peers API" $ do
             $ withEffectStackServer
             $ \_ runClient -> do
                 _ <- runClient (client.peers.addPinned testReq)
-                _ <- runClient (client.peers.removePinned testReq)
+                _ <- runClient (client.peers.removePinned [testAddr])
                 result <- runClient client.peers.getPinned
                 liftIO $ case result of
                     Right peers -> map (.address) peers `shouldNotContain` [testAddr]

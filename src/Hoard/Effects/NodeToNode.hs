@@ -72,7 +72,6 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.Effects.UUID (GenUUID)
-import Hoard.PeerManager.Config (Config (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -86,7 +85,6 @@ import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Events.PeerSharing qualified as PeerSharing
-import Hoard.PeerManager.Config qualified as PeerManager
 
 
 --------------------------------------------------------------------------------
@@ -136,7 +134,6 @@ runNodeToNode
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader IOManager :> es
        , Reader NodeToNodeConfig :> es
-       , Reader PeerManager.Config :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
        , Sub BlockFetch.Request :> es
@@ -151,7 +148,6 @@ runNodeToNode =
             ioManager <- ask @IOManager
             protocolInfo <- ask @(ProtocolInfo CardanoBlock)
             nodeToNode <- ask @NodeToNodeConfig
-            peerManagerConfig <- ask @PeerManager.Config
             let addr = IP.toSockAddr (peer.address.host.getNodeIP, fromIntegral peer.address.port)
                 snocket =
                     withConnectionTimeout nodeToNode.connectionTimeoutSeconds
@@ -174,7 +170,7 @@ runNodeToNode =
                         { networkMagic
                         , diffusionMode = InitiatorOnlyDiffusionMode
                         , peerSharing =
-                            if peerManagerConfig.discoverNewPeers then
+                            if nodeToNode.discoverNewPeers then
                                 PeerSharingEnabled
                             else
                                 PeerSharingDisabled
@@ -191,7 +187,7 @@ runNodeToNode =
 
                             app <-
                                 withSpan "node_to_node.create_application"
-                                    $ mkApplication peerManagerConfig.discoverNewPeers (mkCodecs version blockVersion) peer
+                                    $ mkApplication nodeToNode.discoverNewPeers (mkCodecs version blockVersion) peer
 
                             pure
                                 $ simpleSingletonVersions

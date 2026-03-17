@@ -47,6 +47,10 @@ peer_manager:
   max_collector_lifetime_seconds: 3000 # 50 minutes
   max_concurrent_collectors: 100
   replenish_interval_seconds: 20
+  peer_mode:
+    tag: Automatic
+    contents:
+      bootstrap_pins: false
 
 sentry:
   duplicate_blocks:
@@ -57,6 +61,7 @@ node_to_node:
   # Timeout for TCP connection handshake (in seconds)
   # This only affects the initial connection, not established connections
   connection_timeout_seconds: 10
+  discover_new_peers: true
 
 # Cardano protocols configuration
 cardano_protocols:

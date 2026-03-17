@@ -73,7 +73,7 @@ runPeerRepoState = interpret_ \case
         let addrs = Set.fromList (map fst entries)
         gets @(Map PeerAddress Peer) \peerMap ->
             [p | p <- Map.elems peerMap, p.address `Set.member` addrs]
-    UnpinPeer peerAddrs -> do
+    UnpinPeers peerAddrs -> do
         let addrSet = Set.fromList peerAddrs
         peersToRemove <- gets @(Map PeerAddress Peer) \peerMap ->
             [p.id | p <- Map.elems peerMap, p.address `Set.member` addrSet]

@@ -45,16 +45,16 @@ data PinPeerRequest = PinPeerRequest
 
 data PeersRoutes mode = PeersRoutes
     { getPinned
-        :: mode :- "pinned" :> Get '[JSON] [Peer]
+        :: mode :- Get '[JSON] [Peer]
     , addPinned
-        :: mode :- "pinned" :> ReqBody '[JSON] [PinPeerRequest] :> Post '[JSON] [Peer]
+        :: mode :- ReqBody '[JSON] [PinPeerRequest] :> Post '[JSON] [Peer]
     , removePinned
-        :: mode :- "pinned" :> ReqBody '[JSON] [PinPeerRequest] :> DeleteNoContent
+        :: mode :- ReqBody '[JSON] [PeerAddress] :> DeleteNoContent
     }
     deriving (Generic)
 
 
-type PeersAPI mode = mode :- "peers" :> NamedRoutes PeersRoutes
+type PeersAPI mode = mode :- "peers" :> "pinned" :> NamedRoutes PeersRoutes
 
 
 peersHandler
@@ -66,7 +66,7 @@ peersHandler =
         , addPinned = \reqs -> do
             now <- Clock.currentTime
             PeerRepo.pinPeers now [(req.peer, req.note) | req <- reqs]
-        , removePinned = \reqs -> do
-            PeerRepo.unpinPeer [req.peer | req <- reqs]
+        , removePinned = \addrs -> do
+            PeerRepo.unpinPeers addrs
             pure NoContent
         }

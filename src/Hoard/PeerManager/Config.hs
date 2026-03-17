@@ -1,6 +1,7 @@
 module Hoard.PeerManager.Config
     ( Config (..)
     , PeerMode (..)
+    , AutomaticConfig (..)
     ) where
 
 import Data.Aeson (FromJSON (..))
@@ -10,9 +11,23 @@ import Data.Time (NominalDiffTime)
 import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
+data AutomaticConfig = AutomaticConfig
+    { bootstrapPins :: Bool
+    -- ^ When True, bootstrap peers are also added to selected_peers on
+    -- first start (when selected_peers is empty), making them preferred
+    -- during replenishment. Has no effect after the first start.
+    }
+    deriving (Eq, Generic, Show)
+    deriving (FromJSON) via QuietSnake AutomaticConfig
+
+
+instance Default AutomaticConfig where
+    def = AutomaticConfig {bootstrapPins = False}
+
+
 data PeerMode
     = -- | Connect to any eligible peer as well as any pinned peers.
-      Automatic
+      Automatic AutomaticConfig
     | -- | Only connect to pinned peers; ignore all other discovered peers.
       Manual
     deriving (Eq, Generic, Show)
@@ -20,7 +35,7 @@ data PeerMode
 
 
 instance Default PeerMode where
-    def = Automatic
+    def = Automatic def
 
 
 data Config = Config
@@ -29,9 +44,6 @@ data Config = Config
     , maxConcurrentCollectors :: Word
     , replenishIntervalSeconds :: Int
     , peerMode :: PeerMode
-    , discoverNewPeers :: Bool
-    -- ^ Whether to run the peer sharing protocol to discover new peers.
-    -- When False, only peers already known from bootstrap or the API are used.
     }
     deriving (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
@@ -45,5 +57,4 @@ instance Default Config where
             , maxConcurrentCollectors = 100
             , replenishIntervalSeconds = 20
             , peerMode = def
-            , discoverNewPeers = True
             }

@@ -9,7 +9,7 @@ module Hoard.Effects.PeerRepo
     , getEligiblePeers
     , getPinnedPeers
     , pinPeers
-    , unpinPeer
+    , unpinPeers
     , getEligiblePinnedPeers
     , runPeerRepo
     )
@@ -105,12 +105,12 @@ data PeerRepo :: Effect where
         -> PeerRepo m [Peer]
     -- | Remove peers from the pinned peers list. Idempotent — silently
     -- succeeds if any peer is not found or was not pinned.
-    UnpinPeer
+    UnpinPeers
         :: [PeerAddress]
         -> PeerRepo m ()
     -- | Like GetEligiblePeers but restricted to pinned peers only.
     --
-    -- Used in Static and StaticCollect modes.
+    -- Used in Manual mode.
     GetEligiblePinnedPeers
         :: NominalDiffTime
         -- ^ Threshold for how long ago a peer must have last failed.
@@ -133,7 +133,7 @@ runPeerRepo
 runPeerRepo = interpret $ \_ -> \case
     UpsertPeers peerAddrs sourcePeer timestamp ->
         runTransaction "upsert_peers"
-            $ upsertPeersImpl peerAddrs sourcePeer timestamp
+            $ fromList <$> upsertPeersImpl (toList peerAddrs) (peerSharingDiscoveredVia sourcePeer) timestamp
     GetPeerByAddress peerAddr ->
         runQuery "get_peer_by_address"
             $ getPeerByAddressImpl peerAddr
@@ -155,25 +155,27 @@ runPeerRepo = interpret $ \_ -> \case
     PinPeers timestamp entries ->
         runTransaction "pin_peers"
             $ pinPeersImpl timestamp entries
-    UnpinPeer peerAddrs ->
+    UnpinPeers peerAddrs ->
         runTransaction "unpin_peer"
-            $ unpinPeerImpl peerAddrs
+            $ unpinPeersImpl peerAddrs
     GetEligiblePinnedPeers failureTimeout alreadyConnectedPeers limit ->
         runQuery "get_eligible_pinned_peers"
             $ getEligiblePinnedPeersImpl failureTimeout alreadyConnectedPeers limit
 
 
+peerSharingDiscoveredVia :: PeerAddress -> Text
+peerSharingDiscoveredVia p = "PeerSharing:" <> show p.host <> ":" <> show p.port
+
+
 upsertPeersImpl
-    :: Set PeerAddress
-    -- ^ Set of structured peer addresses
-    -> PeerAddress
-    -- ^ The source peer that shared these addresses
+    :: [PeerAddress]
+    -- ^ Peer addresses to upsert
+    -> Text
+    -- ^ The discoveredVia value to use for new peers
     -> UTCTime
     -- ^ Timestamp when these peers were discovered
-    -> Transaction (Set Peer)
-upsertPeersImpl peerAddresses sourcePeer timestamp = do
-    let discoveredVia = "PeerSharing:" <> show sourcePeer.host <> ":" <> show sourcePeer.port
-
+    -> Transaction [Peer]
+upsertPeersImpl peerAddresses discoveredVia timestamp = do
     -- Upsert all peers in a single statement and get back the full peer records
     rows <-
         TX.statement ()
@@ -183,7 +185,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                     { into = PeersSchema.schema
                     , rows =
                         Rel8.values
-                            $ toList peerAddresses <&> \peerAddr ->
+                            $ peerAddresses <&> \peerAddr ->
                                 PeersSchema.Row
                                     { PeersSchema.id = Rel8.unsafeDefault
                                     , PeersSchema.address = lit peerAddr.host
@@ -208,8 +210,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                                 }
                     , returning = Rel8.Returning Prelude.id
                     }
-
-    pure $ fromList $ map PeersSchema.peerFromRow rows
+    pure $ map PeersSchema.peerFromRow rows
 
 
 -- | Get a peer from the database by its address and port
@@ -305,37 +306,7 @@ getPinnedPeersImpl =
 pinPeersImpl :: UTCTime -> [(PeerAddress, Maybe Text)] -> Transaction [Peer]
 pinPeersImpl timestamp entries = do
     let noteByAddr = Map.fromList entries
-    -- Bulk upsert all addresses into peers
-    peerRows <-
-        TX.statement ()
-            . Rel8.run
-            $ Rel8.insert
-                Rel8.Insert
-                    { into = PeersSchema.schema
-                    , rows =
-                        Rel8.values
-                            $ map fst entries <&> \peerAddr ->
-                                PeersSchema.Row
-                                    { PeersSchema.id = Rel8.unsafeDefault
-                                    , PeersSchema.address = lit peerAddr.host
-                                    , PeersSchema.port = lit (fromIntegral peerAddr.port)
-                                    , PeersSchema.firstDiscovered = lit timestamp
-                                    , PeersSchema.lastSeen = lit timestamp
-                                    , PeersSchema.lastConnected = lit Nothing
-                                    , PeersSchema.lastFailureTime = lit Nothing
-                                    , PeersSchema.discoveredVia = lit "pinned"
-                                    }
-                    , onConflict =
-                        Rel8.DoUpdate
-                            Rel8.Upsert
-                                { index = \r -> (r.address, r.port)
-                                , predicate = Nothing
-                                , set = \_ old -> old {PeersSchema.lastSeen = lit timestamp}
-                                , updateWhere = \_ _ -> lit True
-                                }
-                    , returning = Rel8.Returning Prelude.id
-                    }
-    let peers = map PeersSchema.peerFromRow peerRows
+    peers <- upsertPeersImpl (map fst entries) "pinned" timestamp
     -- Bulk insert into selected_peers with per-peer notes; ON CONFLICT DO NOTHING is idempotent
     TX.statement ()
         . Rel8.run_
@@ -356,8 +327,8 @@ pinPeersImpl timestamp entries = do
     pure peers
 
 
-unpinPeerImpl :: [PeerAddress] -> Transaction ()
-unpinPeerImpl peerAddrs =
+unpinPeersImpl :: [PeerAddress] -> Transaction ()
+unpinPeersImpl peerAddrs =
     TX.statement ()
         . Rel8.run_
         $ Rel8.delete

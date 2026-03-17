@@ -34,7 +34,7 @@ import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
-import Hoard.PeerManager.Config (Config (..), PeerMode (..))
+import Hoard.PeerManager.Config (AutomaticConfig (..), Config (..), PeerMode (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Triggers (every)
@@ -89,7 +89,7 @@ component =
         , setup = do
             mode <- asks @Config (.peerMode)
             case mode of
-                Automatic -> do
+                Automatic AutomaticConfig {bootstrapPins} -> do
                     knownPeersExist <- PeerRepo.hasPeers
                     if knownPeersExist then
                         Log.debug "Known peers found in database, skipping bootstrap"
@@ -97,6 +97,12 @@ component =
                         Log.debug "No known peers found, bootstrapping from peer snapshot"
                         bootstrappedPeers <- bootstrapPeers
                         Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
+                    when bootstrapPins do
+                        pinnedPeers <- PeerRepo.getPinnedPeers
+                        when (null pinnedPeers) do
+                            Log.debug "No pinned peers found, bootstrapping pinned peers from peer snapshot"
+                            bootstrappedPinnedPeers <- bootstrapPinnedPeers
+                            Log.debug $ "Bootstrapped " <> show (length bootstrappedPinnedPeers) <> " pinned peers from peer snapshot"
                 Manual -> do
                     pinnedPeers <- PeerRepo.getPinnedPeers
                     if not (null pinnedPeers) then
@@ -230,7 +236,7 @@ replenishCollectors (PeerRequested n) = withSpan "peer_manager.replenish_collect
     let pinnedCount = fromIntegral (Set.size pinnedPeers)
     -- In Automatic mode, fill any remaining slots with general eligible peers
     additionalPeers <- case mode of
-        Automatic | pinnedCount < n -> do
+        Automatic _ | pinnedCount < n -> do
             let alreadyHandled = connectedIds `Set.union` Set.map (.id) pinnedPeers
             PeerRepo.getEligiblePeers cooldown alreadyHandled (n - pinnedCount)
         _ -> pure mempty
