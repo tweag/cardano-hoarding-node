@@ -33,6 +33,8 @@ import Hoard.API (API, Routes, server)
 import Hoard.Data.Block (Block)
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.BlockTag (BlockTag)
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (Peer, PeerAddress)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
 import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
@@ -40,6 +42,8 @@ import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
+import Hoard.Effects.PeerRepo (PeerRepo)
+import Hoard.Effects.PeerRepo.State (runPeerRepoState)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Log qualified as Log
@@ -55,8 +59,10 @@ withEffectStackServer action = runEffectStackTest $ withServer action
 withServer
     :: forall b es
      . ( BlockRepo :> es
+       , Clock :> es
        , IOE :> es
        , Metrics :> es
+       , PeerRepo :> es
        )
     => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
     -> Eff es b
@@ -96,12 +102,18 @@ runEffectStackTest eff = liftIO $ do
         . evalState @[Block] []
         . evalState @(Set (BlockHash, BlockTag)) mempty
         . runBlockRepoState
+        . evalState @(Map PeerAddress Peer) mempty
+        . evalState @(Set (ID Peer)) mempty
+        . runPeerRepoState
         . runState @HoardState def
         $ eff
 
 
 type TestAppEffs =
     [ State HoardState
+    , PeerRepo
+    , State (Set (ID Peer))
+    , State (Map PeerAddress Peer)
     , BlockRepo
     , State (Set (BlockHash, BlockTag))
     , State [Block]

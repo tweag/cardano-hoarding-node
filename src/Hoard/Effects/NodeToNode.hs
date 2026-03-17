@@ -72,6 +72,7 @@ import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
 import Hoard.Effects.Publishing (Pub, Sub)
 import Hoard.Effects.UUID (GenUUID)
+import Hoard.PeerManager.Config (Config (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
@@ -85,6 +86,7 @@ import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Events.PeerSharing qualified as PeerSharing
+import Hoard.PeerManager.Config qualified as PeerManager
 
 
 --------------------------------------------------------------------------------
@@ -134,6 +136,7 @@ runNodeToNode
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader IOManager :> es
        , Reader NodeToNodeConfig :> es
+       , Reader PeerManager.Config :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
        , Sub BlockFetch.Request :> es
@@ -148,6 +151,7 @@ runNodeToNode =
             ioManager <- ask @IOManager
             protocolInfo <- ask @(ProtocolInfo CardanoBlock)
             nodeToNode <- ask @NodeToNodeConfig
+            peerManagerConfig <- ask @PeerManager.Config
             let addr = IP.toSockAddr (peer.address.host.getNodeIP, fromIntegral peer.address.port)
                 snocket =
                     withConnectionTimeout nodeToNode.connectionTimeoutSeconds
@@ -169,7 +173,11 @@ runNodeToNode =
                     NodeToNodeVersionData
                         { networkMagic
                         , diffusionMode = InitiatorOnlyDiffusionMode
-                        , peerSharing = PeerSharingEnabled
+                        , peerSharing =
+                            if peerManagerConfig.discoverNewPeers then
+                                PeerSharingEnabled
+                            else
+                                PeerSharingDisabled
                         , query = False
                         }
 
@@ -183,7 +191,7 @@ runNodeToNode =
 
                             app <-
                                 withSpan "node_to_node.create_application"
-                                    $ mkApplication (mkCodecs version blockVersion) peer
+                                    $ mkApplication peerManagerConfig.discoverNewPeers (mkCodecs version blockVersion) peer
 
                             pure
                                 $ simpleSingletonVersions
@@ -283,19 +291,23 @@ mkApplication
        , Timeout :> es
        , Tracing :> es
        )
-    => CardanoCodecs
+    => Bool
+    -- ^ Whether to run the peer sharing mini-protocol.
+    -> CardanoCodecs
     -> Peer
     -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
-mkApplication codecs peer = do
+mkApplication discoverNewPeers codecs peer = do
     conf <- ask @ProtocolsConfig
     withEffToIO (ConcUnlift Persistent Unlimited) \unlift ->
         pure
             $ OuroborosApplication
-                [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
-                , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
-                , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
-                , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
-                ]
+            $ [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
+              , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
+              , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+              ]
+                <> [ NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
+                   | discoverNewPeers
+                   ]
 
 
 --------------------------------------------------------------------------------

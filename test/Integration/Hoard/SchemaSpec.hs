@@ -20,6 +20,7 @@ import Hoard.DB.Schemas.Headers qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
 import Hoard.DB.Schemas.HoardState qualified as HoadStateSchema
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.DB.Schemas.SelectedPeers qualified as SelectedPeersSchema
 
 
 spec_Schema :: Spec
@@ -34,6 +35,7 @@ spec_Schema = withCleanTestDatabase $ do
             weakTestSchema config testTime BlocksSchema.schema
             weakTestSchema config testTime HoadStateSchema.schema
             weakTestSchema config testTime BlockTagsSchema.schema
+            weakTestSchema config testTime SelectedPeersSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors

@@ -17,7 +17,7 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Hoard.Bootstrap (bootstrapPeers)
+import Hoard.Bootstrap (bootstrapPeers, bootstrapPinnedPeers)
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
@@ -34,7 +34,7 @@ import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
 import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
-import Hoard.PeerManager.Config (Config (..))
+import Hoard.PeerManager.Config (Config (..), PeerMode (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Triggers (every)
@@ -87,13 +87,24 @@ component =
     defaultComponent
         { name = "PeerManager"
         , setup = do
-            knownPeersExist <- PeerRepo.hasPeers
-            if knownPeersExist then
-                Log.debug "Known peers found in database, skipping bootstrap"
-            else do
-                Log.debug "No known peers found, bootstrapping from peer snapshot"
-                bootstrappedPeers <- bootstrapPeers
-                Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
+            mode <- asks @Config (.peerMode)
+            case mode of
+                Automatic -> do
+                    knownPeersExist <- PeerRepo.hasPeers
+                    if knownPeersExist then
+                        Log.debug "Known peers found in database, skipping bootstrap"
+                    else do
+                        Log.debug "No known peers found, bootstrapping from peer snapshot"
+                        bootstrappedPeers <- bootstrapPeers
+                        Log.debug $ "Bootstrapped " <> show (Set.size bootstrappedPeers) <> " peers from peer snapshot"
+                Manual -> do
+                    pinnedPeers <- PeerRepo.getPinnedPeers
+                    if not (null pinnedPeers) then
+                        Log.debug "Pinned peers found, skipping bootstrap"
+                    else do
+                        Log.debug "No pinned peers found, bootstrapping from peer snapshot"
+                        bootstrappedPeers <- bootstrapPinnedPeers
+                        Log.debug $ "Bootstrapped " <> show (length bootstrappedPeers) <> " pinned peers from peer snapshot"
         , listeners =
             pure
                 [ Sub.listen updatePeerConnectionState
@@ -212,8 +223,18 @@ replenishCollectors
 replenishCollectors (PeerRequested n) = withSpan "peer_manager.replenish_collectors" do
     addAttribute "collectors.requested.count" $ fromIntegral @_ @Int n
     cooldown <- asks (.peerFailureCooldownSeconds)
+    mode <- asks @Config (.peerMode)
     connectedIds <- gets $ Map.keysSet . (.peers)
-    potentialPeers <- PeerRepo.getEligiblePeers cooldown connectedIds n
+    -- Always try pinned peers first
+    pinnedPeers <- PeerRepo.getEligiblePinnedPeers cooldown connectedIds n
+    let pinnedCount = fromIntegral (Set.size pinnedPeers)
+    -- In Automatic mode, fill any remaining slots with general eligible peers
+    additionalPeers <- case mode of
+        Automatic | pinnedCount < n -> do
+            let alreadyHandled = connectedIds `Set.union` Set.map (.id) pinnedPeers
+            PeerRepo.getEligiblePeers cooldown alreadyHandled (n - pinnedCount)
+        _ -> pure mempty
+    let potentialPeers = pinnedPeers `Set.union` additionalPeers
     let actualCount = Set.size potentialPeers
     addAttribute "peers.eligible.count" actualCount
     histogramObserve metricPeerManagerReplenishedCollector $ fromIntegral actualCount

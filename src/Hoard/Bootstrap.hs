@@ -1,4 +1,4 @@
-module Hoard.Bootstrap (bootstrapPeers) where
+module Hoard.Bootstrap (bootstrapPeers, bootstrapPinnedPeers) where
 
 import Control.Exception (try)
 import Data.IP (IP)
@@ -13,7 +13,7 @@ import Network.Socket qualified as Socket
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
-import Hoard.Effects.PeerRepo (PeerRepo, upsertPeers)
+import Hoard.Effects.PeerRepo (PeerRepo, pinPeers, upsertPeers)
 import Hoard.Types.Environment
     ( BootstrapPeerDomain (..)
     , BootstrapPeerIP (..)
@@ -37,26 +37,46 @@ bootstrapPeers
        )
     => Eff es (Set Peer)
 bootstrapPeers = withSpan "bootstrap.bootstrap_peers" do
-    -- Get peer snapshot from config
-    peerSnapshot <- ask
-
-    -- Extract all relays from all ledger pools
-    let allRelays = concatMap (.relays) peerSnapshot.bigLedgerPools
-
-    -- Resolve all relay addresses to PeerAddress
-    addresses <- fmap (S.fromList . catMaybes) $ forM allRelays $ \relay ->
-        withSpan "bootstrap.resolve_address" $ case relay of
-            Left domain -> resolveDomain domain
-            Right ipRelay -> resolveIPAddress ipRelay
-
-    -- Use the first address as the bootstrap source for all peers
-    -- (In reality, each peer is discovered from the network, but for initial bootstrap
-    -- we just use one as the source)
-    case S.toList addresses of
+    addresses <- resolveBootstrapAddresses
+    case addresses of
         [] -> error "No bootstrap peers found in peer snapshot"
         (firstAddr : _) -> do
             timestamp <- Clock.currentTime
-            upsertPeers addresses firstAddr timestamp
+            upsertPeers (S.fromList addresses) firstAddr timestamp
+
+
+-- | Bootstrap pinned peers from the peer snapshot configuration.
+--
+-- Used in Manual mode when selected_peers is empty on startup.
+-- Upserts peers into the peers table and adds them to selected_peers.
+bootstrapPinnedPeers
+    :: ( Clock :> es
+       , IOE :> es
+       , PeerRepo :> es
+       , Reader PeerSnapshotFile :> es
+       , Tracing :> es
+       )
+    => Eff es [Peer]
+bootstrapPinnedPeers = withSpan "bootstrap.bootstrap_pinned_peers" do
+    addresses <- resolveBootstrapAddresses
+    timestamp <- Clock.currentTime
+    pinPeers timestamp [(addr, Nothing) | addr <- addresses]
+
+
+-- | Resolve all relay addresses from the peer snapshot.
+resolveBootstrapAddresses
+    :: ( IOE :> es
+       , Reader PeerSnapshotFile :> es
+       , Tracing :> es
+       )
+    => Eff es [PeerAddress]
+resolveBootstrapAddresses = do
+    peerSnapshot <- ask
+    let allRelays = concatMap (.relays) peerSnapshot.bigLedgerPools
+    fmap catMaybes $ forM allRelays $ \relay ->
+        withSpan "bootstrap.resolve_address" $ case relay of
+            Left domain -> resolveDomain domain
+            Right ipRelay -> resolveIPAddress ipRelay
 
 
 resolveDomain :: (IOE :> es) => BootstrapPeerDomain -> Eff es (Maybe PeerAddress)
