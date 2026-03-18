@@ -1,11 +1,6 @@
-module Hoard.TestHelpers
-    ( withServer
-    , runEffectStackTest
-    , withEffectStackServer
-    , client
-    )
-where
+module Hoard.TestHelpers (withServer) where
 
+import Control.Exception (ErrorCall (..), throwIO)
 import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Default (def)
 import Data.Time (UTCTime (..))
@@ -17,46 +12,46 @@ import Effectful
     , runEff
     , withEffToIO
     )
+import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.Exception (try)
 import Effectful.FileSystem (FileSystem, runFileSystem)
 import Effectful.Reader.Static (Reader, runReader)
-import Effectful.State.Static.Shared (State, evalState, runState)
+import Effectful.State.Static.Shared (State, evalState)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (testWithApplication)
 import Servant (hoistServer, serve)
-import Servant.Client (AsClientT, BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM)
-import Servant.Client.Core (ClientError)
-import Servant.Client.Generic (genericClient)
+import Servant.Client (BaseUrl (..), ClientM, Scheme (..), hoistClient, mkClientEnv, runClientM)
+import Servant.Client.Generic (AsClientT, genericClient)
 import Servant.Server (Handler (..))
 
 import Hoard.API (API, Routes, server)
-import Hoard.Data.Block (Block)
-import Hoard.Data.BlockHash (BlockHash)
-import Hoard.Data.BlockTag (BlockTag)
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer, PeerAddress)
-import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepoState)
+import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
 import Hoard.Effects.Chan (Chan, runChan)
 import Hoard.Effects.Clock (Clock, runClockConst)
 import Hoard.Effects.Conc (Conc, runConc)
+import Hoard.Effects.DBRead (DBRead, runDBRead)
+import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
 import Hoard.Effects.Log (Log, runLog)
 import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
 import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
-import Hoard.Effects.PeerRepo (PeerRepo)
-import Hoard.Effects.PeerRepo.State (runPeerRepoState)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
+import Hoard.TestHelpers.Database (TestConfig (..))
+import Hoard.Types.DBConfig (DBPools)
 import Hoard.Types.HoardState (HoardState)
 
 import Hoard.Effects.Log qualified as Log
 
 
-withEffectStackServer
-    :: (MonadIO m, es ~ TestAppEffs)
-    => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
-    -> m (b, HoardState)
-withEffectStackServer action = runEffectStackTest $ withServer action
-
-
 withServer
+    :: (es ~ TestAppDBEffs)
+    => TestConfig
+    -> (Routes (AsClientT (Eff es)) -> Eff es b)
+    -> IO b
+withServer config action = runEffectStackTestDB config $ withTestApp action
+
+
+withTestApp
     :: forall b es
      . ( BlockRepo :> es
        , Clock :> es
@@ -64,9 +59,9 @@ withServer
        , Metrics :> es
        , PeerRepo :> es
        )
-    => (Int -> (forall a. ClientM a -> Eff es (Either ClientError a)) -> Eff es b)
+    => (Routes (AsClientT (Eff es)) -> Eff es b)
     -> Eff es b
-withServer action = do
+withTestApp action = do
     withEffToIO (ConcUnlift Persistent Unlimited) $ \unlift -> do
         let servantApp =
                 hoistServer
@@ -79,44 +74,47 @@ withServer action = do
             manager <- newManager defaultManagerSettings
             let baseUrl = BaseUrl Http "localhost" port ""
             let clientEnv = mkClientEnv manager baseUrl
-            let runClient :: forall a. ClientM a -> Eff es (Either ClientError a)
-                runClient = liftIO . flip runClientM clientEnv
-            unlift $ action port runClient
+            let liftClient :: forall a. ClientM a -> Eff es a
+                liftClient cm = liftIO $ runClientM cm clientEnv >>= either throwIO pure
+            unlift $ action (hoistClient (Proxy @API) liftClient genericClient)
 
 
-runEffectStackTest
-    :: (MonadIO m)
-    => Eff TestAppEffs a
-    -> m (a, HoardState)
-runEffectStackTest eff = liftIO $ do
+runEffectStackTestDB
+    :: TestConfig
+    -> Eff TestAppDBEffs a
+    -> IO a
+runEffectStackTestDB config eff = do
     let testTime = UTCTime (toEnum 0) 0
-    runEff
-        . runFileSystem
-        . runChan
-        . runTracingNoOp
-        . runConc
-        . runReader @Log.Config def
-        . runLog
-        . runClockConst testTime
-        . runMetrics
-        . evalState @[Block] []
-        . evalState @(Set (BlockHash, BlockTag)) mempty
-        . runBlockRepoState
-        . evalState @(Map PeerAddress Peer) mempty
-        . evalState @(Set (ID Peer)) mempty
-        . runPeerRepoState
-        . runState @HoardState def
-        $ eff
+    result <-
+        runEff
+            . runConcurrent
+            . runFileSystem
+            . runChan
+            . runTracingNoOp
+            . runConc
+            . runReader @Log.Config def
+            . runLog
+            . runClockConst testTime
+            . runMetrics
+            . runReader @DBPools config.pools
+            . runErrorNoCallStack @Text
+            . runDBWrite
+            . runDBRead
+            . runBlockRepo
+            . runPeerRepo
+            . evalState @HoardState def
+            $ eff
+    either (throwIO . ErrorCall . toString) pure result
 
 
-type TestAppEffs =
+type TestAppDBEffs =
     [ State HoardState
     , PeerRepo
-    , State (Set (ID Peer))
-    , State (Map PeerAddress Peer)
     , BlockRepo
-    , State (Set (BlockHash, BlockTag))
-    , State [Block]
+    , DBRead
+    , DBWrite
+    , Error Text
+    , Reader DBPools
     , Metrics
     , Clock
     , Log
@@ -125,10 +123,6 @@ type TestAppEffs =
     , Tracing
     , Chan
     , FileSystem
+    , Concurrent
     , IOE
     ]
-
-
--- | Generate servant client from API
-client :: Routes (AsClientT ClientM)
-client = genericClient

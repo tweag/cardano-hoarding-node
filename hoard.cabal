@@ -77,7 +77,6 @@ library
       Hoard.Effects.Options
       Hoard.Effects.PeerNoteRepo
       Hoard.Effects.PeerRepo
-      Hoard.Effects.PeerRepo.State
       Hoard.Effects.Publishing
       Hoard.Effects.Quota
       Hoard.Effects.Quota.Config
@@ -287,12 +286,12 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.API.PeersSpec
+      Integration.Hoard.API.ViolationsSpec
       Integration.Hoard.DB.BlockEvictionSpec
       Integration.Hoard.DB.BlockPersistenceSpec
       Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
-      Integration.Hoard.IntegrationSpec
-      Integration.Hoard.PeersAPISpec
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
       Unit.Hoard.ConfigSpec
