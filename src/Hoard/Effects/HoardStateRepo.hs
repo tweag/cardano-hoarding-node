@@ -14,8 +14,7 @@ import Rel8 (lit)
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
-import Hoard.Effects.DBRead (DBRead, runQuery)
-import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
 import Hoard.Types.Cardano (ChainPoint)
 
 import Hoard.DB.Schemas.HoardState qualified as HoardState

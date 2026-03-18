@@ -20,7 +20,7 @@ import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBWrite, runTransaction)
 import Hoard.Effects.Verifier (Validity (..), Verified, getVerified)
 
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema

@@ -19,10 +19,10 @@ import System.IO.Error (userError)
 
 import Data.Aeson qualified as Aeson
 
+import Atelier.Effects.DB.Config (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Effects.ConfigPath (LoadedConfig (..))
 import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
 import Hoard.Types.Environment
     ( PeerSnapshotFile (..)
     , Topology (..)

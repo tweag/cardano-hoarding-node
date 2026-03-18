@@ -3,9 +3,9 @@ module Hoard.BlockEviction (component, Config (..)) where
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask)
 
+import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.BlockEviction.Config (Config (..))
-import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Triggers (every)
 

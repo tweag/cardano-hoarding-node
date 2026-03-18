@@ -1,4 +1,4 @@
-module Hoard.Types.DBConfig
+module Atelier.Effects.DB.Config
     ( DBConfig (..)
     , DBPools (..)
     , PoolConfig (..)

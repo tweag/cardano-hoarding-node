@@ -8,6 +8,7 @@ import Effectful.State.Static.Shared (State, gets)
 import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, unSlotNo)
 
+import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics)
 import Atelier.Effects.Monitoring.Tracing
@@ -19,7 +20,6 @@ import Atelier.Effects.Monitoring.Tracing
     )
 import Atelier.Effects.Publishing (Sub)
 import Atelier.Effects.Quota (Quota)
-import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.Header (Header (..))
