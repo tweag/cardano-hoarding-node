@@ -53,6 +53,9 @@ sentry:
   duplicate_blocks:
     warning_threshold: 1
     critical_threshold: 20
+  hash_mismatch:
+    warning_threshold: 0
+    critical_threshold: 5
 
 node_to_node:
   # Timeout for TCP connection handshake (in seconds)
