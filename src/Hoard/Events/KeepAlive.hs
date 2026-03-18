@@ -8,4 +8,4 @@ import Hoard.Data.Peer (Peer)
 newtype Ping = Ping
     { peer :: Peer
     }
-    deriving (Show, Typeable)
+    deriving (Show)

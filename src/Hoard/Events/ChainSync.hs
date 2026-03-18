@@ -20,7 +20,6 @@ data HeaderReceived = HeaderReceived
     , header :: CardanoHeader
     , tip :: CardanoTip
     }
-    deriving (Typeable)
 
 
 data RollBackward = RollBackward
@@ -28,7 +27,6 @@ data RollBackward = RollBackward
     , point :: CardanoPoint
     , tip :: CardanoTip
     }
-    deriving (Typeable)
 
 
 data RollForward = RollForward
@@ -37,7 +35,6 @@ data RollForward = RollForward
     , point :: CardanoPoint
     , tip :: CardanoTip
     }
-    deriving (Typeable)
 
 
 data IntersectionFound = IntersectionFound
@@ -45,4 +42,3 @@ data IntersectionFound = IntersectionFound
     , point :: CardanoPoint
     , tip :: CardanoTip
     }
-    deriving (Typeable)
