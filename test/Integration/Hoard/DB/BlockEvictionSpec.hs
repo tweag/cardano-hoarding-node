@@ -42,7 +42,7 @@ import Hoard.Effects.BlockRepo (classifyBlock, evictBlocks, insertBlocks, runBlo
 import Hoard.Effects.DB (runDBRead, runDBWrite)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
 import Prelude hiding (head)
 
@@ -52,11 +52,11 @@ import Hoard.Effects.Verifier qualified as Verifier
 
 spec_BlockEviction :: Spec
 spec_BlockEviction = do
-    let runDB config action =
+    let runDB pools action =
             runEff
                 . Log.runLogNoOp
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClock
@@ -67,14 +67,14 @@ spec_BlockEviction = do
                 $ action
 
     withCleanTestDatabase $ describe "Block eviction (database)" $ do
-        it "evicts nothing when there are no blocks" $ \config -> do
-            result <- runDB config evictBlocks
+        it "evicts nothing when there are no blocks" $ \pools -> do
+            result <- runDB pools evictBlocks
             result `shouldBe` Right 0
 
-        it "evicts all canonical blocks when there are no orphans" $ \config -> do
+        it "evicts all canonical blocks when there are no orphans" $ \pools -> do
             -- Insert 3 canonical blocks at different slots (no orphans)
             let blocks = [mkTestBlock 1, mkTestBlock 2, mkTestBlock 3]
-            result <- runDB config $ do
+            result <- runDB pools $ do
                 insertBlocks blocks
                 classifyBlock (blockHash 1) Canonical epoch
                 classifyBlock (blockHash 2) Canonical epoch
@@ -82,13 +82,13 @@ spec_BlockEviction = do
                 evictBlocks
             result `shouldBe` Right 3
 
-        it "keeps canonical block that has an orphan at the same slot" $ \config -> do
+        it "keeps canonical block that has an orphan at the same slot" $ \pools -> do
             -- slot 10: canonical + orphan (battle) → keep both
             -- slot 11: canonical only → evict
             let canonical10 = mkTestBlock 10
                 orphan10 = mkTestBlock 20 -- different block hash, same slot via classification
                 canonical11 = mkTestBlock 11
-            result <- runDB config $ do
+            result <- runDB pools $ do
                 insertBlocks [canonical10, orphan10, canonical11]
                 -- Classify canonical10 and orphan10 at slot 10 (same slot number in the block)
                 classifyBlock (blockHash 10) Canonical epoch
@@ -103,12 +103,12 @@ spec_BlockEviction = do
             -- canonical11 (slot 11) - no orphan at slot 11 → evicted
             result `shouldBe` Right 2
 
-        it "keeps canonical block when orphan is at the same slot" $ \config -> do
+        it "keeps canonical block when orphan is at the same slot" $ \pools -> do
             -- Use blocks with the same slot number by setting slotNumber directly
             -- mkTestBlockAtSlot creates blocks with a specific slot
             let canonicalBlock = mkTestBlockAtSlot 0 100 -- hash from index 0, slot 100
                 orphanBlock = mkTestBlockAtSlot 1 100 -- hash from index 1, same slot 100
-            result <- runDB config $ do
+            result <- runDB pools $ do
                 insertBlocks [canonicalBlock, orphanBlock]
                 classifyBlock (blockHash' canonicalBlock) Canonical epoch
                 classifyBlock (blockHash' orphanBlock) Orphaned epoch
@@ -118,17 +118,17 @@ spec_BlockEviction = do
             -- So 0 blocks evicted
             result `shouldBe` Right 0
 
-        it "does not evict unclassified blocks" $ \config -> do
+        it "does not evict unclassified blocks" $ \pools -> do
             let blocks = [mkTestBlock 1, mkTestBlock 2]
-            result <- runDB config $ do
+            result <- runDB pools $ do
                 insertBlocks blocks
                 -- Don't classify them
                 evictBlocks
             result `shouldBe` Right 0
 
-        it "does not evict orphaned blocks" $ \config -> do
+        it "does not evict orphaned blocks" $ \pools -> do
             let blocks = [mkTestBlock 1, mkTestBlock 2]
-            result <- runDB config $ do
+            result <- runDB pools $ do
                 insertBlocks blocks
                 classifyBlock (blockHash 1) Orphaned epoch
                 classifyBlock (blockHash 2) Orphaned epoch

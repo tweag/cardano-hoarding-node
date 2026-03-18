@@ -12,7 +12,7 @@ import Atelier.Effects.Clock (runClockConst)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.DB (runDBRead, runQuery)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 
 import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
@@ -28,23 +28,23 @@ spec_Schema = withCleanTestDatabase $ do
     let testTime = UTCTime (toEnum 0) 0
 
     describe "Schema" $ do
-        it "is correctly mapped" $ \config -> do
-            weakTestSchema config testTime PeersSchema.schema
-            weakTestSchema config testTime HeaderReceiptsSchema.schema
-            weakTestSchema config testTime HeadersSchema.schema
-            weakTestSchema config testTime BlocksSchema.schema
-            weakTestSchema config testTime HoadStateSchema.schema
-            weakTestSchema config testTime BlockTagsSchema.schema
-            weakTestSchema config testTime SelectedPeersSchema.schema
+        it "is correctly mapped" $ \pools -> do
+            weakTestSchema pools testTime PeersSchema.schema
+            weakTestSchema pools testTime HeaderReceiptsSchema.schema
+            weakTestSchema pools testTime HeadersSchema.schema
+            weakTestSchema pools testTime BlocksSchema.schema
+            weakTestSchema pools testTime HoadStateSchema.schema
+            weakTestSchema pools testTime BlockTagsSchema.schema
+            weakTestSchema pools testTime SelectedPeersSchema.schema
   where
     -- Helper function to test that a schema is correctly mapped
     -- Similar to weakTestSchema - verifies schema can be queried without errors
-    weakTestSchema config testTime schema = do
+    weakTestSchema pools testTime schema = do
         let query = Rel8.run $ Rel8.select $ Rel8.each schema
         result <-
             runEff
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClockConst testTime

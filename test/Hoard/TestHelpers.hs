@@ -36,7 +36,6 @@ import Hoard.API (API, Routes, server)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
 import Hoard.Effects.DB (DBRead, DBWrite, runDB)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
-import Hoard.TestHelpers.Database (TestConfig (..))
 import Hoard.Types.HoardState (HoardState)
 
 import Atelier.Effects.Log qualified as Log
@@ -44,10 +43,10 @@ import Atelier.Effects.Log qualified as Log
 
 withServer
     :: (es ~ TestAppDBEffs)
-    => TestConfig
+    => DBPools
     -> (Routes (AsClientT (Eff es)) -> Eff es b)
     -> IO b
-withServer config action = runEffectStackTestDB config $ withTestApp action
+withServer pools action = runEffectStackTestDB pools $ withTestApp action
 
 
 withTestApp
@@ -79,10 +78,10 @@ withTestApp action = do
 
 
 runEffectStackTestDB
-    :: TestConfig
+    :: DBPools
     -> Eff TestAppDBEffs a
     -> IO a
-runEffectStackTestDB config eff = do
+runEffectStackTestDB pools eff = do
     let testTime = UTCTime (toEnum 0) 0
     result <-
         runEff
@@ -95,7 +94,7 @@ runEffectStackTestDB config eff = do
             . runLog
             . runClockConst testTime
             . runMetrics
-            . runReader @DBPools config.pools
+            . runReader @DBPools pools
             . runErrorNoCallStack @Text
             . runDB
             . runBlockRepo

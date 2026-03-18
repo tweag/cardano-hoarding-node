@@ -257,6 +257,52 @@ library atelier
       base hiding (Prelude)
   default-language: GHC2021
 
+library atelier-testing
+  exposed-modules:
+      Atelier.Testing.Database
+  other-modules:
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      atelier/testing
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      atelier
+    , base
+    , effectful-core
+    , effectful-plugin
+    , hasql
+    , hasql-pool
+    , hoard-prelude
+    , hspec
+    , postgres-options
+    , string-conversions
+    , text
+    , tmp-postgres
+    , unix
+    , uuid
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+
 library hoard-prelude
   exposed-modules:
       Prelude
@@ -434,6 +480,7 @@ test-suite hoard-test
       aeson
     , async
     , atelier
+    , atelier-testing
     , base
     , cardano-api
     , cardano-ledger-core
@@ -458,7 +505,6 @@ test-suite hoard-test
     , ouroboros-consensus:unstable-consensus-testlib
     , ouroboros-network-api
     , ouroboros-network-protocols
-    , postgres-options
     , process
     , rel8
     , servant-client
@@ -470,9 +516,7 @@ test-suite hoard-test
     , tasty-hspec
     , text
     , time
-    , tmp-postgres
     , transformers
-    , unix
     , uuid
     , warp
   mixins:

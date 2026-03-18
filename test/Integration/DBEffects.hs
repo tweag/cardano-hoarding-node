@@ -15,7 +15,7 @@ import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runTransaction)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 
 import Atelier.Effects.Log qualified as Log
 
@@ -23,11 +23,11 @@ import Atelier.Effects.Log qualified as Log
 spec_DBEffects :: Spec
 spec_DBEffects = withCleanTestDatabase $ do
     describe "DBRead effect" $ do
-        it "can read from the database" $ \config -> do
+        it "can read from the database" $ \pools -> do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -39,13 +39,13 @@ spec_DBEffects = withCleanTestDatabase $ do
                 Right count -> count `shouldBe` 1 -- init_schema creates one row
                 Left err -> expectationFailure $ "Query failed: " <> show err
 
-        it "can read data that was written" $ \config -> do
+        it "can read data that was written" $ \pools -> do
             -- First write some data
             _ <-
                 runEff
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -58,7 +58,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -70,13 +70,13 @@ spec_DBEffects = withCleanTestDatabase $ do
                 Left err -> expectationFailure $ "Query failed: " <> show err
 
     describe "DBWrite effect" $ do
-        it "can write to the database" $ \config -> do
+        it "can write to the database" $ \pools -> do
             result <-
                 runEff
                     . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -87,14 +87,14 @@ spec_DBEffects = withCleanTestDatabase $ do
 
             result `shouldSatisfy` isRight
 
-        it "can delete from the database" $ \config -> do
+        it "can delete from the database" $ \pools -> do
             -- First insert
             _ <-
                 runEff
                     . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -108,7 +108,7 @@ spec_DBEffects = withCleanTestDatabase $ do
                     . runReader @Log.Config def
                     . Log.runLogNoOp
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -122,7 +122,7 @@ spec_DBEffects = withCleanTestDatabase $ do
             countResult <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -134,12 +134,12 @@ spec_DBEffects = withCleanTestDatabase $ do
                 Left err -> expectationFailure $ "Count query failed: " <> show err
 
     describe "Permission separation" $ do
-        it "reader pool cannot write to the database" $ \config -> do
+        it "reader pool cannot write to the database" $ \pools -> do
             -- Try to write using the reader pool - this should fail
             result <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
