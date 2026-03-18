@@ -19,7 +19,7 @@ import Text.Casing (quietSnake)
 import Data.List.NonEmpty qualified as NonEmpty
 import Rel8 qualified
 
-import Hoard.Effects.DBRead (DBRead, runQuery)
+import Hoard.Effects.DB (DBRead, runQuery)
 
 
 -- | Default schema name for the application

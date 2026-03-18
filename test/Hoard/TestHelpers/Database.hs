@@ -21,7 +21,7 @@ import Database.Postgres.Temp qualified as TmpPostgres
 import Hasql.Decoders qualified as Decoders
 import Hasql.Pool qualified as Pool
 
-import Hoard.Types.DBConfig (DBConfig (..), DBPools (..), PoolConfig (..), acquireDatabasePool, acquireDatabasePools)
+import Atelier.Effects.DB.Config (DBConfig (..), DBPools (..), PoolConfig (..), acquireDatabasePool, acquireDatabasePools)
 
 
 -- | Test configuration including database pools and schema name

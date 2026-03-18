@@ -20,7 +20,7 @@ import Atelier.Effects.Clock (Clock)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer)
 import Hoard.Data.PeerNote (NoteType, PeerNote (..))
-import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBWrite, runTransaction)
 
 import Atelier.Effects.Clock qualified as Clock
 import Hoard.DB.Schemas.PeerNotes qualified as PeerNotes

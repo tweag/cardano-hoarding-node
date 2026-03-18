@@ -30,6 +30,7 @@ import Ouroboros.Consensus.Block.Abstract qualified as Block
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import StmContainers.Map qualified as Map
 
+import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Monitoring.Tracing
     ( Tracing
     , addAttribute
@@ -38,7 +39,6 @@ import Atelier.Effects.Monitoring.Tracing
 import Atelier.Effects.Publishing (Pub, Sub, publish)
 import Atelier.Effects.Quota (Quota)
 import Atelier.Types.QuietSnake (QuietSnake (..))
-import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))

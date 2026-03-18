@@ -8,6 +8,7 @@ import Effectful.State.Static.Shared (evalState)
 import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
 
+import Atelier.Component (runSystem)
 import Atelier.Effects.Chan (runChan)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc.Traced (runConcByConfig)
@@ -17,12 +18,10 @@ import Atelier.Effects.Monitoring.Tracing (TracingConfig, runTracingFromConfig)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Quota (runQuota)
 import Atelier.Effects.UUID (runGenUUID)
-import Hoard.Component (runSystem)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.ConfigPath (runConfig, runConfigRoot)
-import Hoard.Effects.DBRead (runDBRead)
-import Hoard.Effects.DBWrite (runDBWrite)
+import Hoard.Effects.DB (runDB)
 import Hoard.Effects.Environment (loadEnv)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.HoardStateRepo (runHoardStateRepo)
@@ -123,8 +122,7 @@ main =
         . runGenUUID
         . runNodeToClient
         . runNodeToNode
-        . runDBRead
-        . runDBWrite
+        . runDB
         . runHeaderRepo
         . runPeerRepo
         . runBlockRepo

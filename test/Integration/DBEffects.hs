@@ -14,8 +14,7 @@ import Hasql.Transaction qualified as TX
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.Effects.DBRead (runDBRead, runQuery)
-import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runTransaction)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 import Atelier.Effects.Log qualified as Log

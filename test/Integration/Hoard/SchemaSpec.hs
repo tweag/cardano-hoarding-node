@@ -11,7 +11,7 @@ import Rel8 qualified
 import Atelier.Effects.Clock (runClockConst)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.Effects.DBRead (runDBRead, runQuery)
+import Hoard.Effects.DB (runDBRead, runQuery)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema

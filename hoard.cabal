@@ -25,7 +25,6 @@ library
       Hoard.Bootstrap
       Hoard.CardanoNode.Config
       Hoard.Collector
-      Hoard.Component
       Hoard.Control.Exception
       Hoard.Core
       Hoard.Data.Block
@@ -50,8 +49,7 @@ library
       Hoard.DB.Schemas.SelectedPeers
       Hoard.Effects.BlockRepo
       Hoard.Effects.ConfigPath
-      Hoard.Effects.DBRead
-      Hoard.Effects.DBWrite
+      Hoard.Effects.DB
       Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
       Hoard.Effects.HoardStateRepo
@@ -89,7 +87,6 @@ library
       Hoard.Server.Config
       Hoard.Triggers
       Hoard.Types.Cardano
-      Hoard.Types.DBConfig
       Hoard.Types.Deployment
       Hoard.Types.Environment
       Hoard.Types.HoardState
@@ -182,11 +179,15 @@ library
 
 library atelier
   exposed-modules:
+      Atelier.Component
+      Atelier.Config
       Atelier.Effects.Cache.Singleflight
       Atelier.Effects.Chan
       Atelier.Effects.Clock
       Atelier.Effects.Conc
       Atelier.Effects.Conc.Traced
+      Atelier.Effects.DB
+      Atelier.Effects.DB.Config
       Atelier.Effects.Log
       Atelier.Effects.Monitoring.Metrics
       Atelier.Effects.Monitoring.Metrics.Registry
@@ -234,6 +235,9 @@ library atelier
     , effectful-core
     , effectful-plugin
     , effectful-th
+    , hasql
+    , hasql-pool
+    , hasql-transaction
     , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp

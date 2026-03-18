@@ -1,4 +1,4 @@
-module Hoard.Component
+module Atelier.Component
     ( Component (..)
     , defaultComponent
     , Listener

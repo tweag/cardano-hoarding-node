@@ -17,6 +17,7 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
+import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Log (Log)
@@ -25,7 +26,6 @@ import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribut
 import Atelier.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Bootstrap (bootstrapPeers, bootstrapPinnedPeers)
 import Hoard.Collector (collectFromPeer)
-import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))

@@ -30,8 +30,7 @@ import Rel8.Expr.Time qualified as Rel8
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DBRead (DBRead, runQuery)
-import Hoard.Effects.DBWrite (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.DB.Schemas.SelectedPeers qualified as SelectedPeersSchema
