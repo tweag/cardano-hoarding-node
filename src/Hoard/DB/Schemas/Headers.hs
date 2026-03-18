@@ -35,10 +35,8 @@ data Row f = Row
     deriving anyclass (Rel8able)
 
 
-deriving instance Eq (Row Result)
-
-
-deriving instance Show (Row Result)
+deriving stock instance Eq (Row Result)
+deriving stock instance Show (Row Result)
 
 
 -- | Table schema for headers

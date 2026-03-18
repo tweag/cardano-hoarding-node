@@ -348,7 +348,7 @@ data PeerRequested = PeerRequested Word
 
 
 data CullRequested = CullRequested
-    deriving (Show)
+    deriving stock (Show)
 
 
 data PeerDisconnected = PeerDisconnected

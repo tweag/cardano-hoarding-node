@@ -21,7 +21,7 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, CardanoPoint)
 newtype RequestStarted = RequestStarted
     { peer :: Peer
     }
-    deriving (Show)
+    deriving stock (Show)
 
 
 -- | A request to fetch a single block.
@@ -29,7 +29,7 @@ data Request = Request
     { peer :: Peer
     , header :: CardanoHeader
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 
 data BlockReceived = BlockReceived
@@ -59,4 +59,4 @@ data BatchCompleted = BatchCompleted
     { peer :: Peer
     , blockCount :: Int
     }
-    deriving (Show)
+    deriving stock (Show)

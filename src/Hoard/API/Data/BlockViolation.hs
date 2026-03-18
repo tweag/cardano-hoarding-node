@@ -36,8 +36,8 @@ data BlockViolation = BlockViolation
     , classifiedAt :: Maybe UTCTime
     , receipts :: [ReceiptInfo] -- List of peers that sent us this block
     }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Show)
+    deriving anyclass (FromJSON, ToJSON)
 
 
 -- | Receipt information for a block/header
@@ -45,8 +45,8 @@ data ReceiptInfo = ReceiptInfo
     { peerId :: ID Peer
     , receivedAt :: UTCTime
     }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Show)
+    deriving anyclass (FromJSON, ToJSON)
 
 
 -- | A slot dispute: a slot where multiple competing blocks were observed.
@@ -58,8 +58,8 @@ data SlotDispute = SlotDispute
     , orphans :: NonEmpty (BlockViolation)
     -- ^ The orphaned block(s) that lost this slot
     }
-    deriving (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON)
+    deriving stock (Eq, Generic, Show)
+    deriving anyclass (FromJSON, ToJSON)
 
 
 -- | Convert a Block and its receipts to a BlockViolation DTO

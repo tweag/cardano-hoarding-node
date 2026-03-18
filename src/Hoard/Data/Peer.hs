@@ -28,8 +28,8 @@ data Peer = Peer
     , lastFailureTime :: Maybe UTCTime
     , discoveredVia :: Text
     }
-    deriving (FromJSON, ToJSON)
     deriving stock (Eq, Generic, Ord, Show)
+    deriving anyclass (FromJSON, ToJSON)
 
 
 -- | Represents a peer address (host:port)
@@ -37,8 +37,8 @@ data PeerAddress = PeerAddress
     { host :: NodeIP
     , port :: Int
     }
-    deriving (FromJSON, ToJSON)
     deriving stock (Eq, Generic, Ord)
+    deriving anyclass (FromJSON, ToJSON)
     deriving (ToAttribute) via (ToAttributeShow PeerAddress)
 
 

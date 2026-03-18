@@ -17,7 +17,7 @@ data AutomaticConfig = AutomaticConfig
     -- first start (when selected_peers is empty), making them preferred
     -- during replenishment. Has no effect after the first start.
     }
-    deriving (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake AutomaticConfig
 
 
@@ -30,7 +30,7 @@ data PeerMode
       Automatic AutomaticConfig
     | -- | Only connect to pinned peers; ignore all other discovered peers.
       Manual
-    deriving (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake PeerMode
 
 
@@ -45,7 +45,7 @@ data Config = Config
     , replenishIntervalSeconds :: Int
     , peerMode :: PeerMode
     }
-    deriving (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
 
 

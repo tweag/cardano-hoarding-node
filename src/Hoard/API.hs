@@ -24,7 +24,7 @@ data Routes mode = Routes
     , violations :: ViolationsAPI mode
     , peers :: PeersAPI mode
     }
-    deriving (Generic)
+    deriving stock (Generic)
 
 
 -- | API using named routes

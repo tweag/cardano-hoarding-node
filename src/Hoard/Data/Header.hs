@@ -123,5 +123,5 @@ data HeaderReceipt = HeaderReceipt
     , peerId :: ID Peer
     , receivedAt :: UTCTime
     }
-    deriving (FromJSON, ToJSON)
     deriving stock (Eq, Generic, Show)
+    deriving anyclass (FromJSON, ToJSON)

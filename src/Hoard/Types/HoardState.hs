@@ -14,7 +14,7 @@ data HoardState = HoardState
     { immutableTip :: ChainPoint
     , blocksBeingClassified :: Set BlockHash
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 
 instance Default HoardState where

@@ -38,8 +38,9 @@ data PinPeerRequest = PinPeerRequest
     { peer :: PeerAddress
     , note :: Maybe Text
     }
-    deriving (ToJSON)
     deriving stock (Generic)
+    -- TODO: Consider adding ToJSON instance to QuietSnake and use that here.
+    deriving anyclass (ToJSON)
     deriving (FromJSON) via QuietSnake PinPeerRequest
 
 
@@ -51,7 +52,7 @@ data PeersRoutes mode = PeersRoutes
     , removePinned
         :: mode :- ReqBody '[JSON] [PeerAddress] :> DeleteNoContent
     }
-    deriving (Generic)
+    deriving stock (Generic)
 
 
 type PeersAPI mode = mode :- "peers" :> "pinned" :> NamedRoutes PeersRoutes

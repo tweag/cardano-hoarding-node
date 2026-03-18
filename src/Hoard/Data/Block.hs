@@ -52,7 +52,7 @@ data Block = Block
     , classification :: Maybe BlockClassification
     , classifiedAt :: Maybe UTCTime
     }
-    deriving (Eq)
+    deriving stock (Eq)
 
 
 encodeCardanoBlock :: CardanoBlock -> ByteString
