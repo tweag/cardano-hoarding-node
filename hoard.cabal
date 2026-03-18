@@ -117,7 +117,7 @@ library
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
     , async
@@ -232,7 +232,7 @@ library atelier
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
     , base
@@ -289,7 +289,7 @@ library hoard-prelude
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       base
     , effectful
@@ -323,7 +323,7 @@ executable hoard-exe
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
       atelier
     , base
@@ -369,7 +369,7 @@ test-suite atelier-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
@@ -433,7 +433,7 @@ test-suite hoard-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
