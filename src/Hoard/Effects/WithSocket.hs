@@ -27,8 +27,8 @@ import Effectful.TH (makeEffect)
 import Effectful.Temporary (Temporary, withSystemTempFile)
 import System.Process.Typed (proc, withProcessTerm)
 
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.CardanoNode.Config (Config (..))
-import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 data NodeSocketsConfig

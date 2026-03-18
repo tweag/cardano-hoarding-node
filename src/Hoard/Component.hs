@@ -9,12 +9,12 @@ module Hoard.Component
 
 import Text.Casing (fromHumps, toQuietSnake)
 
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Log qualified as Log
 
 
 -- | Type aliases for semantic clarity

@@ -13,7 +13,7 @@ import Rel8 (DBEq, DBOrd, DBType)
 import Data.ByteString.Base16 qualified as B16
 import Data.Text.Encoding qualified as Text
 
-import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
+import Atelier.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.Cardano (CardanoBlock)
 
 

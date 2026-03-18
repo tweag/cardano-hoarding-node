@@ -10,18 +10,18 @@ import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Shared (State, modify, modifyM)
 
+import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
+import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
 import Hoard.Triggers (every)
 import Hoard.Types.HoardState (HoardState (..))
-import Hoard.Types.QuietSnake (QuietSnake (..))
 
+import Atelier.Effects.Publishing qualified as Sub
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
 import Hoard.Effects.NodeToClient qualified as NodeToClient
-import Hoard.Effects.Publishing qualified as Sub
 
 
 component

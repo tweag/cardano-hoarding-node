@@ -6,8 +6,8 @@ import Data.Aeson (FromJSON, ToJSON)
 import Rel8 (DBEq, DBType, ReadShow (..))
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 
-import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
+import Atelier.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
+import Atelier.Types.JsonReadShow (JsonReadShow (..))
 
 
 -- | Classification state for blocks

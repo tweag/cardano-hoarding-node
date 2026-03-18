@@ -23,19 +23,19 @@ import Data.Set qualified as Set
 import Network.TypedProtocol.Peer.Client qualified as Peer
 import Ouroboros.Network.Protocol.BlockFetch.Client qualified as BlockFetch
 
+import Atelier.Effects.Chan (Chan, readChanBatched)
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Metrics (Metrics)
+import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
+import Atelier.Effects.Publishing (Pub, Sub, listen_, publish)
+import Atelier.Effects.UUID (GenUUID, UUID)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Chan (Chan, readChanBatched)
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockFetchFailure)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode.Config (BlockFetchConfig (..))
-import Hoard.Effects.Publishing (Pub, Sub, listen_, publish)
-import Hoard.Effects.UUID (GenUUID, UUID)
 import Hoard.Events.BlockFetch
     ( BatchCompleted (..)
     , BatchFailed (..)
@@ -45,9 +45,9 @@ import Hoard.Events.BlockFetch
     )
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint)
 
-import Hoard.Effects.Chan qualified as Chan
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.UUID qualified as UUID
+import Atelier.Effects.Chan qualified as Chan
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.UUID qualified as UUID
 
 
 miniProtocol

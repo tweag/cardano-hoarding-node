@@ -8,10 +8,10 @@ import Test.Hspec
 
 import Rel8 qualified
 
-import Hoard.Effects.Clock (runClockConst)
+import Atelier.Effects.Clock (runClockConst)
+import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
-import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
 import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema

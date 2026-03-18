@@ -17,6 +17,12 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Metrics (Metrics, histogramObserve)
+import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
+import Atelier.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Bootstrap (bootstrapPeers, bootstrapPinnedPeers)
 import Hoard.Collector (collectFromPeer)
 import Hoard.Component (Component (..), defaultComponent)
@@ -24,15 +30,9 @@ import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricPeerConnectionEstablishment, metricPeerManagerCullBatches, metricPeerManagerReplenishedCollector)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode)
 import Hoard.Effects.PeerRepo (PeerRepo, updatePeerFailure)
-import Hoard.Effects.Publishing (Pub, Sub, publish)
 import Hoard.Effects.Verifier (Verifier)
 import Hoard.PeerManager.Config (AutomaticConfig (..), Config (..), PeerMode (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
@@ -40,11 +40,11 @@ import Hoard.Sentry (AdversarialBehavior (..))
 import Hoard.Triggers (every)
 import Hoard.Types.Environment (PeerSnapshotFile)
 
-import Hoard.Effects.Clock qualified as Clock
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing qualified as Sub
 import Hoard.Effects.PeerRepo qualified as PeerRepo
-import Hoard.Effects.Publishing qualified as Sub
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.KeepAlive qualified as KeepAlive

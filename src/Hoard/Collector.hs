@@ -6,22 +6,22 @@ module Hoard.Collector
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.MVar (newEmptyMVar, putMVar, tryReadMVar)
 
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
+import Atelier.Effects.Publishing (Pub, Sub, listen_, publish)
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode (ConnectToError (..), NodeToNode, connectToPeer)
-import Hoard.Effects.Publishing (Pub, Sub, listen_, publish)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyCardanoHeader)
 import Hoard.Events.ChainSync (HeaderReceived (..))
 import Hoard.PeerManager.Peers (Connection (..), awaitTermination, signalTermination)
 
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Log qualified as Log
 import Hoard.Effects.BlockRepo qualified as BlockRepo
-import Hoard.Effects.Conc qualified as Conc
-import Hoard.Effects.Log qualified as Log
 import Hoard.Events.BlockFetch qualified as BlockFetch
 
 

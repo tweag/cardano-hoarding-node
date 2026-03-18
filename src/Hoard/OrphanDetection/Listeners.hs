@@ -13,11 +13,11 @@ import Ouroboros.Network.Block (blockHash)
 
 import Data.Set qualified as Set
 
+import Atelier.Effects.Clock (Clock, currentTime)
+import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Clock (Clock, currentTime)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.OrphanDetection.Data (BlockClassification (..))

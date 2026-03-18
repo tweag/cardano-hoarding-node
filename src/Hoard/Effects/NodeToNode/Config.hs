@@ -16,7 +16,7 @@ import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
 
-import Hoard.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Connection-level configuration (TCP handshake timeout etc.)

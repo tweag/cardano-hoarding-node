@@ -16,14 +16,14 @@ import Hasql.Transaction qualified as TX
 import Rel8 qualified
 import Rel8.Expr.Time qualified
 
+import Atelier.Effects.Clock (Clock)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer)
 import Hoard.Data.PeerNote (NoteType, PeerNote (..))
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 
+import Atelier.Effects.Clock qualified as Clock
 import Hoard.DB.Schemas.PeerNotes qualified as PeerNotes
-import Hoard.Effects.Clock qualified as Clock
 
 
 data PeerNoteRepo :: Effect where

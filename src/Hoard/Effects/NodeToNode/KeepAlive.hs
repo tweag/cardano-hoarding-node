@@ -16,12 +16,12 @@ import Ouroboros.Network.Protocol.KeepAlive.Type (Cookie (..))
 
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing, asTracer)
+import Atelier.Effects.Publishing (Pub, publish)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Hoard.Effects.NodeToNode.Config (KeepAliveConfig (..))
-import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.KeepAlive (Ping (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 

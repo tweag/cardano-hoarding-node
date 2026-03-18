@@ -19,14 +19,14 @@ import Servant
     )
 import Servant.Server.Generic (AsServerT)
 
+import Atelier.Effects.Clock (Clock)
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.API.Util ((::>))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.PeerRepo (PeerRepo)
-import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding ((:>))
 
-import Hoard.Effects.Clock qualified as Clock
+import Atelier.Effects.Clock qualified as Clock
 import Hoard.Effects.PeerRepo qualified as PeerRepo
 
 

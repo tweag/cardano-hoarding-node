@@ -13,8 +13,8 @@ import Network.Socket (SockAddr)
 import Data.IP qualified as IP
 import Text.Show qualified as Show
 
+import Atelier.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Data.ID (ID)
-import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
 

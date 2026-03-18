@@ -27,6 +27,7 @@ import Data.Set qualified as Set
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
+import Atelier.Effects.Monitoring.Tracing (Tracing)
 import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolation, groupIntoDisputes)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
@@ -34,15 +35,14 @@ import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
-import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
 
+import Atelier.Effects.Cache.Singleflight qualified as Singleflight
 import Hoard.DB.Schemas.BlockTags qualified as BlockTags
 import Hoard.DB.Schemas.Blocks qualified as Blocks
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
-import Hoard.Effects.Cache.Singleflight qualified as Singleflight
 
 
 data BlockRepo :: Effect where

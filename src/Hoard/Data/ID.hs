@@ -8,7 +8,7 @@ import Data.UUID (UUID)
 import Rel8 (DBEq, DBOrd, DBType)
 import Web.HttpApiData (FromHttpApiData, ToHttpApiData)
 
-import Hoard.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
+import Atelier.Effects.Monitoring.Tracing (ToAttribute, ToAttributeShow (..))
 
 
 -- | Phantom type around a UUID, to distinguish between different types of identifiers.

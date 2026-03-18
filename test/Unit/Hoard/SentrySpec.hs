@@ -21,11 +21,11 @@ import Text.Read (read)
 import Data.List qualified as List
 import Data.UUID qualified as UUID
 
+import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
+import Atelier.Effects.Publishing (runPubWriter)
+import Atelier.Effects.Quota (runQuotaConst)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.Effects.Publishing (runPubWriter)
-import Hoard.Effects.Quota (runQuotaConst)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Sentry
     ( AdversarialBehavior (..)

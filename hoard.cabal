@@ -49,23 +49,13 @@ library
       Hoard.DB.Schemas.Peers
       Hoard.DB.Schemas.SelectedPeers
       Hoard.Effects.BlockRepo
-      Hoard.Effects.Cache.Singleflight
-      Hoard.Effects.Chan
-      Hoard.Effects.Clock
-      Hoard.Effects.Conc
-      Hoard.Effects.Conc.Traced
       Hoard.Effects.ConfigPath
       Hoard.Effects.DBRead
       Hoard.Effects.DBWrite
       Hoard.Effects.Environment
       Hoard.Effects.HeaderRepo
       Hoard.Effects.HoardStateRepo
-      Hoard.Effects.Log
-      Hoard.Effects.Monitoring.Metrics
       Hoard.Effects.Monitoring.Metrics.Definitions
-      Hoard.Effects.Monitoring.Metrics.Registry
-      Hoard.Effects.Monitoring.Tracing
-      Hoard.Effects.Monitoring.Tracing.Provider
       Hoard.Effects.NodeToClient
       Hoard.Effects.NodeToNode
       Hoard.Effects.NodeToNode.BlockFetch
@@ -77,10 +67,6 @@ library
       Hoard.Effects.Options
       Hoard.Effects.PeerNoteRepo
       Hoard.Effects.PeerRepo
-      Hoard.Effects.Publishing
-      Hoard.Effects.Quota
-      Hoard.Effects.Quota.Config
-      Hoard.Effects.UUID
       Hoard.Effects.Verifier
       Hoard.Effects.WithSocket
       Hoard.Events.BlockFetch
@@ -107,9 +93,7 @@ library
       Hoard.Types.Deployment
       Hoard.Types.Environment
       Hoard.Types.HoardState
-      Hoard.Types.JsonReadShow
       Hoard.Types.NodeIP
-      Hoard.Types.QuietSnake
   other-modules:
       Paths_hoard
   autogen-modules:
@@ -137,6 +121,7 @@ library
   build-depends:
       aeson
     , async
+    , atelier
     , base
     , base16-bytestring
     , bytestring
@@ -206,6 +191,78 @@ library
       base hiding (Prelude)
   default-language: GHC2021
 
+library atelier
+  exposed-modules:
+      Atelier.Effects.Cache.Singleflight
+      Atelier.Effects.Chan
+      Atelier.Effects.Clock
+      Atelier.Effects.Conc
+      Atelier.Effects.Conc.Traced
+      Atelier.Effects.Log
+      Atelier.Effects.Monitoring.Metrics
+      Atelier.Effects.Monitoring.Metrics.Registry
+      Atelier.Effects.Monitoring.Tracing
+      Atelier.Effects.Monitoring.Tracing.Provider
+      Atelier.Effects.Publishing
+      Atelier.Effects.Quota
+      Atelier.Effects.Quota.Config
+      Atelier.Effects.UUID
+      Atelier.Types.JsonReadShow
+      Atelier.Types.QuietSnake
+  other-modules:
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      atelier/src
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , casing
+    , containers
+    , contra-tracer
+    , data-default
+    , effectful
+    , effectful-core
+    , effectful-plugin
+    , effectful-th
+    , hoard-prelude
+    , hs-opentelemetry-api
+    , hs-opentelemetry-exporter-otlp
+    , hs-opentelemetry-sdk
+    , ki
+    , list-t
+    , prometheus-client
+    , prometheus-metrics-ghc
+    , stm-containers
+    , text
+    , time
+    , unagi-chan
+    , unordered-containers
+    , uuid
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+
 library hoard-prelude
   exposed-modules:
       Prelude
@@ -268,13 +325,65 @@ executable hoard-exe
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      base
+      atelier
+    , base
     , data-default
     , effectful
     , effectful-core
     , effectful-plugin
     , hoard
     , hoard-prelude
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+
+test-suite atelier-test
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  other-modules:
+      Unit.Atelier.Effects.Cache.SingleflightSpec
+      Unit.Atelier.Effects.Conc.TracedSpec
+      Unit.Atelier.Effects.ConcSpec
+      Unit.Atelier.Effects.LogSpec
+      Unit.Atelier.Effects.PublishingSpec
+      Unit.Atelier.Effects.QuotaSpec
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      atelier/test
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O0 -fplugin=Effectful.Plugin -threaded -threaded
+  build-tool-depends:
+      tasty-discover:tasty-discover
+  build-depends:
+      async
+    , atelier
+    , base
+    , effectful
+    , effectful-core
+    , effectful-plugin
+    , hoard-prelude
+    , hs-opentelemetry-api
+    , hspec
+    , tasty
+    , tasty-hspec
   mixins:
       base hiding (Prelude)
   default-language: GHC2021
@@ -300,12 +409,6 @@ test-suite hoard-test
       Unit.Hoard.Data.HeaderSpec
       Unit.Hoard.Data.PeerSpec
       Unit.Hoard.Data.Util
-      Unit.Hoard.Effects.Cache.SingleflightSpec
-      Unit.Hoard.Effects.Conc.TracedSpec
-      Unit.Hoard.Effects.ConcSpec
-      Unit.Hoard.Effects.LogSpec
-      Unit.Hoard.Effects.PublishingSpec
-      Unit.Hoard.Effects.QuotaSpec
       Unit.Hoard.MonitoringSpec
       Unit.Hoard.SentrySpec
       Paths_hoard
@@ -337,6 +440,7 @@ test-suite hoard-test
       QuickCheck
     , aeson
     , async
+    , atelier
     , base
     , cardano-api
     , cardano-ledger-core

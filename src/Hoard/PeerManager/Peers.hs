@@ -11,11 +11,11 @@ import Data.Default (Default (..))
 import Data.Time (UTCTime)
 import Effectful.Concurrent.MVar (Concurrent, MVar, newEmptyMVar, takeMVar, tryPutMVar)
 
+import Atelier.Effects.Clock (Clock)
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
-import Hoard.Effects.Clock (Clock)
 
-import Hoard.Effects.Clock qualified as Clock
+import Atelier.Effects.Clock qualified as Clock
 
 
 newtype Peers = Peers

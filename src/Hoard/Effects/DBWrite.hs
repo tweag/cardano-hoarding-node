@@ -15,7 +15,7 @@ import Hasql.Transaction.Sessions (IsolationLevel (ReadCommitted), Mode (Write),
 import Hasql.Pool qualified as Pool
 import Hasql.Transaction qualified as Transaction
 
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
+import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 
 import Hoard.Types.DBConfig qualified as DB

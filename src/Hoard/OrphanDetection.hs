@@ -4,19 +4,19 @@ import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing)
+import Atelier.Effects.Publishing (Sub)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.NodeToClient (NodeToClient)
-import Hoard.Effects.Publishing (Sub)
 import Hoard.Events.BlockFetch (BlockReceived)
 import Hoard.OrphanDetection.Config (Config (..))
 import Hoard.Types.HoardState (HoardState)
 
-import Hoard.Effects.Log qualified as Log
-import Hoard.Effects.Publishing qualified as Sub
+import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing qualified as Sub
 import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.OrphanDetection.Listeners qualified as Listeners
 

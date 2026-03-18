@@ -15,9 +15,9 @@ import Hasql.Statement (Statement)
 import Hasql.Pool qualified as Pool
 import Hasql.Session qualified as Session
 
-import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc, withHistogramTiming)
+import Atelier.Effects.Monitoring.Metrics (Metrics, counterInc, withHistogramTiming)
+import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricDBQueries, metricDBQueryDuration, metricDBQueryErrors)
-import Hoard.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Hoard.Types.DBConfig (DBPools)
 
 import Hoard.Types.DBConfig qualified as DB

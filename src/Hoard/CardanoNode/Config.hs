@@ -5,7 +5,7 @@ module Hoard.CardanoNode.Config
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
 
-import Hoard.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Configuration for integrating with a Cardano node
