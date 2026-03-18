@@ -3,4 +3,4 @@ module Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (
 
 -- | Trigger event to refresh the immutable tip from the node.
 data ImmutableTipRefreshTriggered = ImmutableTipRefreshTriggered
-    deriving (Show, Typeable)
+    deriving stock (Show)

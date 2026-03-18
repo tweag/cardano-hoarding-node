@@ -129,7 +129,8 @@ data DuplicateBlocksKey = DuplicateBlocksKey
     , requestId :: UUID
     , hash :: BlockHash
     }
-    deriving (Eq, Generic, Hashable, Ord)
+    deriving stock (Eq, Generic, Ord)
+    deriving anyclass (Hashable)
 
 
 receivedBlockIsOutsideRequestedRangeGuard
@@ -209,20 +210,21 @@ data HashMismatchKey = HashMismatchKey
     , slotNumber :: Word64
     , requestId :: UUID
     }
-    deriving (Eq, Generic, Hashable, Ord)
+    deriving stock (Eq, Generic, Ord)
+    deriving anyclass (Hashable)
 
 
 data ReceivedMismatchingBlock = ReceivedMismatchingBlock
     { peer :: Peer
     , block :: CardanoBlock
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 
 data AdversarialSeverity
     = Minor
     | Critical
-    deriving (Bounded, Enum, Eq, Show)
+    deriving stock (Bounded, Enum, Eq, Show)
 
 
 data AdversarialBehavior = AdversarialBehavior
@@ -230,21 +232,21 @@ data AdversarialBehavior = AdversarialBehavior
     , severity :: AdversarialSeverity
     , description :: Text
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 
 data ReceivedBlockOutsideRequestedRange = ReceivedBlockOutsideRequestedRange
     { peer :: Peer
     , block :: CardanoBlock
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 
 data Config = Config
     { duplicateBlocks :: AdversarialThresholds
     , hashMismatch :: AdversarialThresholds
     }
-    deriving (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake Config
 
 
@@ -270,5 +272,5 @@ data AdversarialThresholds = AdversarialThresholds
     , criticalThreshold :: Word
     -- ^ Threshold before the peer is considered adequately adversarial to warrant major action.
     }
-    deriving (Eq, Generic, Show)
+    deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via QuietSnake AdversarialThresholds

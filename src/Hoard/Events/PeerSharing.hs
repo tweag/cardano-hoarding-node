@@ -17,4 +17,4 @@ data PeersReceived = PeersReceived
     { peer :: Peer
     , peerAddresses :: Set PeerAddress -- The peer addresses we received
     }
-    deriving (Show, Typeable)
+    deriving stock (Show)

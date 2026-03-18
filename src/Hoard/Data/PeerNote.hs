@@ -25,7 +25,6 @@ data PeerNote = PeerNote
 -- | Potential forms of notes about peers.
 data NoteType
     = Adversarial
-    deriving (Eq, Generic, Ord)
-    deriving (Read, Show)
+    deriving stock (Eq, Generic, Ord, Read, Show)
     deriving (FromJSON, ToJSON) via JsonReadShow NoteType
     deriving (DBEq, DBType) via ReadShow NoteType

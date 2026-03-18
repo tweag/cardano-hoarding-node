@@ -21,7 +21,7 @@ data Row f = Row
     deriving anyclass (Rel8able)
 
 
-deriving instance Show (Row Result)
+deriving stock instance Show (Row Result)
 
 
 schema :: TableSchema (Row Name)

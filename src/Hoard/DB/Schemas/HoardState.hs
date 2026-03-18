@@ -31,13 +31,13 @@ data Row f = Row
     deriving anyclass (Rel8able)
 
 
-deriving instance Eq (Row Result)
-deriving instance Show (Row Result)
+deriving stock instance Eq (Row Result)
+deriving stock instance Show (Row Result)
 
 
 data Unit
     = Unit
-    deriving (Eq, Read, Show)
+    deriving stock (Eq, Read, Show)
 
 
 instance DBType Unit where

@@ -100,7 +100,7 @@ listener Poll = withSpan "monitoring" do
 
 
 data Poll = Poll
-    deriving stock (Show, Typeable)
+    deriving stock (Show)
 
 
 data Config = Config

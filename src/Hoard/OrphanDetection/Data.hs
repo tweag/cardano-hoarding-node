@@ -16,7 +16,7 @@ data BlockClassification
       Canonical
     | -- | Block is permanently orphaned (not on chain, before immutable tip)
       Orphaned
-    deriving (Eq, Read, Show)
+    deriving stock (Eq, Read, Show)
     deriving (FromJSON, ToJSON) via (JsonReadShow BlockClassification)
     deriving (DBEq, DBType) via (ReadShow BlockClassification)
     deriving (ToAttribute) via (ToAttributeShow BlockClassification)

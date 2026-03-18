@@ -72,6 +72,6 @@ type CardanoMiniProtocol =
 
 
 newtype ChainPoint = ChainPoint C.ChainPoint
-    deriving (Show)
+    deriving stock (Show)
     deriving (Eq, FromJSON, Ord, ToJSON) via C.ChainPoint
     deriving (DBType) via JSONBEncoded ChainPoint

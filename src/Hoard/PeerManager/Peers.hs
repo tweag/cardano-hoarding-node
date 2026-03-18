@@ -40,7 +40,7 @@ data Connection = Connection
 data ConnectionState
     = Connecting
     | Connected
-    deriving (Eq)
+    deriving stock (Eq)
 
 
 -- | Creates a baseline `Connection` for a peer that just started attempting to
