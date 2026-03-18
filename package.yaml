@@ -70,16 +70,13 @@ library:
     - hoard-prelude
     - atelier
     - aeson
-    - async
     - base16-bytestring
     - data-default
     - time
     - bytestring
     - cardano-api
-    - cardano-ledger-binary
     - cardano-ledger-byron
     - cardano-ledger-core
-    - cardano-ledger-shelley
     - casing
     - cborg
     - containers
@@ -88,23 +85,17 @@ library:
     - effectful
     - effectful-th
     - filepath
-    - hashable
     - hasql
     - hasql-pool
     - hasql-transaction
     - hs-opentelemetry-api
-    - hs-opentelemetry-exporter-otlp
     - hs-opentelemetry-sdk
     - http-api-data
-    - http-client
-    - http-client-tls
-    - http-types
     - iproute
     - ki
     - list-t
     - network
     - network-mux
-    - network-uri
     - optparse-applicative
     - ouroboros-consensus
     - ouroboros-consensus-cardano
@@ -117,8 +108,6 @@ library:
     - prometheus-client
     - prometheus-metrics-ghc
     - rel8
-    - serialise
-    - servant
     - servant-server
     - stm-containers
     - string-conversions
@@ -139,7 +128,6 @@ internal-libraries:
     dependencies:
     - base
     - relude
-    - effectful
 
   atelier:
     source-dirs: atelier/src
@@ -191,6 +179,9 @@ tests:
     main:                Driver.hs
     source-dirs:         atelier/test
     ghc-options:
+    # Complains about `test/Driver.hs` emitted by tasty-discover, and is handled by
+    # our fourmolu config.
+    - -Wno-prepositive-qualified-module 
     - -threaded
     build-tools:
     - tasty-discover:tasty-discover
@@ -227,14 +218,11 @@ tests:
     - "ouroboros-consensus-cardano:unstable-byron-testlib"
     - "ouroboros-consensus-cardano:unstable-shelley-testlib"
     - "ouroboros-consensus:unstable-consensus-testlib"
-    - QuickCheck
     - aeson
     - async
     - cardano-api
     - cardano-ledger-core
-    - containers
     - data-default
-    - directory
     - effectful
     - hasql
     - hasql-pool
@@ -264,5 +252,4 @@ tests:
     - transformers
     - unix
     - uuid
-    - wai
     - warp

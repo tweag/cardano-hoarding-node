@@ -120,16 +120,13 @@ library
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
-    , async
     , atelier
     , base
     , base16-bytestring
     , bytestring
     , cardano-api
-    , cardano-ledger-binary
     , cardano-ledger-byron
     , cardano-ledger-core
-    , cardano-ledger-shelley
     , casing
     , cborg
     , containers
@@ -141,24 +138,18 @@ library
     , effectful-plugin
     , effectful-th
     , filepath
-    , hashable
     , hasql
     , hasql-pool
     , hasql-transaction
     , hoard-prelude
     , hs-opentelemetry-api
-    , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
     , http-api-data
-    , http-client
-    , http-client-tls
-    , http-types
     , iproute
     , ki
     , list-t
     , network
     , network-mux
-    , network-uri
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
@@ -171,8 +162,6 @@ library
     , prometheus-client
     , prometheus-metrics-ghc
     , rel8
-    , serialise
-    , servant
     , servant-server
     , stm-containers
     , string-conversions
@@ -292,7 +281,6 @@ library hoard-prelude
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       base
-    , effectful
     , effectful-core
     , effectful-plugin
     , relude
@@ -369,7 +357,7 @@ test-suite atelier-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
@@ -437,16 +425,13 @@ test-suite hoard-test
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
-      QuickCheck
-    , aeson
+      aeson
     , async
     , atelier
     , base
     , cardano-api
     , cardano-ledger-core
-    , containers
     , data-default
-    , directory
     , effectful
     , effectful-core
     , effectful-plugin
@@ -483,7 +468,6 @@ test-suite hoard-test
     , transformers
     , unix
     , uuid
-    , wai
     , warp
   mixins:
       base hiding (Prelude)
