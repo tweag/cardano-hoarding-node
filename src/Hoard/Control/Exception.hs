@@ -11,9 +11,9 @@ import System.IO.Error (userError)
 
 import Control.Exception qualified as IOE
 
-import Hoard.Effects.Log (Log)
+import Atelier.Effects.Log (Log)
 
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Log qualified as Log
 
 
 -- | Wrap a protocol action with exception logging.

@@ -57,13 +57,13 @@ import Control.Concurrent.MVar qualified as MVar
 import Ouroboros.Network.Protocol.ChainSync.Client qualified as S
 import Ouroboros.Network.Protocol.LocalStateQuery.Client qualified as Q
 
-import Hoard.Effects.Conc (Conc, Thread, fork)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Atelier.Effects.Conc (Conc, Thread, fork)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.WithSocket (WithSocket, getSocket)
 import Hoard.Types.Cardano (CardanoBlock, ChainPoint (ChainPoint))
 
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Log qualified as Log
 
 
 data NodeToClient :: Effect where

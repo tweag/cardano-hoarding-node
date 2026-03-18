@@ -10,9 +10,9 @@ import Data.IP qualified as IP
 import Data.Set qualified as S
 import Network.Socket qualified as Socket
 
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.PeerRepo (PeerRepo, pinPeers, upsertPeers)
 import Hoard.Types.Environment
     ( BootstrapPeerDomain (..)
@@ -22,7 +22,7 @@ import Hoard.Types.Environment
     )
 import Hoard.Types.NodeIP (NodeIP (..))
 
-import Hoard.Effects.Clock qualified as Clock
+import Atelier.Effects.Clock qualified as Clock
 
 
 -- | Bootstrap peers from the peer snapshot configuration.

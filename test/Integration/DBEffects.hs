@@ -11,14 +11,14 @@ import Hasql.Encoders qualified as E
 import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as TX
 
-import Hoard.Effects.Clock (runClock)
+import Atelier.Effects.Clock (runClock)
+import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite, runTransaction)
-import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Log qualified as Log
 
 
 spec_DBEffects :: Spec

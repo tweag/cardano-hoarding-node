@@ -19,12 +19,12 @@ import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Data.Set qualified as S
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Tracing (Tracing, asTracer)
+import Atelier.Effects.Publishing (Pub, publish)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..), sockAddrToPeerAddress)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Hoard.Effects.NodeToNode.Config (PeerSharingConfig (..))
-import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 

@@ -19,6 +19,7 @@ import System.IO.Error (userError)
 
 import Data.Aeson qualified as Aeson
 
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Effects.ConfigPath (LoadedConfig (..))
 import Hoard.Types.Cardano (CardanoBlock)
 import Hoard.Types.DBConfig (DBConfig (..), DBPools, PoolConfig (..), acquireDatabasePools)
@@ -26,7 +27,6 @@ import Hoard.Types.Environment
     ( PeerSnapshotFile (..)
     , Topology (..)
     )
-import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Top-level config file structure — only the fields needed to bootstrap

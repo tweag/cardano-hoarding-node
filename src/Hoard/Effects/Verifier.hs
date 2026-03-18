@@ -42,9 +42,9 @@ import Ouroboros.Consensus.Byron.Ledger.Integrity qualified as Byron
 import Ouroboros.Consensus.Cardano.Block qualified as O
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.Header (Header (..))
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 

@@ -62,21 +62,21 @@ import Network.Mux.Trace qualified as Mux
 import System.Timeout qualified as Timeout
 
 import Atelier.Effects.Chan (Chan)
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Metrics (Metrics)
+import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
+import Atelier.Effects.Publishing (Pub, Sub)
+import Atelier.Effects.UUID (GenUUID)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Clock (Clock)
-import Hoard.Effects.Conc (Conc)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Metrics (Metrics)
-import Hoard.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 import Hoard.Effects.NodeToNode.Codecs (hoistCodecs)
 import Hoard.Effects.NodeToNode.Config (NodeToNodeConfig (..), ProtocolsConfig (..))
-import Hoard.Effects.Publishing (Pub, Sub)
-import Hoard.Effects.UUID (GenUUID)
 import Hoard.Types.Cardano (CardanoBlock, CardanoCodecs)
 import Hoard.Types.HoardState (HoardState (..))
 import Hoard.Types.NodeIP (NodeIP (..))
 
-import Hoard.Effects.Monitoring.Tracing qualified as Tracing
+import Atelier.Effects.Monitoring.Tracing qualified as Tracing
 import Hoard.Effects.NodeToNode.BlockFetch qualified as NodeToNode.BlockFetch
 import Hoard.Effects.NodeToNode.ChainSync qualified as NodeToNode.ChainSync
 import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive

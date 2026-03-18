@@ -15,7 +15,7 @@ import Hasql.Connection.Setting.Connection.Param qualified as Param
 import Hasql.Pool qualified as Pool
 import Hasql.Pool.Config qualified as Pool
 
-import Hoard.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Connection pool configuration

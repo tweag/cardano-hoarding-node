@@ -7,9 +7,9 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Time (UTCTime)
 import Rel8 (DBEq, DBType, ReadShow (..))
 
+import Atelier.Types.JsonReadShow (JsonReadShow (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer)
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
 
 
 -- | A given note about a peer.

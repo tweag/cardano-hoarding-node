@@ -109,16 +109,35 @@
       sublibs = {
         "atelier" = {
           depends = [
+            (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
+            (hsPkgs."casing" or (errorHandler.buildDepError "casing"))
+            (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
+            (hsPkgs."contra-tracer" or (errorHandler.buildDepError "contra-tracer"))
+            (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
             (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
             (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
             (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
+            (hsPkgs."effectful-th" or (errorHandler.buildDepError "effectful-th"))
             (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
+            (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
+            (hsPkgs."hs-opentelemetry-exporter-otlp" or (errorHandler.buildDepError "hs-opentelemetry-exporter-otlp"))
+            (hsPkgs."hs-opentelemetry-sdk" or (errorHandler.buildDepError "hs-opentelemetry-sdk"))
+            (hsPkgs."ki" or (errorHandler.buildDepError "ki"))
+            (hsPkgs."list-t" or (errorHandler.buildDepError "list-t"))
+            (hsPkgs."prometheus-client" or (errorHandler.buildDepError "prometheus-client"))
+            (hsPkgs."prometheus-metrics-ghc" or (errorHandler.buildDepError "prometheus-metrics-ghc"))
+            (hsPkgs."stm-containers" or (errorHandler.buildDepError "stm-containers"))
+            (hsPkgs."text" or (errorHandler.buildDepError "text"))
+            (hsPkgs."time" or (errorHandler.buildDepError "time"))
             (hsPkgs."unagi-chan" or (errorHandler.buildDepError "unagi-chan"))
+            (hsPkgs."unordered-containers" or (errorHandler.buildDepError "unordered-containers"))
+            (hsPkgs."uuid" or (errorHandler.buildDepError "uuid"))
           ];
           buildable = true;
           modules = [ "Paths_hoard" ];
-          hsSourceDirs = [ "atelier" ];
+          hsSourceDirs = [ "atelier/src" ];
         };
         "hoard-prelude" = {
           depends = [
@@ -152,6 +171,28 @@
         };
       };
       tests = {
+        "atelier-test" = {
+          depends = [
+            (hsPkgs."async" or (errorHandler.buildDepError "async"))
+            (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+            (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
+            (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
+            (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
+            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
+            (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
+            (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
+            (hsPkgs."tasty" or (errorHandler.buildDepError "tasty"))
+            (hsPkgs."tasty-hspec" or (errorHandler.buildDepError "tasty-hspec"))
+          ];
+          build-tools = [
+            (hsPkgs.pkgsBuildBuild.tasty-discover.components.exes.tasty-discover or (pkgs.pkgsBuildBuild.tasty-discover or (errorHandler.buildToolDepError "tasty-discover:tasty-discover")))
+          ];
+          buildable = true;
+          modules = [ "Paths_hoard" ];
+          hsSourceDirs = [ "atelier/test" ];
+          mainPath = [ "Driver.hs" ];
+        };
         "hoard-test" = {
           depends = [
             (hsPkgs."QuickCheck" or (errorHandler.buildDepError "QuickCheck"))

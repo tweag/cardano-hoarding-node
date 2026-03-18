@@ -30,24 +30,24 @@ import Ouroboros.Consensus.Block.Abstract qualified as Block
 import Ouroboros.Network.Protocol.BlockFetch.Type qualified as BlockFetch
 import StmContainers.Map qualified as Map
 
-import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
-import Hoard.Data.ID (ID)
-import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Monitoring.Tracing
+import Atelier.Effects.Monitoring.Tracing
     ( Tracing
     , addAttribute
     , withSpan
     )
-import Hoard.Effects.Publishing (Pub, Sub, publish)
-import Hoard.Effects.Quota (Quota)
+import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Effects.Quota (Quota)
+import Atelier.Types.QuietSnake (QuietSnake (..))
+import Hoard.Component (Component (..), defaultComponent)
+import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
+import Hoard.Data.ID (ID)
+import Hoard.Data.Peer (Peer (..))
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Types.Cardano (CardanoBlock)
-import Hoard.Types.QuietSnake (QuietSnake (..))
 import Prelude hiding (Map)
 
-import Hoard.Effects.Publishing qualified as Sub
-import Hoard.Effects.Quota qualified as Quota
+import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Quota qualified as Quota
 
 
 component

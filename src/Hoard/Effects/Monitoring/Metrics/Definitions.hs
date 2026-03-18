@@ -41,7 +41,7 @@ module Hoard.Effects.Monitoring.Metrics.Definitions
     , recordDBQueryError
     ) where
 
-import Hoard.Effects.Monitoring.Metrics (Metrics, counterInc)
+import Atelier.Effects.Monitoring.Metrics (Metrics, counterInc)
 
 
 -- | Gauges - Point-in-time values

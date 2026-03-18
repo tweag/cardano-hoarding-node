@@ -21,14 +21,14 @@ import Ouroboros.Network.Protocol.ChainSync.Type (ChainSync)
 import Data.List qualified as List
 import Ouroboros.Network.Protocol.ChainSync.Type qualified as ChainSync
 
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Metrics (Metrics)
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Atelier.Effects.Publishing (Pub, publish)
 import Hoard.Control.Exception (withExceptionLogging)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordChainSyncRollback, recordChainSyncRollforward)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Hoard.Effects.NodeToNode.Config (ChainSyncConfig (..))
-import Hoard.Effects.Publishing (Pub, publish)
 import Hoard.Events.ChainSync (HeaderReceived (..), IntersectionFound (..), RollBackward (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoHeader, CardanoMiniProtocol, CardanoPoint, CardanoTip, ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))

@@ -34,22 +34,22 @@ import Text.Read (read)
 import Data.List qualified as List
 import Rel8 qualified
 
+import Atelier.Effects.Clock (runClock)
+import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
-import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
-import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
 import Prelude hiding (head)
 
+import Atelier.Effects.Log qualified as Log
 import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.Verifier qualified as Verified
 import Hoard.Effects.Verifier qualified as Verifier
 

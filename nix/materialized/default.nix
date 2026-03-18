@@ -1384,6 +1384,7 @@
           "kan-extensions".components.library.planned = lib.mkOverride 900 true;
           "hsyslog".components.library.planned = lib.mkOverride 900 true;
           "th-abstraction".components.library.planned = lib.mkOverride 900 true;
+          "hoard".components.tests."atelier-test".planned = lib.mkOverride 900 true;
           "ouroboros-consensus".components.sublibs."unstable-mock-block".planned = lib.mkOverride 900 true;
           "cardano-ledger-alonzo".components.library.planned = lib.mkOverride 900 true;
           "cardano-ledger-allegra".components.exes."huddle-cddl".planned = lib.mkOverride 900 true;

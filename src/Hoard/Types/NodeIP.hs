@@ -6,7 +6,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.IP (IP)
 import Rel8 (DBEq, DBType (..), ReadShow (..))
 
-import Hoard.Types.JsonReadShow (JsonReadShow (..))
+import Atelier.Types.JsonReadShow (JsonReadShow (..))
 
 
 newtype NodeIP = NodeIP {getNodeIP :: IP}

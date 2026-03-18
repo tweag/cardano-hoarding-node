@@ -8,6 +8,17 @@ import Effectful.State.Static.Shared (State, gets)
 import Ouroboros.Consensus.Block (BlockNo (..))
 import Ouroboros.Consensus.Block.Abstract (blockNo, blockSlot, unSlotNo)
 
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Monitoring.Metrics (Metrics)
+import Atelier.Effects.Monitoring.Tracing
+    ( ToAttribute
+    , ToAttributeShow (..)
+    , Tracing
+    , addAttribute
+    , withSpan
+    )
+import Atelier.Effects.Publishing (Sub)
+import Atelier.Effects.Quota (Quota)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
@@ -19,20 +30,9 @@ import Hoard.Data.PoolID (mkPoolID)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.HoardStateRepo (HoardStateRepo)
-import Hoard.Effects.Log (Log)
-import Hoard.Effects.Monitoring.Metrics (Metrics)
 import Hoard.Effects.Monitoring.Metrics.Definitions (recordBlockReceived, recordHeaderReceived)
-import Hoard.Effects.Monitoring.Tracing
-    ( ToAttribute
-    , ToAttributeShow (..)
-    , Tracing
-    , addAttribute
-    , withSpan
-    )
 import Hoard.Effects.PeerNoteRepo (PeerNoteRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
-import Hoard.Effects.Publishing (Sub)
-import Hoard.Effects.Quota (Quota)
 import Hoard.Effects.Verifier (Verifier, getVerified, verifyBlock, verifyHeader)
 import Hoard.Events.BlockFetch (BlockReceived (..))
 import Hoard.Events.ChainSync (HeaderReceived (..))
@@ -41,16 +41,16 @@ import Hoard.Sentry (AdversarialBehavior (..), ReceivedBlockOutsideRequestedRang
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 import Hoard.Types.HoardState (HoardState (..))
 
+import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Quota qualified as Quota
 import Hoard.Data.BlockTag qualified as BlockTag
 import Hoard.Data.HeaderTag qualified as HeaderTag
 import Hoard.Effects.BlockRepo qualified as BlockRepo
 import Hoard.Effects.HeaderRepo qualified as HeaderRepo
 import Hoard.Effects.HoardStateRepo qualified as HoardStateRepo
-import Hoard.Effects.Log qualified as Log
 import Hoard.Effects.PeerNoteRepo qualified as PeerNoteRepo
 import Hoard.Effects.PeerRepo qualified as PeerRepo
-import Hoard.Effects.Publishing qualified as Sub
-import Hoard.Effects.Quota qualified as Quota
 import Hoard.ImmutableTip qualified as ImmutableTip
 
 

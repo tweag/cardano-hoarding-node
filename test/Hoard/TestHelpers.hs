@@ -26,21 +26,21 @@ import Servant.Client.Generic (AsClientT, genericClient)
 import Servant.Server (Handler (..))
 
 import Atelier.Effects.Chan (Chan, runChan)
+import Atelier.Effects.Clock (Clock, runClockConst)
+import Atelier.Effects.Conc (Conc, runConc)
+import Atelier.Effects.Log (Log, runLog)
+import Atelier.Effects.Monitoring.Metrics (Metrics, runMetrics)
+import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.API (API, Routes, server)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
-import Hoard.Effects.Clock (Clock, runClockConst)
-import Hoard.Effects.Conc (Conc, runConc)
 import Hoard.Effects.DBRead (DBRead, runDBRead)
 import Hoard.Effects.DBWrite (DBWrite, runDBWrite)
-import Hoard.Effects.Log (Log, runLog)
-import Hoard.Effects.Monitoring.Metrics (Metrics, runMetrics)
-import Hoard.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.TestHelpers.Database (TestConfig (..))
 import Hoard.Types.DBConfig (DBPools)
 import Hoard.Types.HoardState (HoardState)
 
-import Hoard.Effects.Log qualified as Log
+import Atelier.Effects.Log qualified as Log
 
 
 withServer

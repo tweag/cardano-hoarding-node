@@ -11,18 +11,18 @@ import Text.Read (read)
 import Data.UUID.V4 qualified as UUID
 import Rel8 qualified
 
+import Atelier.Effects.Clock (runClock)
+import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
+import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.Clock (runClock)
 import Hoard.Effects.DBRead (runDBRead, runQuery)
 import Hoard.Effects.DBWrite (runDBWrite)
-import Hoard.Effects.Monitoring.Metrics (runMetricsNoOp)
-import Hoard.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
 
+import Atelier.Effects.Log qualified as Log
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
-import Hoard.Effects.Log qualified as Log
 
 
 spec_PeerPersistence :: Spec

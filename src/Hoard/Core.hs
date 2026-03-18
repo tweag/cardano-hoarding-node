@@ -6,9 +6,9 @@ import Effectful (IOE)
 import Effectful.Reader.Static (Reader, asks)
 import System.Posix.Resource (Resource (..), ResourceLimit (..), ResourceLimits (..), getResourceLimit, setResourceLimit)
 
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Component (Component (..), defaultComponent)
-import Hoard.Effects.Monitoring.Tracing (Tracing, withSpan)
-import Hoard.Types.QuietSnake (QuietSnake (..))
 
 
 component
