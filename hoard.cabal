@@ -17,6 +17,7 @@ library
   exposed-modules:
       Hoard.API
       Hoard.API.Data.BlockViolation
+      Hoard.API.Peers
       Hoard.API.Util
       Hoard.API.Violations
       Hoard.BlockEviction
@@ -46,6 +47,7 @@ library
       Hoard.DB.Schemas.HoardState
       Hoard.DB.Schemas.PeerNotes
       Hoard.DB.Schemas.Peers
+      Hoard.DB.Schemas.SelectedPeers
       Hoard.Effects.BlockRepo
       Hoard.Effects.Cache.Singleflight
       Hoard.Effects.Chan
@@ -75,6 +77,7 @@ library
       Hoard.Effects.Options
       Hoard.Effects.PeerNoteRepo
       Hoard.Effects.PeerRepo
+      Hoard.Effects.PeerRepo.State
       Hoard.Effects.Publishing
       Hoard.Effects.Quota
       Hoard.Effects.Quota.Config
@@ -162,6 +165,7 @@ library
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
+    , http-api-data
     , http-client
     , http-client-tls
     , http-types
@@ -288,6 +292,7 @@ test-suite hoard-test
       Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.IntegrationSpec
+      Integration.Hoard.PeersAPISpec
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
       Unit.Hoard.ConfigSpec
@@ -335,6 +340,7 @@ test-suite hoard-test
     , async
     , base
     , cardano-api
+    , containers
     , data-default
     , directory
     , effectful

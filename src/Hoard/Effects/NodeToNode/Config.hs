@@ -25,6 +25,9 @@ data NodeToNodeConfig = NodeToNodeConfig
     -- ^ Timeout for the TCP connection handshake. If the socket doesn't
     -- connect within this duration, the connection attempt fails. This does
     -- NOT affect already-established connections.
+    , discoverNewPeers :: Bool
+    -- ^ Whether to run the peer sharing protocol to discover new peers.
+    -- When False, only peers already known from bootstrap or the API are used.
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via (QuietSnake NodeToNodeConfig)
@@ -34,6 +37,7 @@ instance Default NodeToNodeConfig where
     def =
         NodeToNodeConfig
             { connectionTimeoutSeconds = 10
+            , discoverNewPeers = True
             }
 
 

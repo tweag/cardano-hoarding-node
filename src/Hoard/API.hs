@@ -8,10 +8,13 @@ where
 import Servant
 import Servant.Server.Generic (AsServerT)
 
+import Hoard.API.Peers (PeersAPI, peersHandler)
 import Hoard.API.Util ((::>))
 import Hoard.API.Violations (ViolationsAPI, violationsHandler)
 import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Monitoring.Metrics (Metrics, exportMetrics)
+import Hoard.Effects.PeerRepo (PeerRepo)
 import Prelude hiding ((:>))
 
 
@@ -19,6 +22,7 @@ import Prelude hiding ((:>))
 data Routes mode = Routes
     { metrics :: mode :- "metrics" :> Get '[PlainText] Text
     , violations :: ViolationsAPI mode
+    , peers :: PeersAPI mode
     }
     deriving (Generic)
 
@@ -28,9 +32,12 @@ type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
-server :: (BlockRepo ::> es, Metrics ::> es) => Routes (AsServerT (Eff es))
+server
+    :: (BlockRepo ::> es, Clock ::> es, Metrics ::> es, PeerRepo ::> es)
+    => Routes (AsServerT (Eff es))
 server =
     Routes
         { metrics = exportMetrics
         , violations = violationsHandler
+        , peers = peersHandler
         }

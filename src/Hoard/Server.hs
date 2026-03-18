@@ -14,8 +14,10 @@ import Servant (Handler (..), hoistServer, serve)
 import Hoard.API (API, server)
 import Hoard.Component (Component (..), defaultComponent)
 import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.Clock (Clock)
 import Hoard.Effects.Log (Log)
 import Hoard.Effects.Monitoring.Metrics (Metrics)
+import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Server.Config (Config (..))
 
 import Hoard.Effects.Log qualified as Log
@@ -23,9 +25,11 @@ import Hoard.Effects.Log qualified as Log
 
 component
     :: ( BlockRepo :> es
+       , Clock :> es
        , IOE :> es
        , Log :> es
        , Metrics :> es
+       , PeerRepo :> es
        , Reader Config :> es
        )
     => Component es

@@ -169,7 +169,11 @@ runNodeToNode =
                     NodeToNodeVersionData
                         { networkMagic
                         , diffusionMode = InitiatorOnlyDiffusionMode
-                        , peerSharing = PeerSharingEnabled
+                        , peerSharing =
+                            if nodeToNode.discoverNewPeers then
+                                PeerSharingEnabled
+                            else
+                                PeerSharingDisabled
                         , query = False
                         }
 
@@ -183,7 +187,7 @@ runNodeToNode =
 
                             app <-
                                 withSpan "node_to_node.create_application"
-                                    $ mkApplication (mkCodecs version blockVersion) peer
+                                    $ mkApplication nodeToNode.discoverNewPeers (mkCodecs version blockVersion) peer
 
                             pure
                                 $ simpleSingletonVersions
@@ -283,19 +287,23 @@ mkApplication
        , Timeout :> es
        , Tracing :> es
        )
-    => CardanoCodecs
+    => Bool
+    -- ^ Whether to run the peer sharing mini-protocol.
+    -> CardanoCodecs
     -> Peer
     -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
-mkApplication codecs peer = do
+mkApplication discoverNewPeers codecs peer = do
     conf <- ask @ProtocolsConfig
     withEffToIO (ConcUnlift Persistent Unlimited) \unlift ->
         pure
             $ OuroborosApplication
-                [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
-                , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
-                , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
-                , NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
-                ]
+            $ [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
+              , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
+              , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+              ]
+                <> [ NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
+                   | discoverNewPeers
+                   ]
 
 
 --------------------------------------------------------------------------------

@@ -7,6 +7,10 @@ module Hoard.Effects.PeerRepo
     , updatePeerFailure
     , updateLastConnected
     , getEligiblePeers
+    , getPinnedPeers
+    , pinPeers
+    , unpinPeers
+    , getEligiblePinnedPeers
     , runPeerRepo
     )
 where
@@ -17,18 +21,20 @@ import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
-import Rel8 (in_, lit, select, (&&.), (>.))
+import Rel8 (in_, lit, or_, select, (&&.), (==.), (>.))
 
+import Data.Map.Strict qualified as Map
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
 import Rel8.Expr.Time qualified as Rel8
 
-import Hoard.Data.ID (ID)
+import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DBRead (DBRead, runQuery)
 import Hoard.Effects.DBWrite (DBWrite, runTransaction)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
+import Hoard.DB.Schemas.SelectedPeers qualified as SelectedPeersSchema
 
 
 -- | Effect for peer repository operations
@@ -82,6 +88,37 @@ data PeerRepo :: Effect where
         -> Word
         -- ^ The maximum number of peers we want.
         -> PeerRepo m (Set Peer)
+    -- | Get all peers on the pinned peers list.
+    GetPinnedPeers
+        :: PeerRepo m [Peer]
+    -- | Add peers to the pinned peers list in a single transaction.
+    --
+    -- We don't take (ID Peer) for ergonomics: operators can submit any address
+    -- and peers are upserted into the peers table on the fly.
+    -- Bulk-upserts addresses into peers, then bulk-inserts into selected_peers
+    -- (ON CONFLICT DO NOTHING). Idempotent.
+    PinPeers
+        :: UTCTime
+        -- ^ Current timestamp
+        -> [(PeerAddress, Maybe Text)]
+        -- ^ (address, optional operator note) pairs
+        -> PeerRepo m [Peer]
+    -- | Remove peers from the pinned peers list. Idempotent — silently
+    -- succeeds if any peer is not found or was not pinned.
+    UnpinPeers
+        :: [PeerAddress]
+        -> PeerRepo m ()
+    -- | Like GetEligiblePeers but restricted to pinned peers only.
+    --
+    -- Used in Manual mode.
+    GetEligiblePinnedPeers
+        :: NominalDiffTime
+        -- ^ Threshold for how long ago a peer must have last failed.
+        -> Set (ID Peer)
+        -- ^ Peers that we are currently connected to.
+        -> Word
+        -- ^ The maximum number of peers we want.
+        -> PeerRepo m (Set Peer)
 
 
 -- | Template Haskell to generate smart constructors
@@ -96,7 +133,7 @@ runPeerRepo
 runPeerRepo = interpret $ \_ -> \case
     UpsertPeers peerAddrs sourcePeer timestamp ->
         runTransaction "upsert_peers"
-            $ upsertPeersImpl peerAddrs sourcePeer timestamp
+            $ fromList <$> upsertPeersImpl (toList peerAddrs) (peerSharingDiscoveredVia sourcePeer) timestamp
     GetPeerByAddress peerAddr ->
         runQuery "get_peer_by_address"
             $ getPeerByAddressImpl peerAddr
@@ -113,19 +150,32 @@ runPeerRepo = interpret $ \_ -> \case
     GetEligiblePeers failureTimeout alreadyConnectedPeers limit ->
         runQuery "get_eligible_peers"
             $ getEligiblePeersImpl failureTimeout alreadyConnectedPeers limit
+    GetPinnedPeers ->
+        runQuery "get_pinned_peers" getPinnedPeersImpl
+    PinPeers timestamp entries ->
+        runTransaction "pin_peers"
+            $ pinPeersImpl timestamp entries
+    UnpinPeers peerAddrs ->
+        runTransaction "unpin_peer"
+            $ unpinPeersImpl peerAddrs
+    GetEligiblePinnedPeers failureTimeout alreadyConnectedPeers limit ->
+        runQuery "get_eligible_pinned_peers"
+            $ getEligiblePinnedPeersImpl failureTimeout alreadyConnectedPeers limit
+
+
+peerSharingDiscoveredVia :: PeerAddress -> Text
+peerSharingDiscoveredVia p = "PeerSharing:" <> show p.host <> ":" <> show p.port
 
 
 upsertPeersImpl
-    :: Set PeerAddress
-    -- ^ Set of structured peer addresses
-    -> PeerAddress
-    -- ^ The source peer that shared these addresses
+    :: [PeerAddress]
+    -- ^ Peer addresses to upsert
+    -> Text
+    -- ^ The discoveredVia value to use for new peers
     -> UTCTime
     -- ^ Timestamp when these peers were discovered
-    -> Transaction (Set Peer)
-upsertPeersImpl peerAddresses sourcePeer timestamp = do
-    let discoveredVia = "PeerSharing:" <> show sourcePeer.host <> ":" <> show sourcePeer.port
-
+    -> Transaction [Peer]
+upsertPeersImpl peerAddresses discoveredVia timestamp = do
     -- Upsert all peers in a single statement and get back the full peer records
     rows <-
         TX.statement ()
@@ -135,7 +185,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                     { into = PeersSchema.schema
                     , rows =
                         Rel8.values
-                            $ toList peerAddresses <&> \peerAddr ->
+                            $ peerAddresses <&> \peerAddr ->
                                 PeersSchema.Row
                                     { PeersSchema.id = Rel8.unsafeDefault
                                     , PeersSchema.address = lit peerAddr.host
@@ -160,8 +210,7 @@ upsertPeersImpl peerAddresses sourcePeer timestamp = do
                                 }
                     , returning = Rel8.Returning Prelude.id
                     }
-
-    pure $ fromList $ map PeersSchema.peerFromRow rows
+    pure $ map PeersSchema.peerFromRow rows
 
 
 -- | Get a peer from the database by its address and port
@@ -240,13 +289,86 @@ getEligiblePeersImpl failureTimeout currentPeers limit =
         $ select
         $ Rel8.limit limit do
             peer <- Rel8.each PeersSchema.schema
+            applyEligibilityFilter failureTimeout currentPeers peer
 
-            let didNotFailRecently =
-                    Rel8.nullable
-                        Rel8.true
-                        (\ft -> Rel8.diffTime Rel8.now ft >. lit (calendarTimeTime failureTimeout))
-                        peer.lastFailureTime
-                isNotACurrentPeer = Rel8.not_ $ peer.id `in_` (lit <$> toList currentPeers)
 
-            Rel8.where_ $ isNotACurrentPeer &&. didNotFailRecently
+getPinnedPeersImpl :: Statement () [Peer]
+getPinnedPeersImpl =
+    fmap (map PeersSchema.peerFromRow)
+        $ Rel8.run
+        $ select do
+            sp <- Rel8.each SelectedPeersSchema.schema
+            peer <- Rel8.each PeersSchema.schema
+            Rel8.where_ $ peer.id Rel8.==. sp.peerId
             pure peer
+
+
+pinPeersImpl :: UTCTime -> [(PeerAddress, Maybe Text)] -> Transaction [Peer]
+pinPeersImpl timestamp entries = do
+    let noteByAddr = Map.fromList entries
+    peers <- upsertPeersImpl (map fst entries) "pinned" timestamp
+    -- Bulk insert into selected_peers with per-peer notes; ON CONFLICT DO NOTHING is idempotent
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.insert
+            Rel8.Insert
+                { into = SelectedPeersSchema.schema
+                , rows =
+                    Rel8.values
+                        $ peers <&> \peer ->
+                            SelectedPeersSchema.Row
+                                { SelectedPeersSchema.peerId = lit peer.id
+                                , SelectedPeersSchema.note = lit $ Map.findWithDefault Nothing peer.address noteByAddr
+                                , SelectedPeersSchema.addedAt = lit timestamp
+                                }
+                , onConflict = Rel8.DoNothing
+                , returning = Rel8.NoReturning
+                }
+    pure peers
+
+
+unpinPeersImpl :: [PeerAddress] -> Transaction ()
+unpinPeersImpl peerAddrs =
+    TX.statement ()
+        . Rel8.run_
+        $ Rel8.delete
+            Rel8.Delete
+                { from = SelectedPeersSchema.schema
+                , using = Rel8.each PeersSchema.schema
+                , deleteWhere = \peer sp ->
+                    sp.peerId ==. peer.id
+                        &&. Rel8.or_
+                            [ peer.address ==. lit addr.host &&. peer.port ==. lit (fromIntegral addr.port)
+                            | addr <- peerAddrs
+                            ]
+                , returning = Rel8.NoReturning
+                }
+
+
+getEligiblePinnedPeersImpl :: NominalDiffTime -> Set (ID Peer) -> Word -> Statement () (Set Peer)
+getEligiblePinnedPeersImpl failureTimeout currentPeers limit =
+    fmap (fromList . fmap PeersSchema.peerFromRow)
+        $ Rel8.run
+        $ select
+        $ Rel8.limit limit do
+            sp <- Rel8.each SelectedPeersSchema.schema
+            peer <- Rel8.each PeersSchema.schema
+            Rel8.where_ $ peer.id ==. sp.peerId
+            applyEligibilityFilter failureTimeout currentPeers peer
+
+
+-- | Filter a peer row by eligibility: not recently failed and not currently connected.
+applyEligibilityFilter
+    :: NominalDiffTime
+    -> Set (ID Peer)
+    -> PeersSchema.Row Rel8.Expr
+    -> Rel8.Query (PeersSchema.Row Rel8.Expr)
+applyEligibilityFilter failureTimeout currentPeers peer = do
+    let didNotFailRecently =
+            Rel8.nullable
+                Rel8.true
+                (\ft -> Rel8.diffTime Rel8.now ft >. lit (calendarTimeTime failureTimeout))
+                peer.lastFailureTime
+        isNotACurrentPeer = Rel8.not_ $ peer.id `in_` (lit <$> toList currentPeers)
+    Rel8.where_ $ isNotACurrentPeer &&. didNotFailRecently
+    pure peer
