@@ -2,6 +2,7 @@ module Hoard.Effects.HeaderRepo
     ( HeaderRepo (..)
     , upsertHeader
     , tagHeader
+    , evictHeaders
     , runHeaderRepo
     )
 where
@@ -10,8 +11,9 @@ import Data.Time (UTCTime)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
+import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
-import Rel8 (lit)
+import Rel8 (lit, where_)
 
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
@@ -23,6 +25,7 @@ import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.DB (DBWrite, runTransaction)
 import Hoard.Effects.Verifier (Validity (..), Verified, getVerified)
 
+import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
 import Hoard.DB.Schemas.HeaderTags qualified as HeaderTagsSchema
 import Hoard.DB.Schemas.Headers qualified as HeadersSchema
@@ -45,6 +48,7 @@ data HeaderRepo :: Effect where
         -- ^ When we received it
         -> HeaderRepo m ()
     TagHeader :: BlockHash -> [HeaderTag] -> HeaderRepo m ()
+    EvictHeaders :: HeaderRepo m Int
 
 
 -- | Template Haskell to generate smart constructors
@@ -63,6 +67,10 @@ runHeaderRepo = interpret_ \case
     TagHeader hash tags ->
         runTransaction "tag_header"
             $ tagHeaderImpl hash tags
+    EvictHeaders ->
+        runTransaction
+            "evict_headers"
+            evictHeadersTrans
 
 
 -- | Upsert a header and record receipt from a peer
@@ -121,3 +129,37 @@ tagHeaderImpl hash tags =
             , tag = lit tag
             , taggedAt = Rel8.unsafeDefault
             }
+
+
+-- | Delete headers that have no associated tags.
+-- Returns the number of deleted headers.
+-- header_receipts are deleted automatically via ON DELETE CASCADE.
+evictHeadersTrans :: Transaction Int
+evictHeadersTrans = do
+    hashes <- TX.statement () getEvictableHeaderHashesQuery
+    unless (null hashes)
+        $ TX.statement () (deleteHeadersByHashesQuery hashes)
+    pure (length hashes)
+
+
+getEvictableHeaderHashesQuery :: Statement () [BlockHash]
+getEvictableHeaderHashesQuery =
+    Rel8.run . Rel8.select $ do
+        header <- Rel8.each HeadersSchema.schema
+        hasHeaderTag <- HeaderTagsSchema.hashHasTag header.hash
+        where_ $ Rel8.not_ hasHeaderTag
+        hasBlockTag <- BlockTagsSchema.hashHasTag header.hash
+        where_ $ Rel8.not_ hasBlockTag
+        pure header.hash
+
+
+deleteHeadersByHashesQuery :: [BlockHash] -> Statement () ()
+deleteHeadersByHashesQuery hashes =
+    Rel8.run_
+        $ Rel8.delete
+            Rel8.Delete
+                { from = HeadersSchema.schema
+                , using = pure ()
+                , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
+                , returning = Rel8.NoReturning
+                }

@@ -42,6 +42,7 @@ import Atelier.Effects.Cache.Singleflight qualified as Singleflight
 import Hoard.DB.Schemas.BlockTags qualified as BlockTags
 import Hoard.DB.Schemas.Blocks qualified as Blocks
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceipts
+import Hoard.DB.Schemas.HeaderTags qualified as HeaderTags
 
 
 data BlockRepo :: Effect where
@@ -257,16 +258,11 @@ getEvictableBlockHashesQuery =
         where_ $ block.classification ==. lit (Just Canonical)
         hasOrphanAtSameSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
         where_ $ Rel8.not_ hasOrphanAtSameSlot
-        hasTag <- blockHasTag block.hash
-        where_ $ Rel8.not_ hasTag
+        hasBlockTag <- BlockTags.hashHasTag block.hash
+        where_ $ Rel8.not_ hasBlockTag
+        hasHeaderTag <- HeaderTags.hashHasTag block.hash
+        where_ $ Rel8.not_ hasHeaderTag
         pure block.hash
-
-
-blockHasTag :: Rel8.Expr BlockHash -> Rel8.Query (Rel8.Expr Bool)
-blockHasTag hash = Rel8.exists $ do
-    tagRow <- Rel8.each BlockTags.schema
-    where_ $ tagRow.blockHash ==. hash
-    pure tagRow
 
 
 deleteBlocksByHashesQuery :: [BlockHash] -> Statement () ()

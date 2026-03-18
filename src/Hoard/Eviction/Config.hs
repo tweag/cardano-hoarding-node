@@ -1,4 +1,4 @@
-module Hoard.BlockEviction.Config
+module Hoard.Eviction.Config
     ( Config (..)
     ) where
 
@@ -9,7 +9,6 @@ import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
--- | Configuration for block eviction
 data Config = Config
     { evictionIntervalSeconds :: !Second
     -- ^ How often the eviction trigger runs (in seconds).
