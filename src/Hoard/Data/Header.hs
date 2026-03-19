@@ -1,6 +1,5 @@
 module Hoard.Data.Header
     ( Header (..)
-    , Header'
     , HeaderReceipt (..)
     )
 where
@@ -15,16 +14,13 @@ import Hoard.Types.Cardano (CardanoHeader)
 import Prelude hiding (id)
 
 
-type Header' = Header CardanoHeader
-
-
 -- | Represents a block header from the Cardano blockchain
 --
 -- Stores unique headers indexed by block hash. In Cardano, the block hash
 -- is the hash of the header itself, which uniquely identifies the block.
-data Header header = Header
+data Header = Header
     { hash :: BlockHash
-    , headerData :: header
+    , headerData :: CardanoHeader
     , slotNumber :: Word64
     , blockNumber :: Word64
     , firstSeenAt :: UTCTime

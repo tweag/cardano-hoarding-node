@@ -1,7 +1,4 @@
-module Hoard.Data.Block
-    ( Block'
-    , Block (..)
-    ) where
+module Hoard.Data.Block (Block (..)) where
 
 import Data.Time (UTCTime)
 
@@ -11,14 +8,11 @@ import Hoard.OrphanDetection.Data (BlockClassification)
 import Hoard.Types.Cardano (CardanoBlock)
 
 
-type Block' = Block CardanoBlock
-
-
-data Block block = Block
+data Block = Block
     { hash :: BlockHash
     , slotNumber :: Int64
     , poolId :: PoolID
-    , blockData :: block
+    , blockData :: CardanoBlock
     , validationStatus :: Text
     , validationReason :: Text
     , firstSeen :: UTCTime

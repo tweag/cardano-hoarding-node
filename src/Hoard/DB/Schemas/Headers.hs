@@ -20,7 +20,7 @@ import Rel8
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra, headerToEra)
-import Hoard.Data.Header (Header (..), Header')
+import Hoard.Data.Header (Header (..))
 import Hoard.Data.Serialized (Serialized)
 import Hoard.Types.Cardano (CardanoHeader)
 
@@ -49,7 +49,7 @@ schema = mkSchema "headers"
 
 
 -- | Convert a database row to a Header domain type
-headerFromRow :: Row Result -> Either Text Header'
+headerFromRow :: Row Result -> Either Text Header
 headerFromRow row = do
     headerData <- Serialized.deserializeHeader row.headerEra row.headerData
     pure
@@ -63,7 +63,7 @@ headerFromRow row = do
 
 
 -- | Convert a Header domain type to a database row
-rowFromHeader :: Header' -> Row Expr
+rowFromHeader :: Header -> Row Expr
 rowFromHeader header =
     Row
         { hash = lit header.hash

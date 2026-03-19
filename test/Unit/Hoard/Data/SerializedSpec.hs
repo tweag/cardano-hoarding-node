@@ -3,10 +3,10 @@ module Unit.Hoard.Data.SerializedSpec (spec_Serialized) where
 import Test.Hspec
 
 import Hoard.Data.Serialized
-    ( decodeCardanoBlock
-    , decodeCardanoHeader
-    , encodeCardanoBlock
-    , encodeCardanoHeader
+    ( deserializeBlock
+    , deserializeHeader
+    , serializeBlock
+    , serializeHeader
     )
 import Unit.Hoard.Data.Util (blocks, headers)
 
@@ -19,16 +19,15 @@ spec_Serialized = do
 
 testHeader :: Spec
 testHeader = do
-    describe "CardanoHeader serialising roundtrip" $ do
-        forM_ headers $ \(blockEra, header) ->
+    describe "CardanoHeader serialising roundtrip"
+        $ forM_ headers \(blockEra, header) ->
             it ("can decode encoded " <> show blockEra <> " header") $ do
-                decodeCardanoHeader blockEra (encodeCardanoHeader header) `shouldBe` Right header
+                deserializeHeader blockEra (serializeHeader header) `shouldBe` Right header
 
 
 testBlock :: Spec
 testBlock = do
     describe "CardanoBlock serialising roundtrip"
-        $ forM_ blocks
-        $ \(blockEra, block) ->
-            it ("can decode encoded " <> show blockEra <> " block")
-                $ decodeCardanoBlock blockEra (encodeCardanoBlock block) `shouldBe` Right block
+        $ forM_ blocks \(blockEra, block) ->
+            it ("can decode encoded " <> show blockEra <> " block") do
+                deserializeBlock blockEra (serializeBlock block) `shouldBe` Right block

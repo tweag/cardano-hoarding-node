@@ -37,7 +37,7 @@ import Rel8 qualified
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.Data.Block (Block (..), Block')
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
@@ -209,7 +209,7 @@ exampleBlocks =
 
 
 -- Create a test block using the nth example (cycles if n exceeds available examples)
-mkTestBlock :: Int64 -> Verified Valid Block'
+mkTestBlock :: Int64 -> Verified Valid Block
 mkTestBlock n =
     let cardanoBlock = exampleBlocks !! fromIntegral (n `mod` fromIntegral (length exampleBlocks))
         header = getHeader cardanoBlock

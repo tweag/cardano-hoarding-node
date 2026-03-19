@@ -4,14 +4,10 @@ module Hoard.Data.Serialized
       -- * Block
     , serializeBlock
     , deserializeBlock
-    , encodeCardanoBlock
-    , decodeCardanoBlock
 
       -- * Header
     , serializeHeader
     , deserializeHeader
-    , encodeCardanoHeader
-    , decodeCardanoHeader
     ) where
 
 import Cardano.Api (EpochSlots (..))
@@ -63,16 +59,8 @@ newtype Serialized a = Serialized ByteString
 --------
 
 serializeBlock :: CardanoBlock -> Serialized CardanoBlock
-serializeBlock = Serialized . encodeCardanoBlock
-
-
-deserializeBlock :: BlockEra -> Serialized CardanoBlock -> Either Text CardanoBlock
-deserializeBlock era (Serialized bs) = decodeCardanoBlock era bs
-
-
-encodeCardanoBlock :: CardanoBlock -> ByteString
-encodeCardanoBlock =
-    CBOR.toStrictByteString . \case
+serializeBlock =
+    Serialized . CBOR.toStrictByteString . \case
         O.BlockAllegra b -> encodeShelleyBlock b
         O.BlockAlonzo b -> encodeShelleyBlock b
         O.BlockMary b -> encodeShelleyBlock b
@@ -85,8 +73,8 @@ encodeCardanoBlock =
 
 -- | Decodes a `CardanoBlock` from a ByteString using CBOR. Must be able to
 -- decode the output of @encodeCardanoBlock@.
-decodeCardanoBlock :: BlockEra -> ByteString -> Either Text CardanoBlock
-decodeCardanoBlock blockEra block = do
+deserializeBlock :: BlockEra -> Serialized CardanoBlock -> Either Text CardanoBlock
+deserializeBlock blockEra (Serialized block) =
     first show $ case blockEra of
         Allegra -> BlockAllegra <$> deserialise @(TPraos Crypto) @AllegraEra block
         Alonzo -> BlockAlonzo <$> deserialise @(TPraos Crypto) @AlonzoEra block
@@ -123,16 +111,8 @@ decodeCardanoBlock blockEra block = do
 ---------
 
 serializeHeader :: CardanoHeader -> Serialized CardanoHeader
-serializeHeader = Serialized . encodeCardanoHeader
-
-
-deserializeHeader :: BlockEra -> Serialized CardanoHeader -> Either Text CardanoHeader
-deserializeHeader era (Serialized bs) = decodeCardanoHeader era bs
-
-
-encodeCardanoHeader :: CardanoHeader -> ByteString
-encodeCardanoHeader =
-    CBOR.toStrictByteString . \case
+serializeHeader =
+    Serialized . CBOR.toStrictByteString . \case
         O.HeaderAllegra b -> encodeShelleyHeader b
         O.HeaderAlonzo b -> encodeShelleyHeader b
         O.HeaderMary b -> encodeShelleyHeader b
@@ -149,8 +129,8 @@ encodeCardanoHeader =
 
 -- | Decodes a `CardanoHeader` from a ByteString using CBOR. Must be able to
 -- decode the output of @encodeCardanoHeader@.
-decodeCardanoHeader :: BlockEra -> ByteString -> Either Text CardanoHeader
-decodeCardanoHeader era header = do
+deserializeHeader :: BlockEra -> Serialized CardanoHeader -> Either Text CardanoHeader
+deserializeHeader era (Serialized header) =
     first show $ case era of
         Allegra -> O.HeaderAllegra <$> deserialise @(TPraos Crypto) @AllegraEra header
         Alonzo -> O.HeaderAlonzo <$> deserialise @(TPraos Crypto) @AlonzoEra header

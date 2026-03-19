@@ -20,9 +20,9 @@ import Atelier.Effects.Monitoring.Tracing
     )
 import Atelier.Effects.Publishing (Sub)
 import Atelier.Effects.Tally (Tally)
-import Hoard.Data.Block (Block (..), Block')
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
-import Hoard.Data.Header (Header (..), Header')
+import Hoard.Data.Header (Header (..))
 import Hoard.Data.ID (ID)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Data.PeerNote (NoteType (..))
@@ -204,7 +204,7 @@ tagMismatchedBlock event =
     hash = mkBlockHash event.block
 
 
-extractHeaderData :: UTCTime -> CardanoHeader -> Header'
+extractHeaderData :: UTCTime -> CardanoHeader -> Header
 extractHeaderData timestamp header =
     Header
         { hash = mkBlockHash header
@@ -215,7 +215,7 @@ extractHeaderData timestamp header =
         }
 
 
-extractBlockData :: UTCTime -> CardanoBlock -> Block'
+extractBlockData :: UTCTime -> CardanoBlock -> Block
 extractBlockData timestamp block =
     Block
         { hash = mkBlockHash block

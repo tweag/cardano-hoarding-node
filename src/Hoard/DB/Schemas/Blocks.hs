@@ -17,7 +17,7 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Block (Block (..), Block')
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..), blockToEra)
 import Hoard.Data.PoolID (PoolID)
@@ -52,7 +52,7 @@ schema :: TableSchema (Row Name)
 schema = mkSchema "blocks"
 
 
-blockFromRow :: Row Result -> Either Text Block'
+blockFromRow :: Row Result -> Either Text Block
 blockFromRow row = do
     bd <- Serialized.deserializeBlock row.blockEra row.blockData
     pure
@@ -69,7 +69,7 @@ blockFromRow row = do
             }
 
 
-rowFromBlock :: Block' -> Row Expr
+rowFromBlock :: Block -> Row Expr
 rowFromBlock blk = do
     Row
         { hash = lit blk.hash

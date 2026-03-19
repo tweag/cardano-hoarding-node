@@ -11,7 +11,7 @@ import Data.Time (UTCTime)
 
 import Data.Map.Strict qualified as Map
 
-import Hoard.Data.Block (Block (..), Block')
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra, blockToEra)
 import Hoard.Data.Header (HeaderReceipt (..))
@@ -63,7 +63,7 @@ data SlotDispute = SlotDispute
 
 
 -- | Convert a Block and its receipts to a BlockViolation DTO
-blockToViolation :: Block' -> [HeaderReceipt] -> BlockViolation
+blockToViolation :: Block -> [HeaderReceipt] -> BlockViolation
 blockToViolation block receipts =
     BlockViolation
         { hash = block.hash
