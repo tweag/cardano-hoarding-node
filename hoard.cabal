@@ -16,10 +16,11 @@ build-type:    Simple
 library
   exposed-modules:
       Hoard.API
+      Hoard.API.Blocks
+      Hoard.API.Data.Block
       Hoard.API.Data.BlockViolation
       Hoard.API.Peers
       Hoard.API.Util
-      Hoard.API.Violations
       Hoard.Bootstrap
       Hoard.CardanoNode.Config
       Hoard.ChainDB
@@ -123,6 +124,7 @@ library
     , atelier
     , base
     , base16-bytestring
+    , base64-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-byron
@@ -205,6 +207,7 @@ library atelier
       Atelier.Effects.Tally
       Atelier.Effects.UUID
       Atelier.Time
+      Atelier.Types.HttpApiDataReadShow
       Atelier.Types.JsonReadShow
       Atelier.Types.QuietSnake
   other-modules:
@@ -250,6 +253,7 @@ library atelier
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
+    , http-api-data
     , ki
     , list-t
     , prometheus-client
@@ -450,8 +454,8 @@ test-suite hoard-test
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
       Integration.DBEffects
+      Integration.Hoard.API.BlocksSpec
       Integration.Hoard.API.PeersSpec
-      Integration.Hoard.API.ViolationsSpec
       Integration.Hoard.DB.BlockPersistenceSpec
       Integration.Hoard.DB.EvictionSpec
       Integration.Hoard.DB.HeaderPersistenceSpec

@@ -12,6 +12,7 @@ module Hoard.Data.Serialized
 
 import Cardano.Api (EpochSlots (..))
 import Codec.CBOR.Read (DeserialiseFailure (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Ouroboros.Consensus.Byron.Ledger
     ( ByronBlock
     , decodeByronBlock
@@ -42,6 +43,7 @@ import Rel8 (DBEq, DBType)
 import Cardano.Chain.Block qualified as CC
 import Codec.CBOR.Read qualified as CBOR
 import Codec.CBOR.Write qualified as CBOR
+import Data.ByteString.Base64 qualified as Base64
 import Ouroboros.Consensus.Byron.Ledger qualified as Byron
 import Ouroboros.Consensus.Cardano.Block qualified as O
 
@@ -49,9 +51,20 @@ import Hoard.Data.Eras (BlockEra (..))
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader, Crypto)
 
 
-newtype Serialized a = Serialized ByteString
+newtype Serialized a = Serialized {getSerialized :: ByteString}
     deriving stock (Eq, Generic, Show)
     deriving (DBEq, DBType) via ByteString
+
+
+instance ToJSON (Serialized a) where
+    toJSON = toJSON . decodeUtf8 @Text . Base64.encode . getSerialized
+
+
+instance FromJSON (Serialized a) where
+    parseJSON = withText "Serialized" $ \t ->
+        case Base64.decode (encodeUtf8 t) of
+            Left err -> fail err
+            Right b -> pure (Serialized b)
 
 
 --------

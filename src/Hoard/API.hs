@@ -12,17 +12,18 @@ import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Monitoring.Metrics (Metrics, exportMetrics)
 import Hoard.API.Peers (PeersAPI, peersHandler)
 import Hoard.API.Util ((::>))
-import Hoard.API.Violations (ViolationsAPI, violationsHandler)
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Prelude hiding ((:>))
+
+import Hoard.API.Blocks qualified as Blocks
 
 
 -- | Named routes for the API
 data Routes mode = Routes
     { metrics :: mode :- "metrics" :> Get '[PlainText] Text
-    , violations :: ViolationsAPI mode
     , peers :: PeersAPI mode
+    , blocks :: mode :- "blocks" :> Blocks.API
     }
     deriving stock (Generic)
 
@@ -38,6 +39,6 @@ server
 server =
     Routes
         { metrics = exportMetrics
-        , violations = violationsHandler
         , peers = peersHandler
+        , blocks = Blocks.handler
         }
