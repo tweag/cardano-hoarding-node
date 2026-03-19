@@ -50,15 +50,15 @@ TCP services on the host:
 docker run --rm \
   --env-file .env.local \
   --network=host \
-  -v $(pwd)/node-db:/app/node-db \
-  -v $(pwd)/postgres-data:/app/postgres-data \
+  -v $(pwd)/data/node:/app/data/node \
+  -v $(pwd)/data/postgres:/app/data/postgres \
   cardano-hoarding-node:dev
 ```
 
 | Mount | Purpose |
 |---|---|
-| `node-db` | Cardano node Unix socket (`node-db/preprod/node.socket`) |
-| `postgres-data` | PostgreSQL Unix socket directory |
+| `data/node` | Cardano node Unix socket (`data/node/preprod/node.socket`) |
+| `data/postgres` | PostgreSQL Unix socket directory |
 
 ## Deployment (ECS)
 
