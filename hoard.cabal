@@ -35,6 +35,7 @@ library
       Hoard.Data.Peer
       Hoard.Data.PeerNote
       Hoard.Data.PoolID
+      Hoard.Data.Serialized
       Hoard.DB.Schema
       Hoard.DB.Schemas.Blocks
       Hoard.DB.Schemas.BlockTags
@@ -454,9 +455,8 @@ test-suite hoard-test
       Unit.Hoard.CollectorSpec
       Unit.Hoard.ConfigSpec
       Unit.Hoard.Data.BlockHashSpec
-      Unit.Hoard.Data.BlockSpec
-      Unit.Hoard.Data.HeaderSpec
       Unit.Hoard.Data.PeerSpec
+      Unit.Hoard.Data.SerializedSpec
       Unit.Hoard.Data.Util
       Unit.Hoard.MonitoringSpec
       Unit.Hoard.SentrySpec

@@ -20,7 +20,7 @@ import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.BlockHash (BlockHash (..))
-import Hoard.Data.Header (Header (..))
+import Hoard.Data.Header (Header (..), Header')
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
@@ -193,7 +193,7 @@ mkTestPeerWithPort now port = do
             }
 
 
-makeValid :: Header -> Verified 'Valid Header
+makeValid :: Header' -> Verified 'Valid Header'
 makeValid =
     fromJust
         . rightToMaybe

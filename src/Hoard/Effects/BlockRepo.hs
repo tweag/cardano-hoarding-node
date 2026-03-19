@@ -30,7 +30,7 @@ import Rel8 qualified
 import Atelier.Effects.Monitoring.Tracing (Tracing)
 import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolation, groupIntoDisputes)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
-import Hoard.Data.Block (Block (..))
+import Hoard.Data.Block (Block (..), Block')
 import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag (..))
 import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
@@ -46,12 +46,12 @@ import Hoard.DB.Schemas.HeaderTags qualified as HeaderTags
 
 
 data BlockRepo :: Effect where
-    InsertBlocks :: [Verified 'Valid Block] -> BlockRepo m ()
-    GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block)
+    InsertBlocks :: [Verified 'Valid Block'] -> BlockRepo m ()
+    GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block')
     BlockExists :: BlockHash -> BlockRepo m Bool
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
-    GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
     GetViolations :: Maybe Int64 -> Maybe Int64 -> BlockRepo m [SlotDispute]
+    GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block']
     EvictBlocks :: BlockRepo m Int
     TagBlock :: BlockHash -> [BlockTag] -> BlockRepo m ()
 
@@ -94,7 +94,7 @@ runBlockRepo action =
                 $ tagBlockTrans hash tag
 
 
-insertBlocksTrans :: [Block] -> Transaction ()
+insertBlocksTrans :: [Block'] -> Transaction ()
 insertBlocksTrans blocks =
     TX.statement ()
         . Rel8.run_
@@ -107,7 +107,7 @@ insertBlocksTrans blocks =
                 }
 
 
-getBlockQuery :: CardanoHeader -> Statement () (Maybe Block)
+getBlockQuery :: CardanoHeader -> Statement () (Maybe Block')
 getBlockQuery header =
     fmap (extractSingleBlock . rights . fmap Blocks.blockFromRow)
         . Rel8.run
@@ -168,7 +168,7 @@ getBlockHashesAtSameSlotQuery blockHash =
         pure block.hash
 
 
-getUnclassifiedBlocksQuery :: Int64 -> Int -> Set BlockHash -> Statement () [Block]
+getUnclassifiedBlocksQuery :: Int64 -> Int -> Set BlockHash -> Statement () [Block']
 getUnclassifiedBlocksQuery slot limit excludeHashes =
     fmap (rights . fmap Blocks.blockFromRow)
         . Rel8.run
@@ -284,13 +284,13 @@ tagBlockTrans hash tags =
 
 runBlockRepoState
     :: ( State (Set (BlockHash, BlockTag)) :> es
-       , State [Block] :> es
+       , State [Block'] :> es
        )
     => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepoState = interpret_ \case
     InsertBlocks blocks -> modify $ (fmap getVerified blocks <>)
     GetBlock header -> gets $ find ((mkBlockHash header ==) . (.hash))
-    BlockExists blockHash -> gets @[Block] $ isJust . find ((blockHash ==) . (.hash))
+    BlockExists blockHash -> gets @[Block'] $ isJust . find ((blockHash ==) . (.hash))
     ClassifyBlock blockHash classification timestamp -> do
         modify $ fmap $ \block ->
             if block.hash == blockHash then
@@ -298,7 +298,7 @@ runBlockRepoState = interpret_ \case
             else
                 block
         when (classification == Orphaned) $ do
-            blocks <- get @[Block]
+            blocks <- get @[Block']
             let hashesAtSlot = case find ((blockHash ==) . (.hash)) blocks of
                     Nothing -> [blockHash]
                     Just b -> map (.hash) $ filter (\b' -> b'.slotNumber == b.slotNumber) blocks

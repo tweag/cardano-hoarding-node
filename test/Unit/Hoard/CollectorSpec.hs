@@ -19,7 +19,7 @@ import Atelier.Effects.Log (runLogNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Atelier.Effects.Publishing (runPubWriter)
 import Hoard.Collector (filterHeaderReceived)
-import Hoard.Data.Block (Block (..))
+import Hoard.Data.Block (Block (..), Block')
 import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag)
 import Hoard.Data.ID (ID (..))
@@ -54,7 +54,7 @@ headerReceived =
         }
 
 
-dbBlock :: Block
+dbBlock :: Block'
 dbBlock =
     Block
         { hash = mkBlockHash testHeader
@@ -98,7 +98,7 @@ spec_Collector = do
                                 }
                            ]
   where
-    runEff :: [Block] -> [BlockFetch.Request]
+    runEff :: [Block'] -> [BlockFetch.Request]
     runEff db =
         let ((), events) =
                 runPureEff

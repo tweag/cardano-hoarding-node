@@ -19,7 +19,7 @@ import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
 import Hoard.Data.BlockHash (BlockHash)
-import Hoard.Data.Header (Header (..))
+import Hoard.Data.Header (Header (..), Header')
 import Hoard.Data.HeaderTag (HeaderTag)
 import Hoard.Data.Peer (Peer (..))
 import Hoard.Effects.DB (DBWrite, runTransaction)
@@ -40,7 +40,7 @@ data HeaderRepo :: Effect where
     -- 2. Records that this peer sent us this header
     -- All in a single transaction.
     UpsertHeader
-        :: Verified 'Valid Header
+        :: Verified 'Valid Header'
         -- ^ The header to upsert
         -> Peer
         -- ^ The peer that sent us this header
@@ -74,7 +74,7 @@ runHeaderRepo = interpret_ \case
 
 
 -- | Upsert a header and record receipt from a peer
-upsertHeaderImpl :: Header -> Peer -> UTCTime -> Transaction ()
+upsertHeaderImpl :: Header' -> Peer -> UTCTime -> Transaction ()
 upsertHeaderImpl header peer receivedAt = do
     -- 1. Upsert the header (insert or ignore on conflict)
     TX.statement ()

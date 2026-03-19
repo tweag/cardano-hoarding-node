@@ -43,8 +43,8 @@ import Ouroboros.Consensus.Cardano.Block qualified as O
 import Ouroboros.Consensus.Shelley.Ledger qualified as Shelley
 
 import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
-import Hoard.Data.Block (Block (..))
-import Hoard.Data.Header (Header (..))
+import Hoard.Data.Block (Block (..), Block')
+import Hoard.Data.Header (Header (..), Header')
 import Hoard.Types.Cardano (CardanoBlock, CardanoHeader)
 
 
@@ -52,8 +52,8 @@ data Verifier :: Effect where
     -- | Verify that the header signature is correct and valid.
     VerifyCardanoHeader :: CardanoHeader -> Verifier m (VerificationResult CardanoHeader)
     VerifyCardanoBlock :: CardanoBlock -> Verifier m (VerificationResult CardanoBlock)
-    VerifyBlock :: Block -> Verifier m (VerificationResult Block)
-    VerifyHeader :: Header -> Verifier m (VerificationResult Header)
+    VerifyBlock :: Block' -> Verifier m (VerificationResult Block')
+    VerifyHeader :: Header' -> Verifier m (VerificationResult Header')
 
 
 type VerificationResult a = Either (Verified 'Invalid a) (Verified 'Valid a)
