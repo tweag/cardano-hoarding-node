@@ -52,7 +52,7 @@ import StmContainers.Map qualified as Map
 
 import Atelier.Effects.Clock (Clock, currentTime)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Delay (Delay, Microsecond)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Quota.Config
 import Prelude hiding (Map)
@@ -107,7 +107,7 @@ runQuota action = do
     store <- STM.atomically Map.new
 
     Conc.fork_ $ forever $ Log.withNamespace "Quota" do
-        Delay.wait $ Delay.nominalDiffTime quotaConfig.cleanupInterval
+        Delay.wait $ Delay.nominalDiffTime @Microsecond quotaConfig.cleanupInterval
         now <- currentTime
         evicted <- STM.atomically $ evictExpiredEntries store ttl now
 

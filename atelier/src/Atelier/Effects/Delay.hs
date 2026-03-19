@@ -2,7 +2,8 @@ module Atelier.Effects.Delay
     ( Delay
     , wait
     , every
-    , Microseconds
+    , Microsecond
+    , Second
     , seconds
     , micros
     , nominalDiffTime
@@ -19,6 +20,7 @@ module Atelier.Effects.Delay
     ) where
 
 import Data.Time (NominalDiffTime)
+import Data.Time.Units (Microsecond, Second, TimeUnit, convertUnit, fromMicroseconds, toMicroseconds)
 import Effectful (Effect, IOE)
 import Effectful.Concurrent (Concurrent, threadDelay)
 import Effectful.Concurrent.MVar (newEmptyMVar, takeMVar)
@@ -31,40 +33,36 @@ import Control.Concurrent.MVar qualified as IO
 
 data Delay :: Effect where
     -- | Halt the thread and wait for the passed duration before continuing.
-    Wait :: Microseconds -> Delay m ()
-
-
-newtype Microseconds = Microseconds Word
-    deriving stock (Eq, Ord)
-
-
-seconds :: (Integral i) => i -> Microseconds
-seconds = Microseconds . (* 1_000_000) . fromIntegral
-
-
-micros :: (Integral i) => i -> Microseconds
-micros = Microseconds . fromIntegral
-
-
-nominalDiffTime :: NominalDiffTime -> Microseconds
-nominalDiffTime = micros @Word . round @Double . (* 1_000_000) . realToFrac
+    Wait :: (TimeUnit t) => t -> Delay m ()
 
 
 makeEffect ''Delay
 
 
+seconds :: (Integral i) => i -> Second
+seconds = fromIntegral
+
+
+micros :: (Integral i) => i -> Microsecond
+micros = fromIntegral
+
+
+nominalDiffTime :: (TimeUnit t) => NominalDiffTime -> t
+nominalDiffTime = fromMicroseconds . round @Double . (* 1_000_000) . realToFrac
+
+
 -- | Runs an action repeatedly, waiting the given duration in between each
 -- execution, starting immediately. Returns Void since it runs forever.
 -- Caller is responsible for forking.
-every :: (Delay :> es) => Microseconds -> Eff es () -> Eff es Void
+every :: (Delay :> es, TimeUnit t) => t -> Eff es () -> Eff es Void
 every delay action = forever do
     action
     wait delay
 
 
 runDelay :: (Concurrent :> es) => Eff (Delay : es) a -> Eff es a
-runDelay = interpret_ \(Wait (Microseconds delay)) ->
-    threadDelay $ fromIntegral delay
+runDelay = interpret_ \(Wait delay) ->
+    threadDelay $ fromIntegral (toMicroseconds delay)
 
 
 runDelayWithControls
@@ -72,35 +70,32 @@ runDelayWithControls
        , State Timers :> es
        )
     => Eff (Delay : es) a -> Eff es a
-runDelayWithControls = do
-    interpret_ \(Wait timeRemaining) -> do
-        var <- newEmptyMVar
-        modifyM \ts -> do
-            let timer =
-                    Timer
-                        { timeRemaining
-                        , release = void $ IO.tryPutMVar var ()
-                        }
-            pure $ addTimer timer ts
-        takeMVar var
-        pure ()
+runDelayWithControls = interpret_ \(Wait delay) -> do
+    var <- newEmptyMVar
+    modifyM \ts -> do
+        let timer =
+                Timer
+                    { timeRemaining = convertUnit delay
+                    , release = void $ IO.tryPutMVar var ()
+                    }
+        pure $ addTimer timer ts
+    takeMVar var
+    pure ()
 
 
-tick :: (Concurrent :> es, IOE :> es, State Timers :> es) => Microseconds -> Eff es ()
+tick :: (Concurrent :> es, IOE :> es, State Timers :> es, TimeUnit t) => t -> Eff es ()
 tick delay = withSettledThreads do
-    modifyM $ tickTimers delay
+    modifyM $ tickTimers (convertUnit delay)
 
 
 tickNext :: (Concurrent :> es, IOE :> es, State Timers :> es) => Eff es ()
 tickNext = withSettledThreads do
     modifyM \case
         [] -> pure []
-        t : ts -> do
-            let delay = t.timeRemaining
-            tickTimers delay (t : ts)
+        t : ts -> tickTimers t.timeRemaining (t : ts)
 
 
-tickTimers :: (IOE :> es) => Microseconds -> Timers -> Eff es Timers
+tickTimers :: (IOE :> es) => Microsecond -> Timers -> Eff es Timers
 tickTimers delay = fmap catMaybes . traverse (tickTimer delay)
 
 
@@ -132,7 +127,7 @@ addTimer t ts = sortOn (.timeRemaining) $ t : ts
 
 tickTimer
     :: (IOE :> es)
-    => Microseconds
+    => Microsecond
     -> Timer
     -> Eff es (Maybe Timer)
 tickTimer delay timer
@@ -140,7 +135,7 @@ tickTimer delay timer
         pure
             $ Just
                 timer
-                    { timeRemaining = subMicros timer.timeRemaining delay
+                    { timeRemaining = timer.timeRemaining - delay
                     }
     | otherwise = do
         liftIO timer.release
@@ -149,9 +144,5 @@ tickTimer delay timer
 
 data Timer = Timer
     { release :: IO ()
-    , timeRemaining :: Microseconds
+    , timeRemaining :: Microsecond
     }
-
-
-subMicros :: Microseconds -> Microseconds -> Microseconds
-subMicros (Microseconds a) (Microseconds b) = Microseconds $ a - b
