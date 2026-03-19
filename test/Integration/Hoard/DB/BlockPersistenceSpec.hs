@@ -43,7 +43,7 @@ import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
 import Prelude hiding (head)
 
@@ -55,11 +55,11 @@ import Hoard.Effects.Verifier qualified as Verifier
 
 spec_BlockPersistence :: Spec
 spec_BlockPersistence = do
-    let runWrite config action =
+    let runWrite pools action =
             runEff
                 . Log.runLogNoOp
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClock
@@ -70,10 +70,10 @@ spec_BlockPersistence = do
                 . runBlockRepo
                 $ action
 
-    let runRead config action =
+    let runRead pools action =
             runEff
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClock
@@ -81,26 +81,26 @@ spec_BlockPersistence = do
                 $ action
 
     withCleanTestDatabase $ describe "Block persistence (database)" $ do
-        it "inserts blocks successfully" $ \config -> do
+        it "inserts blocks successfully" $ \pools -> do
             let block = mkTestBlock 1
 
             -- Insert block
-            result <- runWrite config $ insertBlocks [block]
+            result <- runWrite pools $ insertBlocks [block]
 
             result `shouldSatisfy` isRight
 
             -- Verify block was persisted
-            blockCount <- runRead config $ runQuery "count-blocks" countBlocksStmt
+            blockCount <- runRead pools $ runQuery "count-blocks" countBlocksStmt
             case blockCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Block count query failed: " <> show err
 
-        it "blockExists returns True for inserted block" $ \config -> do
+        it "blockExists returns True for inserted block" $ \pools -> do
             let verifiedBlock = mkTestBlock 2
                 block = Verifier.getVerified verifiedBlock
 
             -- Insert block and check if it exists
-            result <- runWrite config $ do
+            result <- runWrite pools $ do
                 insertBlocks [verifiedBlock]
                 blockExists block.hash
 
@@ -108,12 +108,12 @@ spec_BlockPersistence = do
                 Right exists -> exists `shouldBe` True
                 Left err -> expectationFailure $ "blockExists query failed: " <> show err
 
-        it "blockExists returns False for non-existent block" $ \config -> do
+        it "blockExists returns False for non-existent block" $ \pools -> do
             let existingBlock = mkTestBlock 3
             let nonExistentBlock = Verifier.getVerified $ mkTestBlock 4
 
             -- Insert only existingBlock and check if nonExistentBlock exists (it shouldn't)
-            result <- runWrite config $ do
+            result <- runWrite pools $ do
                 insertBlocks [existingBlock]
                 blockExists nonExistentBlock.hash
 
@@ -121,7 +121,7 @@ spec_BlockPersistence = do
                 Right exists -> exists `shouldBe` False
                 Left err -> expectationFailure $ "blockExists query failed: " <> show err
 
-        it "blockExists handles multiple concurrent queries correctly" $ \config -> do
+        it "blockExists handles multiple concurrent queries correctly" $ \pools -> do
             let verifiedBlock1 = mkTestBlock 5
                 block1 = Verifier.getVerified verifiedBlock1
             let verifiedBlock2 = mkTestBlock 6
@@ -130,7 +130,7 @@ spec_BlockPersistence = do
                 block3 = Verifier.getVerified verifiedBlock3
 
             -- Insert blocks and check existence of all three
-            results <- runWrite config $ do
+            results <- runWrite pools $ do
                 insertBlocks [verifiedBlock1, verifiedBlock2]
                 exists1 <- blockExists block1.hash
                 exists2 <- blockExists block2.hash
@@ -144,28 +144,28 @@ spec_BlockPersistence = do
                     exists3 `shouldBe` False
                 Left err -> expectationFailure $ "blockExists queries failed: " <> show err
 
-        it "handles duplicate block inserts correctly (DoNothing on conflict)" $ \config -> do
+        it "handles duplicate block inserts correctly (DoNothing on conflict)" $ \pools -> do
             let verifiedBlock = mkTestBlock 8
                 block = Verified.getVerified verifiedBlock
 
             -- Insert block twice (second insert should be ignored)
-            _ <- runWrite config $ do
+            _ <- runWrite pools $ do
                 insertBlocks [verifiedBlock]
                 insertBlocks [verifiedBlock]
 
             -- Should still have only 1 block
-            blockCount <- runRead config $ runQuery "count-blocks-after-dup" countBlocksStmt
+            blockCount <- runRead pools $ runQuery "count-blocks-after-dup" countBlocksStmt
             case blockCount of
                 Right count -> count `shouldBe` 1
                 Left err -> expectationFailure $ "Block count query failed: " <> show err
 
             -- blockExists should still return True
-            result <- runWrite config $ blockExists block.hash
+            result <- runWrite pools $ blockExists block.hash
             case result of
                 Right exists -> exists `shouldBe` True
                 Left err -> expectationFailure $ "blockExists query failed: " <> show err
 
-        it "inserts multiple blocks in batch" $ \config -> do
+        it "inserts multiple blocks in batch" $ \pools -> do
             let blocks =
                     [ mkTestBlock 9
                     , mkTestBlock 10
@@ -174,18 +174,18 @@ spec_BlockPersistence = do
                     ]
 
             -- Insert all blocks at once
-            result <- runWrite config $ insertBlocks blocks
+            result <- runWrite pools $ insertBlocks blocks
 
             result `shouldSatisfy` isRight
 
             -- Verify all blocks were persisted
-            blockCount <- runRead config $ runQuery "count-batch-blocks" countBlocksStmt
+            blockCount <- runRead pools $ runQuery "count-batch-blocks" countBlocksStmt
             case blockCount of
                 Right count -> count `shouldBe` 4
                 Left err -> expectationFailure $ "Block count query failed: " <> show err
 
             -- Verify blockExists works for all inserted blocks
-            existsResults <- runWrite config $ do
+            existsResults <- runWrite pools $ do
                 traverse blockExists (map ((.hash) . Verified.getVerified) blocks)
 
             case existsResults of

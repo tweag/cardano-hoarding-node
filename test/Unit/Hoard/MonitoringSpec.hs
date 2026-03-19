@@ -19,7 +19,7 @@ import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.ID (ID (..))
 import Hoard.Effects.DB (runDBRead)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
 import Hoard.Types.HoardState (HoardState (..))
 
@@ -29,7 +29,7 @@ import Hoard.Monitoring qualified as Monitoring
 spec_Monitoring :: Spec
 spec_Monitoring = withCleanTestDatabase $ do
     describe "listener" do
-        it "reports correct number of peers, immutable tip, and block count" $ \config -> do
+        it "reports correct number of peers, immutable tip, and block count" $ \pools -> do
             let testTime = UTCTime (toEnum 0) 0
             peers <- runEff . runConcurrent $ mkPeers testTime 3
             logs <-
@@ -38,7 +38,7 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . execWriter @[Message]
                     . runLogWriter
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock

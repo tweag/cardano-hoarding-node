@@ -18,7 +18,7 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
-import Hoard.TestHelpers.Database (TestConfig (..), withCleanTestDatabase)
+import Hoard.TestHelpers.Database (withCleanTestDatabase)
 
 import Atelier.Effects.Log qualified as Log
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
@@ -26,11 +26,11 @@ import Hoard.DB.Schemas.Peers qualified as PeersSchema
 
 spec_PeerPersistence :: Spec
 spec_PeerPersistence = do
-    let runWrite config action =
+    let runWrite pools action =
             runEff
                 . Log.runLogNoOp
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClock
@@ -40,10 +40,10 @@ spec_PeerPersistence = do
                 . runPeerRepo
                 $ action
 
-    let runRead config action =
+    let runRead pools action =
             runEff
                 . runErrorNoCallStack @Text
-                . runReader config.pools
+                . runReader pools
                 . runMetricsNoOp
                 . runTracingNoOp
                 . runClock
@@ -51,13 +51,13 @@ spec_PeerPersistence = do
                 $ action
 
     withCleanTestDatabase $ describe "Peer persistence (database)" $ do
-        it "inserts a new peer successfully" $ \config -> do
+        it "inserts a new peer successfully" $ \pools -> do
             now <- getCurrentTime
             sourcePeer <- mkTestSourcePeer now
 
             -- Insert peers
             result <-
-                runWrite config $ do
+                runWrite pools $ do
                     upsertPeers
                         ( fromList
                             [ PeerAddress (read "192.168.1.1") 3001
@@ -73,7 +73,7 @@ spec_PeerPersistence = do
             queryResult <-
                 runEff
                     . runErrorNoCallStack @Text
-                    . runReader config.pools
+                    . runReader pools
                     . runMetricsNoOp
                     . runTracingNoOp
                     . runClock
@@ -84,13 +84,13 @@ spec_PeerPersistence = do
                 Right count -> count `shouldBe` 2
                 Left err -> expectationFailure $ "Query failed: " <> show err
 
-        it "handles duplicate peers correctly (upsert behavior)" $ \config -> do
+        it "handles duplicate peers correctly (upsert behavior)" $ \pools -> do
             now <- getCurrentTime
             sourcePeer <- mkTestSourcePeer now
 
             -- Insert peer first time
             _ <-
-                runWrite config
+                runWrite pools
                     $ upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
@@ -99,7 +99,7 @@ spec_PeerPersistence = do
             -- Wait a bit and insert same peer again with different timestamp
             let laterTime = addUTCTime 60 now -- 60 seconds later
             _ <-
-                runWrite config
+                runWrite pools
                     $ upsertPeers
                         (fromList [PeerAddress (read "192.168.1.1") 3001])
                         sourcePeer.address
@@ -107,7 +107,7 @@ spec_PeerPersistence = do
 
             -- Query to verify we still have only 1 peer
             queryResult <-
-                runRead config $ runQuery "count-peers-after-upsert" countPeersStmt
+                runRead pools $ runQuery "count-peers-after-upsert" countPeersStmt
 
             case queryResult of
                 Right count -> count `shouldBe` 1
@@ -115,7 +115,7 @@ spec_PeerPersistence = do
 
             -- Query the peer to verify lastSeen was updated but firstDiscovered was not
             peerResult <-
-                runRead config $ runQuery "get-peer" getPeerByAddressStmt
+                runRead pools $ runQuery "get-peer" getPeerByAddressStmt
 
             case peerResult of
                 Right peer -> do
@@ -129,13 +129,13 @@ spec_PeerPersistence = do
                     peer.discoveredVia `shouldBe` ("PeerSharing:" <> show sourcePeer.address.host <> ":" <> show sourcePeer.address.port)
                 Left err -> expectationFailure $ "Peer query failed: " <> show err
 
-        it "handles multiple peers in one batch" $ \config -> do
+        it "handles multiple peers in one batch" $ \pools -> do
             now <- getCurrentTime
             sourcePeer <- mkTestSourcePeer now
 
             -- Insert multiple peers at once
             result <-
-                runWrite config
+                runWrite pools
                     $ upsertPeers
                         ( fromList
                             [ PeerAddress (read "192.168.1.1") 3001
@@ -150,26 +150,26 @@ spec_PeerPersistence = do
             result `shouldSatisfy` isRight
 
             queryResult <-
-                runRead config $ runQuery "count-batch" countPeersStmt
+                runRead pools $ runQuery "count-batch" countPeersStmt
 
             case queryResult of
                 Right count -> count `shouldBe` 4
                 Left err -> expectationFailure $ "Query failed: " <> show err
 
-        it "can persist and fetch a peer (round-trip test)" $ \config -> do
+        it "can persist and fetch a peer (round-trip test)" $ \pools -> do
             now <- getCurrentTime
             sourcePeer <- mkTestSourcePeer now
             let testAddr = PeerAddress (read "10.20.30.40") 5000
 
             -- Insert a peer
             insertResult <-
-                runWrite config
+                runWrite pools
                     $ upsertPeers (fromList [testAddr]) sourcePeer.address now
 
             insertResult `shouldSatisfy` isRight
 
             -- Fetch it back using getPeerByAddress
-            fetchResult <- runWrite config $ getPeerByAddress testAddr
+            fetchResult <- runWrite pools $ getPeerByAddress testAddr
 
             case fetchResult of
                 Right (Just peer) -> do
