@@ -64,6 +64,7 @@ import System.Timeout qualified as Timeout
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics)
 import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
@@ -118,6 +119,7 @@ runNodeToNode
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Delay :> es
        , GenUUID :> es
        , IOE :> es
        , Log :> es
@@ -268,6 +270,7 @@ mkApplication
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Delay :> es
        , GenUUID :> es
        , IOE :> es
        , Log :> es

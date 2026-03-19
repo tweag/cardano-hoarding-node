@@ -20,6 +20,7 @@ import Data.Set qualified as Set
 import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
@@ -37,11 +38,11 @@ import Hoard.Effects.Verifier (Verifier)
 import Hoard.PeerManager.Config (AutomaticConfig (..), Config (..), PeerMode (..))
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..), mkConnection, signalTermination)
 import Hoard.Sentry (AdversarialBehavior (..))
-import Hoard.Triggers (every)
 import Hoard.Types.Environment (PeerSnapshotFile)
 
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing qualified as Sub
 import Hoard.Effects.PeerRepo qualified as PeerRepo
@@ -59,6 +60,7 @@ component
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
+       , Delay :> es
        , IOE :> es
        , Log :> es
        , Metrics :> es
@@ -131,21 +133,21 @@ component =
 -- * Triggers
 
 
-triggerCull :: (Concurrent :> es, Pub CullRequested :> es) => Eff es Void
-triggerCull = every 10 do
+triggerCull :: (Delay :> es, Pub CullRequested :> es) => Eff es Void
+triggerCull = Delay.every (Delay.seconds @Int 10) do
     publish CullRequested
 
 
 triggerReplenish
-    :: ( Concurrent :> es
+    :: ( Delay :> es
        , Pub PeerRequested :> es
        , Reader Config :> es
        , State Peers :> es
        )
     => Eff es Void
 triggerReplenish = do
-    interval <- asks (.replenishIntervalSeconds)
-    every interval replenish
+    interval <- Delay.seconds <$> asks (.replenishIntervalSeconds)
+    Delay.every interval replenish
   where
     replenish = do
         limit <- asks $ fromIntegral . (.maxConcurrentCollectors)

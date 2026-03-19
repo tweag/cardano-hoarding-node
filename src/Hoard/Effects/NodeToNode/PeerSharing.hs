@@ -2,7 +2,6 @@ module Hoard.Effects.NodeToNode.PeerSharing
     ( miniProtocol
     ) where
 
-import Effectful.Concurrent (Concurrent, threadDelay)
 import Network.Mux (StartOnDemandOrEagerly (..))
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -19,6 +18,7 @@ import Ouroboros.Network.Protocol.PeerSharing.Type (PeerSharingAmount (..))
 import Data.Set qualified as S
 import Network.TypedProtocol.Peer.Client qualified as Peer
 
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Tracing (Tracing, asTracer)
 import Atelier.Effects.Publishing (Pub, publish)
@@ -28,10 +28,12 @@ import Hoard.Effects.NodeToNode.Config (PeerSharingConfig (..))
 import Hoard.Events.PeerSharing (PeersReceived (..))
 import Hoard.Types.Cardano (CardanoCodecs, CardanoMiniProtocol)
 
+import Atelier.Effects.Delay qualified as Delay
+
 
 miniProtocol
     :: forall es
-     . ( Concurrent :> es
+     . ( Delay :> es
        , Log :> es
        , Pub PeersReceived :> es
        , Tracing :> es
@@ -71,7 +73,7 @@ miniProtocol conf unlift codecs peer =
 -- 3. Waits for the configured interval
 -- 4. Loops
 client
-    :: (Concurrent :> es, Pub PeersReceived :> es)
+    :: (Delay :> es, Pub PeersReceived :> es)
     => (forall x. Eff es x -> IO x)
     -> PeerSharingConfig
     -> Peer
@@ -85,5 +87,5 @@ client unlift conf peer = requestPeers withPeers
                 { peer
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
-        threadDelay conf.requestIntervalMicroseconds
+        Delay.wait $ Delay.micros conf.requestIntervalMicroseconds
         pure $ requestPeers withPeers

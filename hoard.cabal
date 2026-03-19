@@ -85,7 +85,6 @@ library
       Hoard.Sentry
       Hoard.Server
       Hoard.Server.Config
-      Hoard.Triggers
       Hoard.Types.Cardano
       Hoard.Types.Deployment
       Hoard.Types.Environment
@@ -188,6 +187,7 @@ library atelier
       Atelier.Effects.Conc.Traced
       Atelier.Effects.DB
       Atelier.Effects.DB.Config
+      Atelier.Effects.Delay
       Atelier.Effects.Log
       Atelier.Effects.Monitoring.Metrics
       Atelier.Effects.Monitoring.Metrics.Registry
@@ -249,6 +249,7 @@ library atelier
     , stm-containers
     , text
     , time
+    , time-units
     , unagi-chan
     , unordered-containers
     , uuid
@@ -336,6 +337,7 @@ test-suite atelier-test
       Unit.Atelier.Effects.Cache.SingleflightSpec
       Unit.Atelier.Effects.Conc.TracedSpec
       Unit.Atelier.Effects.ConcSpec
+      Unit.Atelier.Effects.DelaySpec
       Unit.Atelier.Effects.LogSpec
       Unit.Atelier.Effects.PublishingSpec
       Unit.Atelier.Effects.QuotaSpec
