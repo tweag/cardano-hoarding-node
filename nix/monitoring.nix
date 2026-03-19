@@ -77,7 +77,7 @@ let
   # Prometheus configuration script that generates config from YAML
   prometheusConfigScript = pkgs.writeShellScript "prometheus-config" ''
     CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    PROMETHEUS_DATA="''${PROMETHEUS_DATA:-$PWD/prometheus-data}"
+    PROMETHEUS_DATA="''${PROMETHEUS_DATA:-$PWD/data/prometheus}"
     mkdir -p "$PROMETHEUS_DATA"
 
     SCRAPE_INTERVAL=$(${yq} eval '.monitoring.prometheus.scrape_interval' "$CONFIG_FILE")
@@ -121,7 +121,7 @@ let
   # Tempo configuration script that generates config with runtime paths
   tempoConfigScript = pkgs.writeShellScript "tempo-config" ''
     CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    TEMPO_DATA="''${TEMPO_DATA:-$PWD/tempo-data}"
+    TEMPO_DATA="''${TEMPO_DATA:-$PWD/data/tempo}"
     mkdir -p "$TEMPO_DATA/blocks" "$TEMPO_DATA/wal"
 
     HTTP_PORT=$(${yq} eval '.monitoring.tempo.http_port' "$CONFIG_FILE")
@@ -223,7 +223,7 @@ let
   # Loki configuration script that generates config with runtime paths
   lokiConfigScript = pkgs.writeShellScript "loki-config" ''
     CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    LOKI_DATA="''${LOKI_DATA:-$PWD/loki-data}"
+    LOKI_DATA="''${LOKI_DATA:-$PWD/data/loki}"
     mkdir -p "$LOKI_DATA/chunks" "$LOKI_DATA/index" "$LOKI_DATA/boltdb-shipper-active" "$LOKI_DATA/boltdb-shipper-cache" "$LOKI_DATA/wal"
 
     HTTP_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
@@ -291,7 +291,7 @@ let
 
   startTempo = pkgs.writeShellScript "start-tempo" ''
     export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    export TEMPO_DATA="$PWD/tempo-data"
+    export TEMPO_DATA="$PWD/data/tempo"
     TEMPO_CONFIG=$(${tempoConfigScript})
 
     echo "Starting Tempo..."
@@ -300,7 +300,7 @@ let
 
   startLoki = pkgs.writeShellScript "start-loki" ''
     export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    export LOKI_DATA="$PWD/loki-data"
+    export LOKI_DATA="$PWD/data/loki"
     LOKI_CONFIG=$(${lokiConfigScript})
 
     echo "Starting Loki..."
@@ -310,7 +310,7 @@ let
   # Promtail configuration script that generates config with runtime paths
   promtailConfigScript = pkgs.writeShellScript "promtail-config" ''
     CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    PROMTAIL_DATA="''${PROMTAIL_DATA:-$PWD/promtail-data}"
+    PROMTAIL_DATA="''${PROMTAIL_DATA:-$PWD/data/promtail}"
     mkdir -p "$PROMTAIL_DATA"
 
     LOKI_PORT=$(${yq} eval '.monitoring.loki.http_port' "$CONFIG_FILE")
@@ -342,7 +342,7 @@ let
 
   startPromtail = pkgs.writeShellScript "start-promtail" ''
     export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    export PROMTAIL_DATA="$PWD/promtail-data"
+    export PROMTAIL_DATA="$PWD/data/promtail"
     PROMTAIL_CONFIG=$(${promtailConfigScript})
 
     echo "Starting Promtail (tailing $PWD/log.out)..."
@@ -351,7 +351,7 @@ let
 
   startPrometheus = pkgs.writeShellScript "start-prometheus" ''
     export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-    export PROMETHEUS_DATA="$PWD/prometheus-data"
+    export PROMETHEUS_DATA="$PWD/data/prometheus"
     PROMETHEUS_CONFIG=$(${prometheusConfigScript})
     PORT=$(${yq} eval '.monitoring.prometheus.port' "$CONFIG_FILE")
 
@@ -367,7 +367,7 @@ let
 
   startGrafana = pkgs.writeShellScript "start-grafana" ''
         export CONFIG_FILE="''${CONFIG_FILE:-${config}}"
-        GRAFANA_DATA="$PWD/grafana-data"
+        GRAFANA_DATA="$PWD/data/grafana"
         GRAFANA_PROVISIONING="$GRAFANA_DATA/provisioning"
         GRAFANA_DASHBOARDS="$GRAFANA_PROVISIONING/dashboards"
 

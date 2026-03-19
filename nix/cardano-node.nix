@@ -99,7 +99,7 @@ let
       program = "${pkgs.writeShellScript "cardano-node-${network}" ''
         set -euo pipefail
 
-        # Ensure node-db directory exists
+        # Ensure data/node directory exists
         mkdir -p "${dbPath}"
 
         # Check if database is initialized (look for critical files)
@@ -155,7 +155,7 @@ let
       aggregatorEndpoint = "https://aggregator.release-preprod.api.mithril.network/aggregator";
       genesisVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey";
       ancillaryVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey";
-      dbPath = "./node-db/preprod";
+      dbPath = "./data/node/preprod";
       nodeApp = "cardano-node-preprod";
     };
 
@@ -165,8 +165,8 @@ let
       displayName = "Preprod";
       configPath = "./config/preprod/config.json";
       topologyPath = "./config/preprod/topology.json";
-      dbPath = "./node-db/preprod";
-      socketPath = "./node-db/preprod/node.socket";
+      dbPath = "./data/node/preprod";
+      socketPath = "./data/node/preprod/node.socket";
       bootstrapApp = "cardano-node-preprod-bootstrap";
     };
 
@@ -177,7 +177,7 @@ let
     #   aggregatorEndpoint = "https://aggregator.release-mainnet.api.mithril.network/aggregator";
     #   genesisVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-mainnet/genesis.vkey";
     #   ancillaryVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-mainnet/ancillary.vkey";
-    #   dbPath = "./node-db/mainnet";
+    #   dbPath = "./data/node/mainnet";
     #   nodeApp = "cardano-node-mainnet";
     # };
     #
@@ -186,8 +186,8 @@ let
     #   displayName = "Mainnet";
     #   configPath = "./config/mainnet/config.json";
     #   topologyPath = "./config/mainnet/topology.json";
-    #   dbPath = "./node-db/mainnet";
-    #   socketPath = "./node-db/mainnet/node.socket";
+    #   dbPath = "./data/node/mainnet";
+    #   socketPath = "./data/node/mainnet/node.socket";
     #   bootstrapApp = "cardano-node-mainnet-bootstrap";
     # };
 
@@ -198,7 +198,7 @@ let
     #   aggregatorEndpoint = "https://aggregator.pre-release-preview.api.mithril.network/aggregator";
     #   genesisVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/pre-release-preview/genesis.vkey";
     #   ancillaryVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/pre-release-preview/ancillary.vkey";
-    #   dbPath = "./node-db/preview";
+    #   dbPath = "./data/node/preview";
     #   nodeApp = "cardano-node-preview";
     # };
     #
@@ -207,8 +207,8 @@ let
     #   displayName = "Preview";
     #   configPath = "./config/preview/config.json";
     #   topologyPath = "./config/preview/topology.json";
-    #   dbPath = "./node-db/preview";
-    #   socketPath = "./node-db/preview/node.socket";
+    #   dbPath = "./data/node/preview";
+    #   socketPath = "./data/node/preview/node.socket";
     #   bootstrapApp = "cardano-node-preview-bootstrap";
     # };
   };

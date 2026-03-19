@@ -9,14 +9,14 @@ secrets_file: secrets/dev.yaml
 node_sockets:
   tag: Local
   contents:
-    node_to_client_socket: node-db/preprod/node.socket
+    node_to_client_socket: data/node/preprod/node.socket
     tracer_socket: /tmp/cardano-tracer.sock
 
 # Path to Cardano protocol config file
 protocol_config_path: config/preprod/config.json
 
 database:
-  host: postgres-data
+  host: data/postgres
   port: 5432
   database_name: hoard_dev
   pool:

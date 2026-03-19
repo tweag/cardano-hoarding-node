@@ -33,7 +33,7 @@
       echo "  Socket: $DB_HOST"
       echo ""
 
-      PGDATA="$PWD/postgres-data"
+      PGDATA="$PWD/data/postgres"
       PGHOST="$DB_HOST"
 
       # Initialize database if it doesn't exist
@@ -43,7 +43,7 @@
 
         # Configure for local socket-only access
         cat >> "$PGDATA/postgresql.conf" <<EOF
-      unix_socket_directories = '$PGHOST'
+      unix_socket_directories = 'data/$PGHOST'
       listen_addresses = '''
       port = $DB_PORT
       EOF
