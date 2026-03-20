@@ -8,6 +8,7 @@ import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
 
+import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
@@ -42,7 +43,7 @@ data Config = Config
     { maxCollectorLifetimeSeconds :: NominalDiffTime
     , peerFailureCooldownSeconds :: NominalDiffTime
     , maxConcurrentCollectors :: Word
-    , replenishIntervalSeconds :: Int
+    , replenishIntervalSeconds :: Second
     , peerMode :: PeerMode
     }
     deriving stock (Eq, Generic, Show)

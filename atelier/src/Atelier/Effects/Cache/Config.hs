@@ -1,4 +1,4 @@
-module Atelier.Effects.Quota.Config
+module Atelier.Effects.Cache.Config
     ( Config (..)
     ) where
 
@@ -9,10 +9,10 @@ import Data.Time (NominalDiffTime)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
--- | Configuration for quota tracking
+-- | Configuration for a TTL-evicting cache
 data Config = Config
     { entryTtl :: !NominalDiffTime
-    -- ^ Time-to-live for quota entries. After this duration, entries are evicted from the cache.
+    -- ^ Time-to-live for cache entries. After this duration from first insertion, entries are evicted.
     , cleanupInterval :: !NominalDiffTime
     -- ^ How often the background cleanup thread runs to evict expired entries.
     }

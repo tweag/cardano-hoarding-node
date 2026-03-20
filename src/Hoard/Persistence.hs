@@ -19,7 +19,7 @@ import Atelier.Effects.Monitoring.Tracing
     , withSpan
     )
 import Atelier.Effects.Publishing (Sub)
-import Atelier.Effects.Quota (Quota)
+import Atelier.Effects.Tally (Tally)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.Header (Header (..))
@@ -43,7 +43,7 @@ import Hoard.Types.HoardState (HoardState (..))
 
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing qualified as Sub
-import Atelier.Effects.Quota qualified as Quota
+import Atelier.Effects.Tally qualified as Tally
 import Hoard.Data.BlockTag qualified as BlockTag
 import Hoard.Data.HeaderTag qualified as HeaderTag
 import Hoard.Effects.BlockRepo qualified as BlockRepo
@@ -62,7 +62,6 @@ component
        , Metrics :> es
        , PeerNoteRepo :> es
        , PeerRepo :> es
-       , Quota PeerSlotKey :> es
        , State HoardState :> es
        , Sub AdversarialBehavior :> es
        , Sub BlockReceived :> es
@@ -71,6 +70,7 @@ component
        , Sub PeersReceived :> es
        , Sub ReceivedBlockOutsideRequestedRange :> es
        , Sub ReceivedMismatchingBlock :> es
+       , Tally PeerSlotKey :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -122,7 +122,7 @@ blockReceived
     :: ( BlockRepo :> es
        , Log :> es
        , Metrics :> es
-       , Quota PeerSlotKey :> es
+       , Tally PeerSlotKey :> es
        , Tracing :> es
        , Verifier :> es
        )
@@ -139,7 +139,7 @@ blockReceived timestamp event = withSpan "persistence.block_received" do
         Right validBlock -> do
             addAttribute "block.valid" True
 
-            Quota.withQuotaCheck quotaKey equivocationStatus \case
+            Tally.withTallyCheck quotaKey equivocationStatus \case
                 UniqueBlock -> do
                     recordBlockReceived
                     BlockRepo.insertBlocks [validBlock]

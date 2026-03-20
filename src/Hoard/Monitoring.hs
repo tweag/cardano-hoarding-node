@@ -22,6 +22,7 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics, gaugeSet)
 import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.DB.Schema (countRows, countRowsWhere)
 import Hoard.Effects.DB (DBRead)
@@ -54,7 +55,7 @@ component =
         { name = "Monitoring"
         , listeners = pure [Sub.listen_ listener]
         , triggers = do
-            pollingInterval <- Delay.seconds <$> asks (.pollingIntervalSeconds)
+            pollingInterval <- asks (.pollingIntervalSeconds)
             pure [Delay.every pollingInterval $ publish Poll]
         }
 
@@ -104,7 +105,7 @@ data Poll = Poll
 
 
 data Config = Config
-    { pollingIntervalSeconds :: Int
+    { pollingIntervalSeconds :: Second
     -- ^ Interval between peer status polling
     }
     deriving stock (Generic)

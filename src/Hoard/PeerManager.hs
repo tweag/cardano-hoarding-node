@@ -25,6 +25,7 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics, histogramObserve)
 import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
 import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Time (Second)
 import Hoard.Bootstrap (bootstrapPeers, bootstrapPinnedPeers)
 import Hoard.Collector (collectFromPeer)
 import Hoard.Control.Exception (isGracefulShutdown, withExceptionLogging)
@@ -134,7 +135,7 @@ component =
 
 
 triggerCull :: (Delay :> es, Pub CullRequested :> es) => Eff es Void
-triggerCull = Delay.every (Delay.seconds @Int 10) do
+triggerCull = Delay.every ((10 :: Second)) do
     publish CullRequested
 
 
@@ -146,7 +147,7 @@ triggerReplenish
        )
     => Eff es Void
 triggerReplenish = do
-    interval <- Delay.seconds <$> asks (.replenishIntervalSeconds)
+    interval <- asks (.replenishIntervalSeconds)
     Delay.every interval replenish
   where
     replenish = do

@@ -24,7 +24,7 @@ component =
         { name = "BlockEviction"
         , triggers = do
             cfg <- ask
-            let interval = Delay.seconds cfg.evictionIntervalSeconds
+            let interval = cfg.evictionIntervalSeconds
             pure
                 [ Delay.every interval $ withSpan "block_eviction.evict" do
                     count <- BlockRepo.evictBlocks

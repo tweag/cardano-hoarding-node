@@ -82,6 +82,6 @@ client unlift conf peer = KeepAliveClient sendFirst
         pure $ SendMsgKeepAlive (Cookie 42) sendNext
 
     sendNext = unlift do
-        Delay.wait $ Delay.micros conf.intervalMicroseconds
+        Delay.wait conf.intervalMicroseconds
         publish $ Ping peer
         pure $ SendMsgKeepAlive (Cookie 42) sendNext

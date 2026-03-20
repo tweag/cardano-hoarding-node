@@ -37,7 +37,7 @@ import Atelier.Effects.Monitoring.Tracing
     , withSpan
     )
 import Atelier.Effects.Publishing (Pub, Sub, publish)
-import Atelier.Effects.Quota (Quota)
+import Atelier.Effects.Tally (Tally)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Data.BlockHash (BlockHash, mkBlockHash)
 import Hoard.Data.ID (ID)
@@ -47,15 +47,15 @@ import Hoard.Types.Cardano (CardanoBlock)
 import Prelude hiding (Map)
 
 import Atelier.Effects.Publishing qualified as Sub
-import Atelier.Effects.Quota qualified as Quota
+import Atelier.Effects.Tally qualified as Tally
 
 
 component
     :: ( Pub AdversarialBehavior :> es
        , Pub ReceivedBlockOutsideRequestedRange :> es
-       , Quota DuplicateBlocksKey :> es
        , Reader Config :> es
        , Sub BlockReceived :> es
+       , Tally DuplicateBlocksKey :> es
        , Tracing :> es
        )
     => Component es
@@ -83,8 +83,8 @@ runDuplicateBlocksReader eff = do
 
 duplicateBlockGuard
     :: ( Pub AdversarialBehavior :> es
-       , Quota DuplicateBlocksKey :> es
        , Reader Config :> es
+       , Tally DuplicateBlocksKey :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
@@ -99,7 +99,7 @@ duplicateBlockGuard event = withSpan "sentry.duplicate_block_guard" do
                 , hash = blockHash
                 }
     cfg <- asks @Config (.duplicateBlocks)
-    Quota.withQuotaCheck key (classify cfg) $ \case
+    Tally.withTallyCheck key (classify cfg) $ \case
         Nothing -> addAttribute @Text "result" "none"
         Just Critical -> do
             addAttribute @Text "result" "warning"
@@ -165,8 +165,8 @@ receivedBlockIsOutsideRequestedRangeGuard event =
 headerBlockMismatchGuard
     :: ( Pub AdversarialBehavior :> es
        , Pub ReceivedMismatchingBlock :> es
-       , Quota HashMismatchKey :> es
        , Reader Config :> es
+       , Tally HashMismatchKey :> es
        , Tracing :> es
        )
     => BlockReceived -> Eff es ()
@@ -179,7 +179,7 @@ headerBlockMismatchGuard event =
                 | otherwise = Nothing
         case event.headerWithSameSlotNumber of
             Just header | not (blockMatchesHeader header event.block) -> do
-                Quota.withQuotaCheck quotaKey (classify . fromIntegral) \case
+                Tally.withTallyCheck quotaKey (classify . fromIntegral) \case
                     Just severity -> do
                         addAttribute "result" $ show @Text severity
                         publish
