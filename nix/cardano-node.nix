@@ -15,6 +15,7 @@ let
   # Generic function to create a Mithril bootstrap app for any network
   mkMithrilBootstrap =
     {
+      scriptName,
       network,
       displayName,
       aggregatorEndpoint,
@@ -25,7 +26,7 @@ let
     }:
     {
       type = "app";
-      program = "${pkgs.writeShellScript "cardano-node-${network}-bootstrap" ''
+      program = "${pkgs.writeShellScript scriptName ''
         set -euo pipefail
 
         # Configuration for ${network} network
@@ -150,6 +151,7 @@ let
   apps = {
     # Preprod network bootstrap
     cardano-node-preprod-bootstrap = mkMithrilBootstrap {
+      scriptName = "cardano-node-preprod-bootstrap";
       network = "preprod";
       displayName = "Preprod";
       aggregatorEndpoint = "https://aggregator.release-preprod.api.mithril.network/aggregator";
@@ -157,6 +159,18 @@ let
       ancillaryVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey";
       dbPath = "./data/node/preprod";
       nodeApp = "cardano-node-preprod";
+    };
+
+    # Hoard embedded ChainDB bootstrap (preprod)
+    hoard-chaindb-bootstrap-preprod = mkMithrilBootstrap {
+      scriptName = "hoard-chaindb-bootstrap-preprod";
+      network = "preprod";
+      displayName = "Preprod (Hoard ChainDB)";
+      aggregatorEndpoint = "https://aggregator.release-preprod.api.mithril.network/aggregator";
+      genesisVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey";
+      ancillaryVkeyUrl = "https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/ancillary.vkey";
+      dbPath = "./data/chaindb";
+      nodeApp = ".";
     };
 
     # Preprod network node runner
