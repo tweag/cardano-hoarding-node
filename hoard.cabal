@@ -180,6 +180,8 @@ library atelier
   exposed-modules:
       Atelier.Component
       Atelier.Config
+      Atelier.Effects.Cache
+      Atelier.Effects.Cache.Config
       Atelier.Effects.Cache.Singleflight
       Atelier.Effects.Chan
       Atelier.Effects.Clock
@@ -194,9 +196,9 @@ library atelier
       Atelier.Effects.Monitoring.Tracing
       Atelier.Effects.Monitoring.Tracing.Provider
       Atelier.Effects.Publishing
-      Atelier.Effects.Quota
-      Atelier.Effects.Quota.Config
+      Atelier.Effects.Tally
       Atelier.Effects.UUID
+      Atelier.Time
       Atelier.Types.JsonReadShow
       Atelier.Types.QuietSnake
   other-modules:
@@ -381,12 +383,14 @@ test-suite atelier-test
   main-is: Driver.hs
   other-modules:
       Unit.Atelier.Effects.Cache.SingleflightSpec
+      Unit.Atelier.Effects.CacheSpec
+      Unit.Atelier.Effects.ChanSpec
       Unit.Atelier.Effects.Conc.TracedSpec
       Unit.Atelier.Effects.ConcSpec
       Unit.Atelier.Effects.DelaySpec
       Unit.Atelier.Effects.LogSpec
       Unit.Atelier.Effects.PublishingSpec
-      Unit.Atelier.Effects.QuotaSpec
+      Unit.Atelier.Effects.TallySpec
       Paths_hoard
   autogen-modules:
       Paths_hoard
@@ -416,14 +420,19 @@ test-suite atelier-test
       async
     , atelier
     , base
+    , containers
     , effectful
     , effectful-core
     , effectful-plugin
+    , hedgehog
     , hoard-prelude
     , hs-opentelemetry-api
     , hspec
+    , hspec-hedgehog
+    , stm
     , tasty
     , tasty-hspec
+    , time
   mixins:
       base hiding (Prelude)
   default-language: GHC2021

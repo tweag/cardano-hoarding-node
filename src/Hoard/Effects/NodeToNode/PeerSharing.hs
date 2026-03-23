@@ -87,5 +87,5 @@ client unlift conf peer = requestPeers withPeers
                 { peer
                 , peerAddresses = S.fromList $ mapMaybe sockAddrToPeerAddress peerAddrs
                 }
-        Delay.wait $ Delay.micros conf.requestIntervalMicroseconds
+        Delay.wait conf.requestIntervalMicroseconds
         pure $ requestPeers withPeers

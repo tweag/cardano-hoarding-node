@@ -16,6 +16,7 @@ import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
 
+import Atelier.Time (Microsecond)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
@@ -44,7 +45,7 @@ instance Default NodeToNodeConfig where
 data BlockFetchConfig = BlockFetchConfig
     { batchSize :: Int
     -- ^ Number of block fetch requests to batch
-    , batchTimeoutMicroseconds :: Int
+    , batchTimeoutMicroseconds :: Microsecond
     -- ^ Timeout for batching block fetch requests
     , maximumIngressQueue :: Int
     -- ^ Max bytes queued in ingress queue
@@ -78,7 +79,7 @@ instance Default ChainSyncConfig where
 
 
 data KeepAliveConfig = KeepAliveConfig
-    { intervalMicroseconds :: Int
+    { intervalMicroseconds :: Microsecond
     -- ^ Interval between keepalive messages
     , maximumIngressQueue :: Int
     -- ^ Max bytes queued in ingress queue
@@ -96,7 +97,7 @@ instance Default KeepAliveConfig where
 
 
 data PeerSharingConfig = PeerSharingConfig
-    { requestIntervalMicroseconds :: Int
+    { requestIntervalMicroseconds :: Microsecond
     -- ^ Interval between peer sharing requests
     , requestAmount :: Int
     -- ^ Number of peer addresses to request per query

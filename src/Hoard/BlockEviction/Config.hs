@@ -5,12 +5,13 @@ module Hoard.BlockEviction.Config
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
 
+import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
 -- | Configuration for block eviction
 data Config = Config
-    { evictionIntervalSeconds :: !Int
+    { evictionIntervalSeconds :: !Second
     -- ^ How often the eviction trigger runs (in seconds).
     }
     deriving stock (Eq, Generic, Show)

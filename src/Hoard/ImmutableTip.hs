@@ -13,6 +13,7 @@ import Atelier.Component (Component (..), defaultComponent)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, setStatus, withSpan)
 import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.Effects.NodeToClient (NodeToClient)
 import Hoard.Events.ImmutableTipRefreshTriggered (ImmutableTipRefreshTriggered (..))
@@ -45,7 +46,7 @@ component =
             modify (\hoardState -> hoardState {immutableTip = immutableTip})
             immutableTipRefreshTriggeredListener ImmutableTipRefreshTriggered
         , triggers = do
-            refreshInterval <- Delay.seconds <$> asks @Config (.immutableTipRefreshSeconds)
+            refreshInterval <- asks @Config (.immutableTipRefreshSeconds)
             pure
                 [ do
                     Delay.wait refreshInterval
@@ -87,7 +88,7 @@ data Refreshed = Refreshed
 
 
 data Config = Config
-    { immutableTipRefreshSeconds :: Int
+    { immutableTipRefreshSeconds :: Second
     -- ^ Interval between immutable tip refresh
     }
     deriving stock (Eq, Generic, Show)

@@ -23,7 +23,7 @@ import Data.UUID qualified as UUID
 
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Atelier.Effects.Publishing (runPubWriter)
-import Atelier.Effects.Quota (runQuotaConst)
+import Atelier.Effects.Tally (runTallyConst)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Events.BlockFetch (BlockReceived (..))
@@ -154,7 +154,7 @@ testDuplicateBlockGuard = do
                             , criticalThreshold = run.criticalThreshold
                             }
                     }
-            . runQuotaConst run.quota
+            . runTallyConst run.quota
             . execWriter @[AdversarialBehavior]
             . runPubWriter @AdversarialBehavior
             $ duplicateBlockGuard blockReceived
@@ -364,7 +364,7 @@ testHeaderBlockMismatchGuard = do
                             , criticalThreshold = run.criticalThreshold
                             }
                     }
-            . runQuotaConst run.quota
+            . runTallyConst run.quota
             . runWriter @[ReceivedMismatchingBlock]
             . execWriter @[AdversarialBehavior]
             . runPubWriter @ReceivedMismatchingBlock

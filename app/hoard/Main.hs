@@ -17,7 +17,7 @@ import Atelier.Effects.Log (runLog)
 import Atelier.Effects.Monitoring.Metrics (runMetrics)
 import Atelier.Effects.Monitoring.Tracing (TracingConfig, runTracingFromConfig)
 import Atelier.Effects.Publishing (runPubSub)
-import Atelier.Effects.Quota (runQuota)
+import Atelier.Effects.Tally (runTally)
 import Atelier.Effects.UUID (runGenUUID)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
@@ -35,9 +35,9 @@ import Hoard.Effects.Verifier (runByronConfig, runShelleyConfig, runVerifier)
 import Hoard.PeerManager.Peers (Peers)
 import Hoard.Types.HoardState (HoardState)
 
+import Atelier.Effects.Cache.Config qualified as Cache
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
-import Atelier.Effects.Quota.Config qualified as Quota
 import Hoard.BlockEviction qualified as BlockEviction
 import Hoard.CardanoNode.Config qualified as CardanoNode
 import Hoard.Core qualified as Core
@@ -77,7 +77,7 @@ main =
         . runConfig @"cardano_node_integration" @ImmutableTip.Config
         . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
         . runConfig @"peer_manager" @PeerManager.Config
-        . runConfig @"quota" @Quota.Config
+        . runConfig @"quota" @Cache.Config
         . runConfig @"setup" @Core.SetupConfig
         . runConfig @"logging" @Log.Config
         . runConfig @"tracing" @TracingConfig
@@ -97,8 +97,8 @@ main =
         . evalState @Peers def
         . Sentry.runDuplicateBlocksReader
         . runConcByConfig
-        . runQuota @Persistence.PeerSlotKey
-        . runQuota @Sentry.DuplicateBlocksKey
+        . runTally @Persistence.PeerSlotKey
+        . runTally @Sentry.DuplicateBlocksKey
         . runPubSub @BlockFetch.BatchCompleted
         . runPubSub @BlockFetch.BatchFailed
         . runPubSub @BlockFetch.BlockReceived
