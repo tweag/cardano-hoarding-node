@@ -20,8 +20,6 @@ library
       Hoard.API.Peers
       Hoard.API.Util
       Hoard.API.Violations
-      Hoard.BlockEviction
-      Hoard.BlockEviction.Config
       Hoard.Bootstrap
       Hoard.CardanoNode.Config
       Hoard.Collector
@@ -72,6 +70,8 @@ library
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.KeepAlive
       Hoard.Events.PeerSharing
+      Hoard.Eviction
+      Hoard.Eviction.Config
       Hoard.ImmutableTip
       Hoard.Monitoring
       Hoard.OrphanDetection
@@ -446,8 +446,8 @@ test-suite hoard-test
       Integration.DBEffects
       Integration.Hoard.API.PeersSpec
       Integration.Hoard.API.ViolationsSpec
-      Integration.Hoard.DB.BlockEvictionSpec
       Integration.Hoard.DB.BlockPersistenceSpec
+      Integration.Hoard.DB.EvictionSpec
       Integration.Hoard.DB.HeaderPersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.SchemaSpec

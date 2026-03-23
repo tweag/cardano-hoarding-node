@@ -1,7 +1,9 @@
-module Hoard.DB.Schemas.HeaderTags (Row (..), schema) where
+module Hoard.DB.Schemas.HeaderTags (Row (..), schema, hashHasTag) where
 
 import Data.Time (UTCTime)
-import Rel8 (Column, Name, Rel8able, Result, TableSchema)
+import Rel8 (Column, Name, Rel8able, Result, TableSchema, where_, (==.))
+
+import Rel8 qualified
 
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.BlockHash (BlockHash)
@@ -25,3 +27,10 @@ deriving stock instance Show (Row Result)
 
 schema :: TableSchema (Row Name)
 schema = mkSchema "header_tags"
+
+
+hashHasTag :: Rel8.Expr BlockHash -> Rel8.Query (Rel8.Expr Bool)
+hashHasTag hash = Rel8.exists $ do
+    tagRow <- Rel8.each schema
+    where_ $ tagRow.hash ==. hash
+    pure tagRow

@@ -38,7 +38,6 @@ import Hoard.Types.HoardState (HoardState)
 import Atelier.Effects.Cache.Config qualified as Cache
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
-import Hoard.BlockEviction qualified as BlockEviction
 import Hoard.CardanoNode.Config qualified as CardanoNode
 import Hoard.Core qualified as Core
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
@@ -48,6 +47,7 @@ import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.ImmutableTipRefreshTriggered qualified as NodeToClient
 import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Events.PeerSharing qualified as PeerSharing
+import Hoard.Eviction qualified as Eviction
 import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.Monitoring qualified as Monitoring
 import Hoard.OrphanDetection qualified as OrphanDetection
@@ -72,7 +72,7 @@ main =
         . runConfig @"cardano_protocols" @NodeToNode.ProtocolsConfig
         . runConfig @"node_to_node" @NodeToNode.NodeToNodeConfig
         . runConfig @"orphan_detection" @OrphanDetection.Config
-        . runConfig @"block_eviction" @BlockEviction.Config
+        . runConfig @"eviction" @Eviction.Config
         . runConfig @"cardano_node_integration" @CardanoNode.Config
         . runConfig @"cardano_node_integration" @ImmutableTip.Config
         . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
@@ -138,7 +138,7 @@ main =
                 , Server.component
                 , Persistence.component
                 , OrphanDetection.component
-                , BlockEviction.component
+                , Eviction.component
                 , Monitoring.component
                 , PeerManager.component
                 ]
