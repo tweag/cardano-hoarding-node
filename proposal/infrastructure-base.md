@@ -1,4 +1,4 @@
-# Infrastructure Proposal
+# Infrastructure Proposal: Base Stack (Single-node)
 
 ## Goals
 
