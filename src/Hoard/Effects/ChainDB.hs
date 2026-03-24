@@ -37,7 +37,7 @@ import Ouroboros.Consensus.Storage.ChainDB.Impl.Types
     , TraceValidationEvent (..)
     )
 import Ouroboros.Consensus.Storage.LedgerDB.Args (LedgerDbFlavorArgs (LedgerDbFlavorArgsV2))
-import Ouroboros.Network.Block (ChainUpdate (..), castPoint)
+import Ouroboros.Network.Block (ChainUpdate (..), castPoint, genesisPoint)
 
 import Ouroboros.Consensus.Storage.ChainDB.API qualified as CDB
 import Ouroboros.Consensus.Storage.LedgerDB.V2.Args qualified as V2
@@ -49,7 +49,9 @@ import Hoard.Types.Cardano (CardanoBlock, CardanoPoint)
 
 
 data Config = Config
-    { databaseDirectory :: FilePath
+    { enabled :: Bool
+    -- ^ Whether the embedded ChainDB is active
+    , databaseDirectory :: FilePath
     -- ^ Path to the ChainDB on disk
     }
     deriving stock (Eq, Generic, Show)
@@ -57,7 +59,7 @@ data Config = Config
 
 
 instance Default Config where
-    def = Config {databaseDirectory = "chaindb"}
+    def = Config {enabled = False, databaseDirectory = "chaindb"}
 
 
 data ChainDB :: Effect where
@@ -81,43 +83,47 @@ runChainDB
     -> Eff es a
 runChainDB action = do
     cfg <- ask @Config
-    protocolInfo <- ask @(ProtocolInfo CardanoBlock)
-    withEffToIO (ConcUnlift Persistent Unlimited) $ \runInIO -> do
-        let tracer = Tracer (runInIO . runTracer mkTracer)
-            mkHasFS = stdMkChainDbHasFS cfg.databaseDirectory
-            flavorArgs = LedgerDbFlavorArgsV2 (V2.V2Args V2.InMemoryHandleArgs)
-            customise args = args {cdbsArgs = args.cdbsArgs {cdbsTracer = tracer}}
-        withRegistry $ \registry -> do
-            (chainDB, _) <-
-                openChainDB
-                    registry
-                    protocolInfo.pInfoConfig
-                    protocolInfo.pInfoInitLedger
-                    mkHasFS
-                    mkHasFS
-                    flavorArgs
-                    defaultArgs
-                    customise
-            _ <- forkThread registry "chaindb-follower" $ withRegistry $ \followerRegistry -> do
-                follower <-
-                    CDB.newFollower
-                        chainDB
-                        followerRegistry
-                        CDB.SelectedChain
-                        (CDB.GetBlock :: CDB.BlockComponent CardanoBlock CardanoBlock)
-                tip <- atomically $ CDB.getTipPoint chainDB
-                _ <- followerForward follower [tip]
-                forever
-                    $ followerInstructionBlocking follower >>= \case
-                        AddBlock block -> runInIO $ publish (ChainExtended (blockPoint block))
-                        RollBack point -> runInIO $ publish (BlockRolledBack point)
-            runInIO $ interpretWith action \_env -> \case
-                FeedBlock block ->
-                    liftIO $ CDB.addBlock_ chainDB noPunishment block
-                GetImmutableTip ->
-                    liftIO $ atomically $ do
-                        ledger <- CDB.getImmutableLedger chainDB
-                        pure $ castPoint (getTip ledger)
+    if not cfg.enabled then interpretWith action \_ -> \case
+        FeedBlock _ -> pure ()
+        GetImmutableTip -> pure genesisPoint
+    else do
+        protocolInfo <- ask @(ProtocolInfo CardanoBlock)
+        withEffToIO (ConcUnlift Persistent Unlimited) $ \runInIO -> do
+            let tracer = Tracer (runInIO . runTracer mkTracer)
+                mkHasFS = stdMkChainDbHasFS cfg.databaseDirectory
+                flavorArgs = LedgerDbFlavorArgsV2 (V2.V2Args V2.InMemoryHandleArgs)
+                customise args = args {cdbsArgs = args.cdbsArgs {cdbsTracer = tracer}}
+            withRegistry $ \registry -> do
+                (chainDB, _) <-
+                    openChainDB
+                        registry
+                        protocolInfo.pInfoConfig
+                        protocolInfo.pInfoInitLedger
+                        mkHasFS
+                        mkHasFS
+                        flavorArgs
+                        defaultArgs
+                        customise
+                _ <- forkThread registry "chaindb-follower" $ withRegistry $ \followerRegistry -> do
+                    follower <-
+                        CDB.newFollower
+                            chainDB
+                            followerRegistry
+                            CDB.SelectedChain
+                            (CDB.GetBlock :: CDB.BlockComponent CardanoBlock CardanoBlock)
+                    tip <- atomically $ CDB.getTipPoint chainDB
+                    _ <- followerForward follower [tip]
+                    forever
+                        $ followerInstructionBlocking follower >>= \case
+                            AddBlock block -> runInIO $ publish (ChainExtended (blockPoint block))
+                            RollBack point -> runInIO $ publish (BlockRolledBack point)
+                runInIO $ interpretWith action \_env -> \case
+                    FeedBlock block ->
+                        liftIO $ CDB.addBlock_ chainDB noPunishment block
+                    GetImmutableTip ->
+                        liftIO $ atomically $ do
+                            ledger <- CDB.getImmutableLedger chainDB
+                            pure $ castPoint (getTip ledger)
 
 
 mkTracer

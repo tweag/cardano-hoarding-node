@@ -98,6 +98,7 @@ block_eviction:
   eviction_interval_seconds: 3600 # 1 hour
 
 chain_db:
+  enabled: false
   database_directory: data/chaindb
 
 # Cardano node integration configuration
