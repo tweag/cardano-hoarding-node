@@ -12,7 +12,8 @@ import Hoard.API.Data.Block (Block (..))
 import Hoard.API.Data.BlockViolation (SlotDispute)
 import Hoard.API.Util ((::>))
 import Hoard.Data.BlockTag (BlockTag)
-import Hoard.Effects.BlockRepo (BlockRepo, SlotRange (..))
+import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Types.SlotRange (SlotRange (..))
 import Prelude hiding ((:>))
 
 import Hoard.API.Data.Block qualified as Block

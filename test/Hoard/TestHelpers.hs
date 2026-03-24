@@ -35,6 +35,7 @@ import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Hoard.API (API, Routes, server)
 import Hoard.Effects.BlockRepo (BlockRepo, runBlockRepo)
 import Hoard.Effects.DB (DBRead, DBWrite, runDB)
+import Hoard.Effects.HeaderRepo (HeaderRepo, runHeaderRepo)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo)
 import Hoard.Types.HoardState (HoardState)
 
@@ -53,6 +54,7 @@ withTestApp
     :: forall b es
      . ( BlockRepo :> es
        , Clock :> es
+       , HeaderRepo :> es
        , IOE :> es
        , Metrics :> es
        , PeerRepo :> es
@@ -97,6 +99,7 @@ runEffectStackTestDB pools eff = do
             . runReader @DBPools pools
             . runErrorNoCallStack @Text
             . runDB
+            . runHeaderRepo
             . runBlockRepo
             . runPeerRepo
             . evalState @HoardState def
@@ -108,6 +111,7 @@ type TestAppDBEffs =
     [ State HoardState
     , PeerRepo
     , BlockRepo
+    , HeaderRepo
     , DBRead
     , DBWrite
     , Error Text
