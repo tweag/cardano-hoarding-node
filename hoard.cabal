@@ -22,6 +22,8 @@ library
       Hoard.API.Violations
       Hoard.Bootstrap
       Hoard.CardanoNode.Config
+      Hoard.ChainDB
+      Hoard.ChainDB.Events
       Hoard.Collector
       Hoard.Control.Exception
       Hoard.Core
@@ -47,6 +49,7 @@ library
       Hoard.DB.Schemas.Peers
       Hoard.DB.Schemas.SelectedPeers
       Hoard.Effects.BlockRepo
+      Hoard.Effects.ChainDB
       Hoard.Effects.ConfigPath
       Hoard.Effects.DB
       Hoard.Effects.Environment
@@ -159,7 +162,9 @@ library
     , prometheus-client
     , prometheus-metrics-ghc
     , rel8
+    , resource-registry
     , servant-server
+    , stm
     , stm-containers
     , string-conversions
     , text

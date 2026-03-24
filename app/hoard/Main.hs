@@ -4,6 +4,7 @@ import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.FileSystem (runFileSystem)
+import Effectful.Reader.Static (ask)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Temporary (runTemporary)
 import Effectful.Timeout (runTimeout)
@@ -21,6 +22,7 @@ import Atelier.Effects.Tally (runTally)
 import Atelier.Effects.UUID (runGenUUID)
 import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
+import Hoard.Effects.ChainDB (runChainDB)
 import Hoard.Effects.ConfigPath (runConfig, runConfigRoot)
 import Hoard.Effects.DB (runDB)
 import Hoard.Effects.Environment (loadEnv)
@@ -39,7 +41,10 @@ import Atelier.Effects.Cache.Config qualified as Cache
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
 import Hoard.CardanoNode.Config qualified as CardanoNode
+import Hoard.ChainDB qualified as ChainDB
+import Hoard.ChainDB.Events qualified as ChainDB
 import Hoard.Core qualified as Core
+import Hoard.Effects.ChainDB qualified as ChainDB
 import Hoard.Effects.NodeToNode.Config qualified as NodeToNode
 import Hoard.Effects.WithSocket qualified as WithSocket
 import Hoard.Events.BlockFetch qualified as BlockFetch
@@ -76,6 +81,7 @@ main =
         . runConfig @"cardano_node_integration" @CardanoNode.Config
         . runConfig @"cardano_node_integration" @ImmutableTip.Config
         . runConfig @"node_sockets" @WithSocket.NodeSocketsConfig
+        . runConfig @"chain_db" @ChainDB.Config
         . runConfig @"peer_manager" @PeerManager.Config
         . runConfig @"quota" @Cache.Config
         . runConfig @"setup" @Core.SetupConfig
@@ -118,10 +124,15 @@ main =
         . runPubSub @PeerManager.PeerDisconnected
         . runPubSub @PeerManager.PeerRequested
         . runPubSub @PeerSharing.PeersReceived
+        . runPubSub @ChainDB.ChainExtended
+        . runPubSub @ChainDB.BlockSealed
+        . runPubSub @ChainDB.BlockRejected
+        . runPubSub @ChainDB.BlockRolledBack
         . runPubSub @Sentry.AdversarialBehavior
         . runPubSub @Sentry.ReceivedBlockOutsideRequestedRange
         . runPubSub @Sentry.ReceivedMismatchingBlock
         . runGenUUID
+        . runChainDB
         . runNodeToClient
         . runNodeToNode
         . runDB
@@ -131,15 +142,17 @@ main =
         . runHoardStateRepo
         . runPeerNoteRepo
         $ do
+            chainDBCfg <- ask @ChainDB.Config
             runSystem
-                [ Core.component
-                , ImmutableTip.component
-                , Sentry.component
-                , Server.component
-                , Persistence.component
-                , OrphanDetection.component
-                , Eviction.component
-                , Monitoring.component
-                , PeerManager.component
-                ]
+                $ [ Core.component
+                  , ImmutableTip.component
+                  , Sentry.component
+                  , Server.component
+                  , Persistence.component
+                  , OrphanDetection.component
+                  , Eviction.component
+                  , Monitoring.component
+                  , PeerManager.component
+                  ]
+                    <> [ChainDB.component | chainDBCfg.enabled]
             Conc.awaitAll
