@@ -20,12 +20,16 @@ import Rel8
 import Hoard.DB.Schema (mkSchema)
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra, headerToEra)
-import Hoard.Data.Header (Header (..), decodeCardanoHeader, encodeCardanoHeader)
+import Hoard.Data.Header (Header (..))
+import Hoard.Data.Serialized (Serialized)
+import Hoard.Types.Cardano (CardanoHeader)
+
+import Hoard.Data.Serialized qualified as Serialized
 
 
 data Row f = Row
     { hash :: Column f BlockHash
-    , headerData :: Column f ByteString
+    , headerData :: Column f (Serialized CardanoHeader)
     , headerEra :: Column f BlockEra
     , slotNumber :: Column f Int64
     , blockNumber :: Column f Int64
@@ -47,7 +51,7 @@ schema = mkSchema "headers"
 -- | Convert a database row to a Header domain type
 headerFromRow :: Row Result -> Either Text Header
 headerFromRow row = do
-    headerData <- decodeCardanoHeader row.headerEra row.headerData
+    headerData <- Serialized.deserializeHeader row.headerEra row.headerData
     pure
         $ Header
             { hash = row.hash
@@ -63,7 +67,7 @@ rowFromHeader :: Header -> Row Expr
 rowFromHeader header =
     Row
         { hash = lit header.hash
-        , headerData = lit $ encodeCardanoHeader header.headerData
+        , headerData = lit $ Serialized.serializeHeader header.headerData
         , headerEra = lit $ headerToEra $ header.headerData
         , slotNumber = lit $ fromIntegral header.slotNumber
         , blockNumber = lit $ fromIntegral header.blockNumber

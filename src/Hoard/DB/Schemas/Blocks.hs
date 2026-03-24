@@ -17,11 +17,15 @@ import Rel8
     )
 
 import Hoard.DB.Schema (mkSchema)
-import Hoard.Data.Block (Block (..), decodeCardanoBlock, encodeCardanoBlock)
+import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Eras (BlockEra (..), blockToEra)
 import Hoard.Data.PoolID (PoolID)
+import Hoard.Data.Serialized (Serialized)
 import Hoard.OrphanDetection.Data (BlockClassification)
+import Hoard.Types.Cardano (CardanoBlock)
+
+import Hoard.Data.Serialized qualified as Serialized
 
 
 data Row f = Row
@@ -29,7 +33,7 @@ data Row f = Row
     , slotNumber :: Column f Int64
     , poolId :: Column f PoolID
     , blockEra :: Column f BlockEra
-    , blockData :: Column f ByteString
+    , blockData :: Column f (Serialized CardanoBlock)
     , validationStatus :: Column f Text
     , validationReason :: Column f Text
     , firstSeen :: Column f UTCTime
@@ -50,7 +54,7 @@ schema = mkSchema "blocks"
 
 blockFromRow :: Row Result -> Either Text Block
 blockFromRow row = do
-    bd <- decodeCardanoBlock row.blockEra row.blockData
+    bd <- Serialized.deserializeBlock row.blockEra row.blockData
     pure
         $ Block
             { hash = row.hash
@@ -72,7 +76,7 @@ rowFromBlock blk = do
         , slotNumber = lit blk.slotNumber
         , poolId = lit blk.poolId
         , blockEra = lit $ blockToEra blk.blockData
-        , blockData = lit $ encodeCardanoBlock blk.blockData
+        , blockData = lit $ Serialized.serializeBlock blk.blockData
         , validationStatus = lit blk.validationStatus
         , validationReason = lit blk.validationReason
         , firstSeen = lit blk.firstSeen
