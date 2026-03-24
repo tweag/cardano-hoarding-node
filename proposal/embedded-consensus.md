@@ -5,6 +5,8 @@
 - [embedded-consensus-hoard-design.md](embedded-consensus-hoard-design.md) —
   implementation design: how ChainDB maps onto Hoard's Component model, effect
   stack changes, and what happens to ImmutableTip and OrphanDetection
+- [header-validation.md](header-validation.md) — implementation design for the
+  `HeaderValidation` component (Stage 1b)
 
 ## Overview
 
@@ -135,6 +137,39 @@ that is structurally well-formed but claims a slot its leader had no right to
 produce, or contains transactions that violate ledger rules, is a signal of
 adversarial behaviour.
 
+## Header validation
+
+The hoarding node's ChainSync client currently collects headers from peers
+without validating them — they are published as `HeaderReceived` events and
+acted on downstream without any consensus checks.
+
+The embedded ChainDB's `LedgerDB` makes header-level validation possible. The
+consensus library's `validateHeader` function checks a header against a
+`LedgerView` — a lightweight projection of the ledger state that captures the
+stake distribution and protocol parameters relevant to leader election. Because
+`LedgerView` values can be *forecast* from the current ledger state for up to
+~3k/f slots ahead (the forecast horizon), headers can be validated as soon as
+they arrive, before their block bodies are downloaded.
+
+Two classes of error are detectable at the header level:
+
+| Error class | What it means |
+|---|---|
+| **Envelope** | Wrong block/slot number or prev-hash mismatch — the header is structurally inconsistent with the peer's declared chain |
+| **Consensus protocol** | Invalid VRF proof or KES signature — the peer is claiming a slot it had no right to produce |
+
+Ledger-rule errors (invalid transactions, UTxO violations) require the full
+block body and remain the domain of `BlockRejected`.
+
+Early header validation surfaces adversarial behaviour before bandwidth is spent
+fetching the body. It also mirrors what a full Cardano node does internally: the
+consensus ChainSync client validates every header on `RollForward` before it
+instructs BlockFetch to download the block.
+
+Because `LedgerView` forecasting has a finite horizon, headers for slots too far
+ahead of the current tip are skipped silently. This is the same behaviour as the
+full node.
+
 ## What changes
 
 **Removed:**
@@ -160,6 +195,10 @@ adversarial behaviour.
   `getImmutableTip`; the follower and tracer run inside the interpreter and
   publish `ChainExtended`, `BlockSealed`, `BlockRolledBack`, and `BlockRejected`
   directly into the effect stack
+- `HeaderValidation` component — subscribes to `HeaderReceived` and validates
+  each header using the ChainDB's ledger forecast, publishing
+  `InvalidHeaderReceived` on failure; maintains per-peer `HeaderStateHistory`
+  and rewinds it on `RollBackward`
 
 ## Trade-offs
 
