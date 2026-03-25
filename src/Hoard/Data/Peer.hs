@@ -8,6 +8,7 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
+import GHC.Generics (Generically (Generically))
 import Network.Socket (SockAddr)
 
 import Data.IP qualified as IP
@@ -29,7 +30,7 @@ data Peer = Peer
     , discoveredVia :: Text
     }
     deriving stock (Eq, Generic, Ord, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically Peer
 
 
 -- | Represents a peer address (host:port)
@@ -38,8 +39,8 @@ data PeerAddress = PeerAddress
     , port :: Int
     }
     deriving stock (Eq, Generic, Ord)
-    deriving anyclass (FromJSON, ToJSON)
     deriving (ToAttribute) via (ToAttributeShow PeerAddress)
+    deriving (FromJSON, ToJSON) via Generically PeerAddress
 
 
 instance Show PeerAddress where

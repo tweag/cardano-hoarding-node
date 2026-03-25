@@ -11,20 +11,21 @@ module Hoard.Types.Environment
 where
 
 import Data.Aeson (FromJSON (..), withObject, (.:))
+import GHC.Generics (Generically (Generically))
 
 
 data Topology = Topology
     { peerSnapshotFile :: FilePath
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via Generically Topology
 
 
 data PeerSnapshotFile = PeerSnapshotFile
     { bigLedgerPools :: [LedgerPool]
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via Generically PeerSnapshotFile
 
 
 data LedgerPool = LedgerPool
@@ -49,7 +50,7 @@ data BootstrapPeerIP = BootstrapPeerIP
     , port :: Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via Generically BootstrapPeerIP
 
 
 data BootstrapPeerDomain = BootstrapPeerDomain
@@ -57,4 +58,4 @@ data BootstrapPeerDomain = BootstrapPeerDomain
     , port :: Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via Generically BootstrapPeerDomain

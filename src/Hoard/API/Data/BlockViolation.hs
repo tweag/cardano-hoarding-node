@@ -8,6 +8,7 @@ module Hoard.API.Data.BlockViolation
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Time (UTCTime)
+import GHC.Generics (Generically (Generically))
 
 import Data.Map.Strict qualified as Map
 
@@ -37,7 +38,7 @@ data BlockViolation = BlockViolation
     , receipts :: [ReceiptInfo] -- List of peers that sent us this block
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically BlockViolation
 
 
 -- | Receipt information for a block/header
@@ -46,7 +47,7 @@ data ReceiptInfo = ReceiptInfo
     , receivedAt :: UTCTime
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically ReceiptInfo
 
 
 -- | A slot dispute: a slot where multiple competing blocks were observed.
@@ -59,7 +60,7 @@ data SlotDispute = SlotDispute
     -- ^ The orphaned block(s) that lost this slot
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically SlotDispute
 
 
 -- | Convert a Block and its receipts to a BlockViolation DTO
