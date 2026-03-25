@@ -6,6 +6,7 @@ module Hoard.API.Peers
     ) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generically (Generically))
 import Servant
     ( DeleteNoContent
     , Get
@@ -40,7 +41,7 @@ data PinPeerRequest = PinPeerRequest
     }
     deriving stock (Generic)
     -- TODO: Consider adding ToJSON instance to QuietSnake and use that here.
-    deriving anyclass (ToJSON)
+    deriving (ToJSON) via Generically PinPeerRequest
     deriving (FromJSON) via QuietSnake PinPeerRequest
 
 

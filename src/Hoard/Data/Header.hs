@@ -6,6 +6,7 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (UTCTime)
+import GHC.Generics (Generically (Generically))
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.ID (ID)
@@ -39,4 +40,4 @@ data HeaderReceipt = HeaderReceipt
     , receivedAt :: UTCTime
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically HeaderReceipt

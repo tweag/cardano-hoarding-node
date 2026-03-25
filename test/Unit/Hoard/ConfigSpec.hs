@@ -5,6 +5,7 @@ import Data.Aeson (FromJSON, Value (..), object)
 import Data.Default (Default (..))
 import Effectful (runEff)
 import Effectful.Reader.Static (Reader, ask, runReader)
+import GHC.Generics (Generically (Generically))
 import System.Environment (getEnvironment, setEnv, unsetEnv)
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldSatisfy)
 
@@ -189,7 +190,7 @@ data TestServerConfig = TestServerConfig
     , port :: Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON)
+    deriving (FromJSON) via Generically TestServerConfig
 
 
 instance Default TestServerConfig where
