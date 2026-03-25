@@ -2,9 +2,9 @@
 
 ## Related
 
-- [embedded-consensus.md](embedded-consensus.md) — motivation and overview;
+- [../proposal.md](../proposal.md) — motivation and overview;
   read that first
-- [embedded-consensus-hoard-design.md](embedded-consensus-hoard-design.md) —
+- [../design.md](../design.md) —
   ChainDB component and effect design this feature builds on
 
 ## Overview

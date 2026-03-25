@@ -2,9 +2,9 @@
 
 ## Related
 
-- [header-validation.md](header-validation.md) — the proposal this document
+- [proposal.md](proposal.md) — the proposal this document
   implements; read that first for context and motivation
-- [embedded-consensus-hoard-design.md](embedded-consensus-hoard-design.md) —
+- [../design.md](../design.md) —
   ChainDB component and effect design this feature builds on
 
 ## Overview

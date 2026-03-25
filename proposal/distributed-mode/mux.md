@@ -2,7 +2,7 @@
 
 ## Related
 
-- [distributed-mode.md](distributed-mode.md) — the distributed deployment this enables
+- [proposal.md](proposal.md) — the distributed deployment this enables
 - [keyed-pubsub.md](keyed-pubsub.md) — a parallel idea that applies the same routing concept locally
 
 ## Overview

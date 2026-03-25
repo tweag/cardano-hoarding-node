@@ -46,7 +46,7 @@ scraped/shipped to a central Prometheus and Loki on the coordinator side.
 
 ## Documents
 
-- [infrastructure-base.md](infrastructure-base.md) —
+- [base-stack.md](base-stack.md) —
   proposed stack for single-node deployment: Terraform, NixOS, deploy-rs,
   sops-nix, sqitch, GitHub Actions CI/CD
 - Distributed mode infrastructure — to be written; will cover collector

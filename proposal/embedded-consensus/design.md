@@ -2,9 +2,9 @@
 
 ## Related
 
-- [embedded-consensus.md](embedded-consensus.md) — the proposal this document
+- [proposal.md](proposal.md) — the proposal this document
   implements; read that first for context and motivation
-- [header-validation-hoard-design.md](header-validation-hoard-design.md) —
+- [header-validation/design.md](header-validation/design.md) —
   implementation design for header validation (Stage 1b)
 
 ## Overview
@@ -268,7 +268,7 @@ validated and chain updates observed.
 ledger forecast, detecting invalid consensus proofs before block bodies are
 downloaded. Independent of Stages 2–4.
 
-See [header-validation-hoard-design.md](header-validation-hoard-design.md) for
+See [header-validation/design.md](header-validation/design.md) for
 the full design.
 
 **Adds:**

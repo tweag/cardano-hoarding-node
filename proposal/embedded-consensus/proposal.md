@@ -2,7 +2,7 @@
 
 ## Related
 
-- [embedded-consensus-hoard-design.md](embedded-consensus-hoard-design.md) —
+- [design.md](design.md) —
   implementation design: how ChainDB maps onto Hoard's Component model, effect
   stack changes, and what happens to ImmutableTip and OrphanDetection
 
