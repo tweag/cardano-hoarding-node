@@ -17,6 +17,7 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Monitoring.Metrics (Metrics)
 import Hoard.API (API, server)
 import Hoard.Effects.BlockRepo (BlockRepo)
+import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
 import Hoard.Server.Config (Config (..))
 
@@ -26,6 +27,7 @@ import Atelier.Effects.Log qualified as Log
 component
     :: ( BlockRepo :> es
        , Clock :> es
+       , HeaderRepo :> es
        , IOE :> es
        , Log :> es
        , Metrics :> es

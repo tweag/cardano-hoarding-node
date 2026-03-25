@@ -19,6 +19,8 @@ library
       Hoard.API.Blocks
       Hoard.API.Data.Block
       Hoard.API.Data.BlockViolation
+      Hoard.API.Data.Header
+      Hoard.API.Headers
       Hoard.API.Peers
       Hoard.API.Util
       Hoard.Bootstrap
@@ -95,6 +97,7 @@ library
       Hoard.Types.Environment
       Hoard.Types.HoardState
       Hoard.Types.NodeIP
+      Hoard.Types.SlotRange
   other-modules:
       Paths_hoard
   autogen-modules:

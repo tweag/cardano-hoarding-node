@@ -9,7 +9,6 @@ module Hoard.Effects.BlockRepo
     , evictBlocks
     , tagBlock
     , getBlocks
-    , SlotRange (..)
     , runBlockRepo
     , runBlockRepoState
     ) where
@@ -39,6 +38,7 @@ import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
+import Hoard.Types.SlotRange (SlotRange (..))
 
 import Atelier.Effects.Cache.Singleflight qualified as Singleflight
 import Hoard.DB.Schemas.BlockTags qualified as BlockTags
@@ -57,12 +57,6 @@ data BlockRepo :: Effect where
     EvictBlocks :: BlockRepo m Int
     TagBlock :: BlockHash -> [BlockTag] -> BlockRepo m ()
     GetBlocks :: SlotRange -> [BlockTag] -> BlockRepo m [Block]
-
-
-data SlotRange = SlotRange
-    { from :: Maybe Int64
-    , to :: Maybe Int64
-    }
 
 
 makeEffect ''BlockRepo

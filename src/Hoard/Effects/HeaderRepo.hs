@@ -3,6 +3,7 @@ module Hoard.Effects.HeaderRepo
     , upsertHeader
     , tagHeader
     , evictHeaders
+    , getHeaders
     , runHeaderRepo
     )
 where
@@ -13,7 +14,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
-import Rel8 (lit, where_)
+import Rel8 (in_, lit, where_, (&&.), (<=.), (==.), (>=.))
 
 import Hasql.Transaction qualified as TX
 import Rel8 qualified
@@ -22,8 +23,9 @@ import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.DB (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
 import Hoard.Effects.Verifier (Validity (..), Verified, getVerified)
+import Hoard.Types.SlotRange (SlotRange (..))
 
 import Hoard.DB.Schemas.BlockTags qualified as BlockTagsSchema
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
@@ -49,6 +51,7 @@ data HeaderRepo :: Effect where
         -> HeaderRepo m ()
     TagHeader :: BlockHash -> [HeaderTag] -> HeaderRepo m ()
     EvictHeaders :: HeaderRepo m Int
+    GetHeaders :: SlotRange -> [HeaderTag] -> HeaderRepo m [Header]
 
 
 -- | Template Haskell to generate smart constructors
@@ -57,7 +60,7 @@ makeEffect ''HeaderRepo
 
 -- | Run the HeaderRepo effect using the DBWrite effect
 runHeaderRepo
-    :: (DBWrite :> es)
+    :: (DBRead :> es, DBWrite :> es)
     => Eff (HeaderRepo : es) a
     -> Eff es a
 runHeaderRepo = interpret_ \case
@@ -71,6 +74,9 @@ runHeaderRepo = interpret_ \case
         runTransaction
             "evict_headers"
             evictHeadersTrans
+    GetHeaders range tags ->
+        runQuery "get_headers"
+            $ getHeadersImpl range tags
 
 
 -- | Upsert a header and record receipt from a peer
@@ -163,3 +169,25 @@ deleteHeadersByHashesQuery hashes =
                 , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
                 , returning = Rel8.NoReturning
                 }
+
+
+getHeadersImpl :: SlotRange -> [HeaderTag] -> Statement () [Header]
+getHeadersImpl (SlotRange mFromSlot mToSlot) tags =
+    fmap (mapMaybe (rightToMaybe . HeadersSchema.headerFromRow)) . Rel8.run . Rel8.select $ do
+        block <- Rel8.each HeadersSchema.schema
+        tagsMatch <-
+            if (length tags > 0) then
+                Rel8.exists
+                    $ Rel8.filter (\tag -> (block.hash ==. tag.hash) &&. (tag.tag `in_` litTags))
+                        =<< Rel8.each HeaderTagsSchema.schema
+            else
+                pure $ lit True
+        where_
+            $ (block.slotNumber >=. lit fromSlot)
+                &&. (block.slotNumber <=. lit toSlot)
+                &&. tagsMatch
+        pure block
+  where
+    fromSlot = fromMaybe minBound mFromSlot
+    toSlot = fromMaybe maxBound mToSlot
+    litTags = lit <$> tags
