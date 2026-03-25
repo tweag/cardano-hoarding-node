@@ -37,7 +37,6 @@
           (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
           (hsPkgs."base" or (errorHandler.buildDepError "base"))
           (hsPkgs."base16-bytestring" or (errorHandler.buildDepError "base16-bytestring"))
-          (hsPkgs."base64-bytestring" or (errorHandler.buildDepError "base64-bytestring"))
           (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
           (hsPkgs."cardano-api" or (errorHandler.buildDepError "cardano-api"))
           (hsPkgs."cardano-ledger-byron" or (errorHandler.buildDepError "cardano-ledger-byron"))
@@ -103,6 +102,7 @@
           depends = [
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."base64-bytestring" or (errorHandler.buildDepError "base64-bytestring"))
             (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
             (hsPkgs."casing" or (errorHandler.buildDepError "casing"))
             (hsPkgs."containers" or (errorHandler.buildDepError "containers"))

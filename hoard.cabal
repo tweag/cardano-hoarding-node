@@ -124,7 +124,6 @@ library
     , atelier
     , base
     , base16-bytestring
-    , base64-bytestring
     , bytestring
     , cardano-api
     , cardano-ledger-byron
@@ -207,6 +206,7 @@ library atelier
       Atelier.Effects.Tally
       Atelier.Effects.UUID
       Atelier.Time
+      Atelier.Types.Base64
       Atelier.Types.HttpApiDataReadShow
       Atelier.Types.JsonReadShow
       Atelier.Types.QuietSnake
@@ -237,6 +237,7 @@ library atelier
   build-depends:
       aeson
     , base
+    , base64-bytestring
     , bytestring
     , casing
     , containers
