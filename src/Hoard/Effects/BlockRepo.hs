@@ -5,9 +5,11 @@ module Hoard.Effects.BlockRepo
     , blockExists
     , classifyBlock
     , getUnclassifiedBlocksBeforeSlot
-    , getViolations
+    , getSlotDisputesInRange
     , evictBlocks
     , tagBlock
+    , getBlocks
+    , SlotRange (..)
     , runBlockRepo
     , runBlockRepoState
     ) where
@@ -21,7 +23,7 @@ import Effectful.State.Static.Shared (State, get, gets, modify, put)
 import Effectful.TH (makeEffect)
 import Hasql.Statement (Statement)
 import Hasql.Transaction (Transaction)
-import Rel8 (isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
+import Rel8 (in_, isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
 
 import Data.Set qualified as Set
 import Hasql.Transaction qualified as TX
@@ -50,10 +52,17 @@ data BlockRepo :: Effect where
     GetBlock :: CardanoHeader -> BlockRepo m (Maybe Block)
     BlockExists :: BlockHash -> BlockRepo m Bool
     ClassifyBlock :: BlockHash -> BlockClassification -> UTCTime -> BlockRepo m ()
+    GetSlotDisputesInRange :: Maybe Int64 -> Maybe Int64 -> BlockRepo m [SlotDispute]
     GetUnclassifiedBlocksBeforeSlot :: Int64 -> Int -> Set BlockHash -> BlockRepo m [Block]
-    GetViolations :: Maybe Int64 -> Maybe Int64 -> BlockRepo m [SlotDispute]
     EvictBlocks :: BlockRepo m Int
     TagBlock :: BlockHash -> [BlockTag] -> BlockRepo m ()
+    GetBlocks :: SlotRange -> [BlockTag] -> BlockRepo m [Block]
+
+
+data SlotRange = SlotRange
+    { from :: Maybe Int64
+    , to :: Maybe Int64
+    }
 
 
 makeEffect ''BlockRepo
@@ -78,12 +87,12 @@ runBlockRepo action =
         ClassifyBlock blockHash classification timestamp ->
             runTransaction "classify_block"
                 $ classifyBlockTrans blockHash classification timestamp
+        GetSlotDisputesInRange mbMinSlot mbMaxSlot -> do
+            (_parseErrors, disputes) <- runQuery "get_violations" $ getViolationsQuery mbMinSlot mbMaxSlot
+            pure disputes
         GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> do
             runQuery "get_unclassified_blocks"
                 $ getUnclassifiedBlocksQuery slot limit excludeHashes
-        GetViolations mbMinSlot mbMaxSlot -> do
-            (_parseErrors, disputes) <- runQuery "get_violations" $ getViolationsQuery mbMinSlot mbMaxSlot
-            pure disputes
         EvictBlocks -> do
             hashes <- runTransaction "evict_blocks" evictUninterestingBlocksTrans
             -- Remove evicted blocks from cache so future lookups hit the DB
@@ -92,6 +101,9 @@ runBlockRepo action =
         TagBlock hash tag ->
             runTransaction "tag_block"
                 $ tagBlockTrans hash tag
+        GetBlocks range tags ->
+            runQuery "get_blocks_in_range"
+                $ getBlocksQuery range tags
 
 
 insertBlocksTrans :: [Block] -> Transaction ()
@@ -282,6 +294,28 @@ tagBlockTrans hash tags =
     TX.statement () (BlockTags.insertTagsStatement [hash] tags)
 
 
+getBlocksQuery :: SlotRange -> [BlockTag] -> Statement () [Block]
+getBlocksQuery (SlotRange mFromSlot mToSlot) tags =
+    fmap (mapMaybe (rightToMaybe . Blocks.blockFromRow)) . Rel8.run . Rel8.select $ do
+        block <- Rel8.each Blocks.schema
+        tagsMatch <-
+            if (length tags > 0) then
+                Rel8.exists
+                    $ Rel8.filter (\tag -> (block.hash ==. tag.blockHash) &&. (tag.tag `in_` litTags))
+                        =<< Rel8.each BlockTags.schema
+            else
+                pure $ lit True
+        where_
+            $ (block.slotNumber >=. lit fromSlot)
+                &&. (block.slotNumber <=. lit toSlot)
+                &&. tagsMatch
+        pure block
+  where
+    fromSlot = fromMaybe minBound mFromSlot
+    toSlot = fromMaybe maxBound mToSlot
+    litTags = lit <$> tags
+
+
 runBlockRepoState
     :: ( State (Set (BlockHash, BlockTag)) :> es
        , State [Block] :> es
@@ -303,6 +337,13 @@ runBlockRepoState = interpret_ \case
                     Nothing -> [blockHash]
                     Just b -> map (.hash) $ filter (\b' -> b'.slotNumber == b.slotNumber) blocks
             modify @(Set (BlockHash, BlockTag)) $ Set.union $ Set.fromList $ (,SlotDispute) <$> hashesAtSlot
+    GetSlotDisputesInRange mbMinSlot mbMaxSlot -> do
+        blocks <- gets $ filter $ \block ->
+            isJust block.classification
+                && maybe True (\minSlot -> block.slotNumber >= minSlot) mbMinSlot
+                && maybe True (\maxSlot -> block.slotNumber <= maxSlot) mbMaxSlot
+        -- In test state, return empty receipts list and convert to DTOs
+        pure $ groupIntoDisputes $ fmap (\block -> blockToViolation block []) blocks
     GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes ->
         gets
             $ take limit
@@ -312,13 +353,6 @@ runBlockRepoState = interpret_ \case
                             && block.slotNumber < slot
                             && Set.notMember block.hash excludeHashes
                     )
-    GetViolations mbMinSlot mbMaxSlot -> do
-        blocks <- gets $ filter $ \block ->
-            isJust block.classification
-                && maybe True (\minSlot -> block.slotNumber >= minSlot) mbMinSlot
-                && maybe True (\maxSlot -> block.slotNumber <= maxSlot) mbMaxSlot
-        -- In test state, return empty receipts list and convert to DTOs
-        pure $ groupIntoDisputes $ fmap (\block -> blockToViolation block []) blocks
     EvictBlocks -> do
         blocks <- get
         tags <- get @(Set (BlockHash, BlockTag))
@@ -333,3 +367,12 @@ runBlockRepoState = interpret_ \case
         pure (length evictable)
     TagBlock hash tags ->
         modify @(Set (BlockHash, BlockTag)) $ Set.union $ Set.fromList $ (hash,) <$> tags
+    GetBlocks (SlotRange mFromSlot mToSlot) filteredTags -> do
+        let fromSlot = fromMaybe minBound mFromSlot
+            toSlot = fromMaybe maxBound mToSlot
+        tags <- get @(Set (BlockHash, BlockTag))
+        gets @[Block]
+            $ filter \b ->
+                b.slotNumber >= fromSlot
+                    && b.slotNumber <= toSlot
+                    && all (\t -> (b.hash, t) `Set.member` tags) filteredTags

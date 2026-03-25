@@ -1,4 +1,4 @@
-module Hoard.TestHelpers (withServer) where
+module Hoard.TestHelpers (withServer, withTestApp, TestAppDBEffs) where
 
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Monad.Trans.Except (ExceptT (..))

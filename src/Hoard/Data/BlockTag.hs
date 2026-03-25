@@ -1,8 +1,11 @@
 module Hoard.Data.BlockTag (BlockTag (..)) where
 
-import Rel8 (DBEnum, DBType)
+import Rel8 (DBEnum, DBEq, DBType)
+import Servant (FromHttpApiData, ToHttpApiData)
 
 import Rel8 qualified
+
+import Atelier.Types.HttpApiDataReadShow (HttpApiDataReadShow (..))
 
 
 data BlockTag
@@ -10,8 +13,9 @@ data BlockTag
     | OutsideOfRequestedRange
     | HeaderBlockMismatch
     | SlotDispute
-    deriving stock (Bounded, Enum, Eq, Generic, Ord, Show)
-    deriving (DBType) via Rel8.Enum BlockTag
+    deriving stock (Bounded, Enum, Eq, Generic, Ord, Read, Show)
+    deriving (FromHttpApiData, ToHttpApiData) via HttpApiDataReadShow BlockTag
+    deriving (DBEq, DBType) via Rel8.Enum BlockTag
 
 
 instance DBEnum BlockTag where
