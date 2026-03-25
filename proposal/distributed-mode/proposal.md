@@ -6,6 +6,13 @@
   intra-collector event routing; a related but separate concern from the mux layer
 - [mux.md](mux.md) — the multiplexed protocol channel layer the coordinator connection is built on
 
+## Motivation
+
+In a user interview, the Cardano Foundation expressed interest in deploying
+collectors across multiple geographical regions to minimise latency when
+collecting data from peers and to observe data propagation patterns across the
+network. This is the primary driver for distributed mode.
+
 ## Overview
 
 Distributed mode separates the system into two distinct roles:

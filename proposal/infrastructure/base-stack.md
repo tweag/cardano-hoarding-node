@@ -101,6 +101,36 @@ Migrations must be backward-compatible (additive) wherever possible. Breaking
 schema changes are split across two deploys to allow safe rollback without
 schema conflicts.
 
+## NixOS module
+
+The flake exports a `nixosModules.hoard` module. Operators add the hoard flake
+as an input to their own NixOS configuration and import the module:
+
+```nix
+inputs.hoard.url = "github:...";
+
+imports = [ inputs.hoard.nixosModules.hoard ];
+
+services.hoard = {
+  enable = true;
+  # options here
+};
+```
+
+All secrets (database credentials, etc.) are injected via environment variables
+at service start — the module does not require sops or any specific secret
+management tooling on the operator's side. Operators using sops-nix can wire
+the env vars through their existing setup in the usual way.
+
+The team's own deployment (see [Continuous delivery](#continuous-delivery))
+uses sops-nix and serves as the reference implementation.
+
+## OCI image
+
+An OCI image is buildable via `nix/docker.nix`. This is the secondary
+deployment path for operators not running NixOS. Secrets are passed as
+environment variables at container start.
+
 ## What we need from the infrastructure team
 
 - An AWS account with sufficient permissions to create the resources listed above
