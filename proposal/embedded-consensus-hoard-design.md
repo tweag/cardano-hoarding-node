@@ -4,6 +4,8 @@
 
 - [embedded-consensus.md](embedded-consensus.md) — the proposal this document
   implements; read that first for context and motivation
+- [header-validation-hoard-design.md](header-validation-hoard-design.md) —
+  implementation design for header validation (Stage 1b)
 
 ## Overview
 
@@ -257,6 +259,29 @@ are untouched. The new events are published but nothing acts on them yet.
 **Changes nothing.** At the end of this stage: the ChainDB syncs in parallel
 with the existing Cardano node. New events fire. Logs confirm blocks are being
 validated and chain updates observed.
+
+---
+
+### Stage 1b — Header validation
+
+**Goal:** validate incoming ChainSync headers using the embedded ChainDB's
+ledger forecast, detecting invalid consensus proofs before block bodies are
+downloaded. Independent of Stages 2–4.
+
+See [header-validation-hoard-design.md](header-validation-hoard-design.md) for
+the full design.
+
+**Adds:**
+- `GetHeaderStateHistory` and `GetLedgerForecast` operations on the `ChainDB`
+  effect
+- `Hoard.Events.InvalidHeaderReceived` event
+- `Hoard.HeaderValidation` component (`validateHeaderListener`,
+  `rollbackListener`, `peerDisconnectedListener`)
+- `evalState @(Map Peer (HeaderStateHistory CardanoBlock))` and
+  `runPubSub @InvalidHeaderReceived` in `Main.hs`
+
+**Depends on:** Stage 1. **Changes nothing** in existing classification or
+downstream components.
 
 ---
 
