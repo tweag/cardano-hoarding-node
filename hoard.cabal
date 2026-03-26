@@ -21,7 +21,9 @@ library
       Hoard.API.Data.BlockViolation
       Hoard.API.Data.Header
       Hoard.API.Headers
+      Hoard.API.OpenAPI
       Hoard.API.Peers
+      Hoard.API.Routes
       Hoard.API.Util
       Hoard.Bootstrap
       Hoard.CardanoNode.Config
@@ -149,11 +151,14 @@ library
     , hs-opentelemetry-api
     , hs-opentelemetry-sdk
     , http-api-data
+    , insert-ordered-containers
     , iproute
     , ki
+    , lens
     , list-t
     , network
     , network-mux
+    , openapi3
     , optparse-applicative
     , ouroboros-consensus
     , ouroboros-consensus-cardano
@@ -167,6 +172,7 @@ library
     , prometheus-metrics-ghc
     , rel8
     , resource-registry
+    , servant-openapi3
     , servant-server
     , stm
     , stm-containers
