@@ -69,7 +69,7 @@ These lifecycle considerations will have to be addressed to ensure that Hoard
 can gather an adequate number of transactions from a given peer before Hoard
 will inevitably be disconnected due to peer churn.
 
-To summarize succintly: if Hoard is disconnected before the peer churn
+To summarize succinctly: if Hoard is disconnected before the peer churn
 interval, Hoard has exhibited adequately adversarial or sub-optimal behaviour
 as a server.
 
