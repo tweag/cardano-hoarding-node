@@ -2,9 +2,9 @@
 
 ## Related
 
-- [proposal/embedded-consensus.md](../proposal/embedded-consensus.md) — the
+- [proposal/embedded-consensus.md](../embedded-consensus.md) — the
   embedded ChainDB that classifies blocks and replaces the external Cardano node
-- [proposal/embedded-consensus-hoard-design.md](../proposal/embedded-consensus-hoard-design.md) —
+- [proposal/embedded-consensus-hoard-design.md](../embedded-consensus-hoard-design.md) —
   implementation detail: how ChainDB maps onto Hoard's Component model
 
 ## Overview
