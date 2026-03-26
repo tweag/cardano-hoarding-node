@@ -15,5 +15,5 @@ becomes feasible.
 
 ## Depends on
 
-- [Infrastructure](../infrastructure/proposal.md) — a live deployment
+- [Infrastructure](../../live-network-deployment/proposal.md) — a live deployment
   accepting inbound connections is a prerequisite.
