@@ -62,4 +62,4 @@ and header eviction.
 ## Documents
 
 - [overview.md](overview.md) — deployment modes, shared components, observability stack
-- [base-stack.md](base-stack.md) — proposed deployment stack: Terraform, NixOS, deploy-rs, sops-nix, sqitch, GitHub Actions
+- [single-node.md](single-node.md) — single-node deployment stack: Terraform, NixOS, deploy-rs, sops-nix, sqitch, GitHub Actions

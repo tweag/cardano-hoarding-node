@@ -2,9 +2,22 @@
 
 ## Related
 
-- [keyed-pubsub.md](keyed-pubsub.md) — extends `Pub`/`Sub` with a routing key for
-  intra-collector event routing; a related but separate concern from the mux layer
 - [mux.md](mux.md) — the multiplexed protocol channel layer the coordinator connection is built on
+
+## Deliverables
+
+- **Three executables** — `hoard-collector`, `hoard-coordinator`, and `hoard` (single-node, combining both roles). The existing codebase is refactored into a clean collector/coordinator split; `hoard` retains current behaviour for operators not adopting distributed mode.
+- **Typed collector-coordinator protocol layer** — a set of mini-protocols built on `typed-protocols`, `network-mux`, and `ouroboros-network-framework` covering peer assignment, data forwarding, and coordinator advisories. Follows the same pattern as the existing Cardano mini-protocol implementations.
+- **Single-node mode via in-process bearer** — collector and coordinator run in the same process connected via `Network.Mux.Bearer.Queues`. Behaviour is identical to today; existing deployments are unaffected.
+- **Distributed mode via TCP** — collector and coordinator run as separate processes and communicate over TCP. Collector's coordinator address is static configuration for the first version.
+- **NixOS modules for both roles** — `nixosModules.hoard-collector` and `nixosModules.hoard-coordinator`, deployable independently, so operators can run collectors in separate regions pointing at a shared coordinator.
+
+## Success criteria
+
+- Two collectors running in separate geographical regions connect to a single coordinator and forward data; blocks and headers from both appear in the same hoarding database.
+- Single-node mode (`hoard`) behaves identically to the current deployment — no changes required from existing operators.
+- Processing components (`Persistence`, `OrphanDetection`, `Sentry`, `Monitoring`) require no modifications; the collector/coordinator split is transparent to them.
+- Protocol layer is covered by integration tests using the in-process bearer, exercising both happy-path and coordinator-disconnect scenarios.
 
 ## Motivation
 
@@ -127,6 +140,10 @@ configuration is the simplest option if this is required.
 
 For a first version, a fixed coordinator address in collector configuration is sufficient.
 Dynamic membership can be added later if needed.
+
+**Block retention for propagation timing**
+
+The hoarding node currently evicts non-interesting blocks once they move past the immutable tip. For propagation timing to be useful, blocks need to be retained long enough to correlate observations across collectors. A configurable retention period — independent of the immutable tip threshold — is needed. This is a small addition but should be addressed before distributed mode is deployed for timing analysis.
 
 **Buffering on coordinator disconnect**
 
