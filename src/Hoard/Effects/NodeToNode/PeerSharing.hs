@@ -7,6 +7,7 @@ import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolCb (..)
     , MiniProtocolLimits (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
@@ -49,9 +50,8 @@ miniProtocol conf unlift codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly
-                $ mkMiniProtocolCbFromPeer
-                $ \_ ->
+            InitiatorAndResponderProtocol
+                ( mkMiniProtocolCbFromPeer $ \_ ->
                     let codec = cPeerSharingCodec codecs
                         wrappedPeer =
                             Peer.Effect
@@ -62,6 +62,8 @@ miniProtocol conf unlift codecs peer =
                                 $ client unlift conf peer
                         tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
                     in  (tracer, codec, wrappedPeer)
+                )
+                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
         }
 
 

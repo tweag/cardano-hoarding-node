@@ -52,6 +52,7 @@ import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.ImmutableTipRefreshTriggered qualified as NodeToClient
 import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Events.PeerSharing qualified as PeerSharing
+import Hoard.Events.TxSubmission qualified as TxSubmission
 import Hoard.Eviction qualified as Eviction
 import Hoard.ImmutableTip qualified as ImmutableTip
 import Hoard.Monitoring qualified as Monitoring
@@ -123,6 +124,7 @@ main =
         . runPubSub @PeerManager.CullRequested
         . runPubSub @PeerManager.PeerDisconnected
         . runPubSub @PeerManager.PeerRequested
+        . runPubSub @TxSubmission.TxReceived
         . runPubSub @PeerSharing.PeersReceived
         . runPubSub @ChainDB.ChainExtended
         . runPubSub @ChainDB.BlockSealed

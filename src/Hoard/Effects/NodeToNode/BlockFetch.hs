@@ -11,6 +11,7 @@ import Ouroboros.Consensus.Block.Abstract (blockSlot, headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolCb (..)
     , MiniProtocolLimits (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
@@ -77,16 +78,20 @@ miniProtocol conf unlift codecs peer =
         { miniProtocolNum = blockFetchMiniProtocolNum
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
-        , miniProtocolRun = InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ \_ ->
-            let codec = cBlockFetchCodec codecs
-                wrappedPeer =
-                    Peer.Effect
-                        $ unlift
-                        $ withExceptionLogging "BlockFetch"
-                        $ pure
-                        $ blockFetchClientPeer
-                        $ client unlift conf peer
-            in  (nullTracer, codec, wrappedPeer)
+        , miniProtocolRun =
+            InitiatorAndResponderProtocol
+                ( mkMiniProtocolCbFromPeer $ \_ ->
+                    let codec = cBlockFetchCodec codecs
+                        wrappedPeer =
+                            Peer.Effect
+                                $ unlift
+                                $ withExceptionLogging "BlockFetch"
+                                $ pure
+                                $ blockFetchClientPeer
+                                $ client unlift conf peer
+                    in  (nullTracer, codec, wrappedPeer)
+                )
+                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
         }
 
 

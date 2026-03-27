@@ -6,6 +6,7 @@ import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolCb (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
     )
@@ -46,9 +47,8 @@ miniProtocol conf unlift codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly
-                $ mkMiniProtocolCbFromPeer
-                $ \_ ->
+            InitiatorAndResponderProtocol
+                ( mkMiniProtocolCbFromPeer $ \_ ->
                     let codec = cKeepAliveCodec codecs
                         wrappedPeer =
                             Peer.Effect
@@ -59,6 +59,8 @@ miniProtocol conf unlift codecs peer =
                                 $ client unlift conf peer
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
+                )
+                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
         }
 
 

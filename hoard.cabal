@@ -67,6 +67,7 @@ library
       Hoard.Effects.NodeToNode.Config
       Hoard.Effects.NodeToNode.KeepAlive
       Hoard.Effects.NodeToNode.PeerSharing
+      Hoard.Effects.NodeToNode.TxSubmission
       Hoard.Effects.Options
       Hoard.Effects.PeerNoteRepo
       Hoard.Effects.PeerRepo
@@ -77,6 +78,7 @@ library
       Hoard.Events.ImmutableTipRefreshTriggered
       Hoard.Events.KeepAlive
       Hoard.Events.PeerSharing
+      Hoard.Events.TxSubmission
       Hoard.Eviction
       Hoard.Eviction.Config
       Hoard.ImmutableTip

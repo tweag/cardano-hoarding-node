@@ -11,6 +11,7 @@ import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolCb (..)
     , MiniProtocolLimits (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeerPipelined
@@ -56,12 +57,13 @@ miniProtocol conf unlift codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly
-                $ mkMiniProtocolCbFromPeerPipelined
-                $ \_ ->
+            InitiatorAndResponderProtocol
+                ( mkMiniProtocolCbFromPeerPipelined $ \_ ->
                     let codec = cChainSyncCodec codecs
                         chainSyncClient = client unlift peer
                     in  (nullTracer, codec, chainSyncClient)
+                )
+                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
         }
 
 
