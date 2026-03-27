@@ -41,7 +41,7 @@ clients, `ResponderOnly` mode, where it only has mini-protocol servers, or in
 `InitiatorAndResponder` mode, where it has both clients and servers. While in
 `InitiatorOnly` mode, the node can implement as few clients
 as it likes. `InitiatorAndResponder` mode, however, requires the node to
-implement _all_ mini-protocol servers, in addition to the clients it wants.[^1]
+implement _all_ mini-protocol servers, in addition to the clients it wants.
 
 This poses an additional challenge for us as Hoard then has to implement servers
 for `KeepAlive`, `PeerSharing`, `BlockFetch` and `ChainSync`, in addition to
@@ -53,6 +53,67 @@ server](#other-mini-protocol-servers) section.
 
 Certain considerations needs to be addressed due to how fundamentally different
 `InitiatorAndResponder` mode is compared to `InitiatorOnly` mode.
+
+### Inbound agency
+
+Since transactions have to be sent to Hoard from a client connecting to Hoard's
+`TxSubmission` server, it is entirely up to the peer in question whether it
+will connect to Hoard at all and actually send any transactions. Hoard is only
+able to make its best effort to seem like an enticing peer to other nodes, both
+by connecting to them first, but also by not behaving adversarially.
+
+In `cardano-node`, a node has 2 components that control what to do with inbound
+and outbound connections: the inbound and outbound governors. The role of the
+inbound governor is not of particular concern for this proposal, so we will
+focus more on the outbound governor.
+
+#### Outbound governor
+
+The outbound governor has mainly 3 pools of peers it aims to monitor and control:
+
+- "cold" peers, where the outbound governor _knows_ of the peer, but has no
+  outbound mini-protocols active. There might still be inbound mini-protocols
+  active for the peer, so there might already exist a connection for said peer,
+  but that connection is not in use for outbound communication.
+- "warm" peers the node in question has at least 1 "established" and/or "warm" outbound mini-protocol active for.
+- "hot" peers the node in question has at least 1 "hot" (as well as other "established") mini-protocol active for.
+
+The outbound governor attempts to promote and demote peers to stay as close to
+the individual targets for each of these 3 categories of peers.
+
+#### Promotion from "cold" to "hot"
+
+There are however common scenarios where Hoard would not likely be promoted from "cold" to "warm" or "hot".
+
+When Hoard first connects to a peer using its outbound mini-protocols (an
+inbound connection for the peer in question), Hoard might not even be
+considered a "cold" node to the connected peer's outbound governor. It is
+wholly up to the internal peer sharing between the inbound and outbound
+governor whether Hoard will be selected as a potential "cold" peer for the
+outbound governor.
+
+Assuming Hoard enters the "cold" state for a peer, as long as the "warm" pool
+of nodes is saturated, the peer will not promote Hoard to the "warm" state and
+make an outbound connection. Other nodes would have to be demoted from "warm"
+to "cold" for a spot to open up, and even then the peer would have to select
+Hoard as a node to promote from "cold" to "warm".
+
+Assuming further that Hoard enters the "warm" state for a peer, it is also
+unlikely that Hoard will be immediately promoted from "warm" to "hot" for
+similar reasons as being promoted from "cold" to "warm". In the "warm" state,
+the peer will only activate its "warm"[^2] and "established"[^3] outbound
+mini-protocols, not any of the "hot"[^4] mini-protocols. Exactly which
+mini-protocols are considered "warm", "established" and "hot" is not specified
+in the network specification, but it is safe to assume that `KeepAlive` and
+`PeerSharing` are at the very least "warm", if not "established",
+mini-protocols.
+
+Only once the pool of "hot" peers shrinks below the target can Hoard
+potentially be promoted from "warm" to "hot", and only then by happening to be
+the "warm" node selected to be promoted to "hot". With other "warm" nodes
+available to promote, it is not unlikely that it could take a significant
+amount of time before Hoard is ultimately promoted to "hot", whereby the
+outgoing `TxSubmission` client connects to Hoard and diffuses transactions.
 
 ### Connection lifetime
 
@@ -114,7 +175,7 @@ chain, and _only_ advances the _read-pointer_ one block at a time for each
 `MsgFindIntersect` notably does _not_ move the read-pointer. Once the server
 has reached the tip of its chain for a given client, it will return
 `MsgAwaitReply` instead of a `MsgRollForward` or `MsgRollBackward`, signalling
-that the client has to wait further for the server's chain to change.[^2]
+that the client has to wait further for the server's chain to change.[^1]
 
 It is then possible to implement Hoard's `ChainSync` server in such a way that
 it will return all the headers for blocks between genesis and the immutable
@@ -144,11 +205,15 @@ IP of Hoard itself.
 Measures should be taken to prevent this from happening, since it is not
 helpful for Hoard to connect to itself.
 
-## References
+## Footnotes
 
-[^1]: [Network specification][network-spec]
+[^1]: 3.7.6 "Implementation of the Chain Producer", page 24, [Network specification][network-spec]
 
-[^2]: 3.7.6 "Implementation of the Chain Producer", page 24, [Network specification][network-spec]
+[^2]: "warm" mini-protocols only run when in the "warm" state, not in the "hot" state.
+
+[^3]: "established" mini-protocols can run both in "warm" and "hot" states.
+
+[^4]: "hot" mini-protocols only run in the "hot" state.
 
 [network-spec]: https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf
 [network-design]: https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-design/network-design.pdf
