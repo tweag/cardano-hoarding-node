@@ -34,7 +34,7 @@ import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag (..))
-import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, Rel8Read, Rel8Write, runQuery, runTransaction, select, transact)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
@@ -62,7 +62,7 @@ data BlockRepo :: Effect where
 makeEffect ''BlockRepo
 
 
-runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
+runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Rel8Read :> es, Rel8Write :> es, Tracing :> es) => Eff (BlockRepo : es) a -> Eff es a
 runBlockRepo action =
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
         InsertBlocks blocks -> do
@@ -71,9 +71,16 @@ runBlockRepo action =
                 $ getVerified <$> blocks
             -- Pre-populate cache: we know these blocks exist after insertion
             Singleflight.updateCache (map ((,True) . (.hash) . getVerified) blocks)
-        GetBlock header ->
-            runQuery "get_block"
-                $ getBlockQuery header
+        GetBlock header -> do
+            rows <- select "get_block" $ do
+                block <- Rel8.each Blocks.schema
+                where_ $ block.hash ==. lit (mkBlockHash header)
+                pure block
+            pure $ extractSingleBlock . rights $ fmap Blocks.blockFromRow rows
+          where
+            extractSingleBlock = \case
+                [x] -> Just x
+                _ -> Nothing
         BlockExists blockHash ->
             Singleflight.withCache blockHash
                 $ runQuery "block_exists"
@@ -92,9 +99,9 @@ runBlockRepo action =
             -- Remove evicted blocks from cache so future lookups hit the DB
             Singleflight.removeFromCache hashes
             pure $ length hashes
-        TagBlock hash tag ->
-            runTransaction "tag_block"
-                $ tagBlockTrans hash tag
+        TagBlock hash tags ->
+            transact "tag_block"
+                $ TX.statement () (BlockTags.insertTagsStatement [hash] tags)
         GetBlocks range tags ->
             runQuery "get_blocks_in_range"
                 $ getBlocksQuery range tags
@@ -111,24 +118,6 @@ insertBlocksTrans blocks =
                 , onConflict = Rel8.DoNothing
                 , returning = Rel8.NoReturning
                 }
-
-
-getBlockQuery :: CardanoHeader -> Statement () (Maybe Block)
-getBlockQuery header =
-    fmap (extractSingleBlock . rights . fmap Blocks.blockFromRow)
-        . Rel8.run
-        . Rel8.select
-        $ do
-            block <- Rel8.each Blocks.schema
-            where_
-                $ block.hash ==. (lit $ mkBlockHash header)
-            pure block
-  where
-    -- The unique constraint over the `hash` column ensures we get either 1 or
-    -- 0 rows from the above query.
-    extractSingleBlock = \case
-        [x] -> Just x
-        _ -> Nothing
 
 
 blockExistsQuery :: BlockHash -> Statement () Bool
@@ -281,11 +270,6 @@ deleteBlocksByHashesQuery hashes =
                 , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
                 , returning = Rel8.NoReturning
                 }
-
-
-tagBlockTrans :: BlockHash -> [BlockTag] -> Transaction ()
-tagBlockTrans hash tags =
-    TX.statement () (BlockTags.insertTagsStatement [hash] tags)
 
 
 getBlocksQuery :: SlotRange -> [BlockTag] -> Statement () [Block]

@@ -48,7 +48,7 @@ import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (classifyBlock, evictBlocks, insertBlocks, runBlockRepo, tagBlock)
-import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
 import Hoard.Effects.HeaderRepo (evictHeaders, runHeaderRepo, tagHeader, upsertHeader)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
@@ -75,6 +75,8 @@ spec_Eviction = do
                 . runDBRead
                 . runDBWrite
                 . runConcurrent
+                . runRel8Read
+                . runRel8Write
                 . runBlockRepo
                 . runPeerRepo
                 . runHeaderRepo

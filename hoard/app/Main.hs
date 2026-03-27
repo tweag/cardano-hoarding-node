@@ -24,7 +24,7 @@ import Hoard.Control.Exception (runErrorThrowing)
 import Hoard.Effects.BlockRepo (runBlockRepo)
 import Hoard.Effects.ChainDB (runChainDB)
 import Hoard.Effects.ConfigPath (runConfig, runConfigRoot)
-import Hoard.Effects.DB (runDB)
+import Hoard.Effects.DB (runDB, runRel8Read, runRel8Write)
 import Hoard.Effects.Environment (loadEnv)
 import Hoard.Effects.HeaderRepo (runHeaderRepo)
 import Hoard.Effects.HoardStateRepo (runHoardStateRepo)
@@ -136,6 +136,8 @@ main =
         . runNodeToClient
         . runNodeToNode
         . runDB
+        . runRel8Read
+        . runRel8Write
         . runHeaderRepo
         . runPeerRepo
         . runBlockRepo

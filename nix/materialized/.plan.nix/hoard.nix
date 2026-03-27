@@ -124,6 +124,7 @@
             (hsPkgs."list-t" or (errorHandler.buildDepError "list-t"))
             (hsPkgs."prometheus-client" or (errorHandler.buildDepError "prometheus-client"))
             (hsPkgs."prometheus-metrics-ghc" or (errorHandler.buildDepError "prometheus-metrics-ghc"))
+            (hsPkgs."rel8" or (errorHandler.buildDepError "rel8"))
             (hsPkgs."stm-containers" or (errorHandler.buildDepError "stm-containers"))
             (hsPkgs."text" or (errorHandler.buildDepError "text"))
             (hsPkgs."time" or (errorHandler.buildDepError "time"))

@@ -199,6 +199,7 @@ library atelier
       Atelier.Effects.Conc.Traced
       Atelier.Effects.DB
       Atelier.Effects.DB.Config
+      Atelier.Effects.DB.Rel8
       Atelier.Effects.Delay
       Atelier.Effects.Log
       Atelier.Effects.Monitoring.Metrics
@@ -262,6 +263,7 @@ library atelier
     , list-t
     , prometheus-client
     , prometheus-metrics-ghc
+    , rel8
     , stm-containers
     , text
     , time
