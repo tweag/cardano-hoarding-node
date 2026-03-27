@@ -10,6 +10,10 @@ module Hoard.Effects.DB
     , Rel8Write
     , select
     , transact
+    , insert_
+    , update_
+    , delete_
+    , selectTx
     , runRel8Read
     , runRel8Write
     , runRel8
@@ -22,7 +26,7 @@ import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.DB (DBRead, DBReadMetricNames (..), DBWrite, runQuery, runTransaction)
 import Atelier.Effects.DB.Config (DBPools)
-import Atelier.Effects.DB.Rel8 (Rel8Read, Rel8Write, runRel8, runRel8Read, runRel8Write, select, transact)
+import Atelier.Effects.DB.Rel8 (Rel8Read, Rel8Write, delete_, insert_, runRel8, runRel8Read, runRel8Write, select, selectTx, transact, update_)
 import Atelier.Effects.Monitoring.Metrics (Metrics)
 import Atelier.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricDBQueries, metricDBQueryDuration, metricDBQueryErrors)
