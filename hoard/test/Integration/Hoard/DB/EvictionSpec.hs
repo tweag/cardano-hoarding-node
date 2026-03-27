@@ -39,15 +39,15 @@ import Rel8 qualified
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
+import Hoard.API.Data.BlockViolation (SlotDispute (..))
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
-import Hoard.Data.BlockTag (BlockTag (..))
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PoolID (PoolID (..))
-import Hoard.Effects.BlockRepo (classifyBlock, evictBlocks, insertBlocks, runBlockRepo, tagBlock)
+import Hoard.Effects.BlockRepo (classifyBlock, evictBlocks, getSlotDisputesInRange, insertBlocks, runBlockRepo, tagBlock)
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
 import Hoard.Effects.HeaderRepo (evictHeaders, runHeaderRepo, tagHeader, upsertHeader)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
@@ -59,6 +59,7 @@ import Prelude hiding (head)
 
 import Atelier.Effects.Log qualified as Log
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
+import Hoard.Data.BlockTag qualified as BlockTag
 import Hoard.Effects.Verifier qualified as Verifier
 
 
@@ -228,9 +229,42 @@ spec_Eviction = do
                     persistedPeer <- upsertOnePeer peer
                     upsertHeader (makeValidHeader $ mkHeader "hash1" 1) persistedPeer epoch
                     -- Tag the block with the same hash (no block row needed — no FK on block_tags)
-                    tagBlock (BlockHash "hash1") [SlotDispute]
+                    tagBlock (BlockHash "hash1") [BlockTag.SlotDispute]
                     evictHeaders
                 result `shouldBe` Right 0
+
+    withCleanTestDatabase $ describe "getSlotDisputesInRange (database)" $ do
+        it "returns empty list when no disputes exist" $ \config -> do
+            result <- runDB config $ getSlotDisputesInRange Nothing Nothing
+            result `shouldBe` Right []
+
+        it "returns a dispute when canonical and orphan exist at the same slot" $ \config -> do
+            let canonicalBlock = mkTestBlockAtSlot 0 100
+                orphanBlock = mkTestBlockAtSlot 1 100
+            result <- runDB config $ do
+                insertBlocks [canonicalBlock, orphanBlock]
+                classifyBlock (blockHash' canonicalBlock) Canonical epoch
+                classifyBlock (blockHash' orphanBlock) Orphaned epoch
+                getSlotDisputesInRange Nothing Nothing
+            case result of
+                Right disputes -> map (.slotNumber) disputes `shouldBe` ([100] :: [Int64])
+                Left err -> expectationFailure $ "getSlotDisputesInRange failed: " <> show err
+
+        it "filters disputes by slot range" $ \config -> do
+            let canonical10 = mkTestBlockAtSlot 0 10
+                orphan10 = mkTestBlockAtSlot 1 10
+                canonical20 = mkTestBlockAtSlot 2 20
+                orphan20 = mkTestBlockAtSlot 3 20
+            result <- runDB config $ do
+                insertBlocks [canonical10, orphan10, canonical20, orphan20]
+                classifyBlock (blockHash' canonical10) Canonical epoch
+                classifyBlock (blockHash' orphan10) Orphaned epoch
+                classifyBlock (blockHash' canonical20) Canonical epoch
+                classifyBlock (blockHash' orphan20) Orphaned epoch
+                getSlotDisputesInRange (Just 15) Nothing
+            case result of
+                Right disputes -> map (.slotNumber) disputes `shouldBe` ([20] :: [Int64])
+                Left err -> expectationFailure $ "getSlotDisputesInRange failed: " <> show err
 
 
 -- | Block hash for a test block created with mkTestBlock n

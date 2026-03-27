@@ -236,7 +236,7 @@ tests:
     ghc-options:
     # Complains about `test/Driver.hs` emitted by tasty-discover, and is handled by
     # our fourmolu config.
-    - -Wno-prepositive-qualified-module 
+    - -Wno-prepositive-qualified-module
     - -threaded
     build-tools:
     - tasty-discover:tasty-discover
@@ -248,6 +248,7 @@ tests:
     - hoard
     - atelier
     - atelier-testing
+    - containers
     - "ouroboros-consensus-cardano:unstable-byron-testlib"
     - "ouroboros-consensus-cardano:unstable-shelley-testlib"
     - "ouroboros-consensus:unstable-consensus-testlib"

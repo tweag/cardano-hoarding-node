@@ -509,6 +509,7 @@ test-suite hoard-test
     , base
     , cardano-api
     , cardano-ledger-core
+    , containers
     , data-default
     , effectful
     , effectful-core
