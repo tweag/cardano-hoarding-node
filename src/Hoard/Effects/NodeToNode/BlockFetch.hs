@@ -6,7 +6,7 @@ import Control.Tracer (nullTracer)
 import Data.List (maximum, minimum)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Timeout (Timeout)
-import Network.Mux (StartOnDemandOrEagerly (..))
+import Network.Mux (StartOnDemandOrEagerly (..), recv)
 import Ouroboros.Consensus.Block.Abstract (blockSlot, headerPoint)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
@@ -91,7 +91,10 @@ miniProtocol conf unlift codecs peer =
                                 $ client unlift conf peer
                     in  (nullTracer, codec, wrappedPeer)
                 )
-                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
+                ( MiniProtocolCb $ \_ channel ->
+                    let drain = channel.recv >>= maybe (pure ()) (\_ -> drain)
+                    in  drain >> pure ((), Nothing)
+                )
         }
 
 

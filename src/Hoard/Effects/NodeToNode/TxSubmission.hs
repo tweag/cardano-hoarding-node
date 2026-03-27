@@ -3,7 +3,7 @@ module Hoard.Effects.NodeToNode.TxSubmission
     ) where
 
 import Control.Tracer (nullTracer)
-import Network.Mux (MiniProtocolLimits (..), MiniProtocolNum (..), StartOnDemandOrEagerly (..))
+import Network.Mux (MiniProtocolLimits (..), MiniProtocolNum (..), StartOnDemandOrEagerly (..), recv)
 import Network.TypedProtocol.Core (N (..))
 import Ouroboros.Consensus.Ledger.SupportsMempool (GenTx, GenTxId)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -46,7 +46,10 @@ miniProtocol unlift codecs peer =
         , miniProtocolStart = StartOnDemand
         , miniProtocolRun =
             InitiatorAndResponderProtocol
-                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
+                ( MiniProtocolCb $ \_ channel ->
+                    let drain = recv channel >>= maybe (pure ()) (\_ -> drain)
+                    in  drain >> pure ((), Nothing)
+                )
                 ( mkMiniProtocolCbFromPeerPipelined $ \_ ->
                     ( nullTracer
                     , cTxSubmission2Codec codecs
@@ -64,7 +67,7 @@ receiveLoop
     -> Peer
     -> TxSubmissionServerPipelined (GenTxId CardanoBlock) (GenTx CardanoBlock) IO ()
 receiveLoop unlift peer = TxSubmissionServerPipelined $ unlift do
-    Log.debug $ "tx_submission: server started for peer=" <> show peer.address
+    Log.info $ "tx_submission: server started for peer=" <> show peer.address
     pure $ idle (NumTxIdsToAck 0)
   where
     idle :: NumTxIdsToAck -> ServerStIdle Z (GenTxId CardanoBlock) (GenTx CardanoBlock) IO ()
@@ -87,7 +90,7 @@ receiveLoop unlift peer = TxSubmissionServerPipelined $ unlift do
                 $ CollectPipelined Nothing
                 $ \case
                     CollectTxs _ txs -> unlift do
-                        Log.debug $ "tx_submission: " <> show (length txs) <> " txs received from peer=" <> show peer.address
+                        Log.info $ "tx_submission: " <> show (length txs) <> " txs received from peer=" <> show peer.address
                         for_ txs $ \tx -> do
                             Log.debug $ "tx_submission: new tx from peer=" <> show peer.address
                             publish TxReceived {peer, tx}

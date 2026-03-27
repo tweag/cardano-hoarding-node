@@ -5,7 +5,7 @@ module Hoard.Effects.NodeToNode.ChainSync
 import Cardano.Api.Block (toConsensusPointHF)
 import Control.Tracer (nullTracer)
 import Effectful.State.Static.Shared (State, gets)
-import Network.Mux (StartOnDemandOrEagerly (..))
+import Network.Mux (StartOnDemandOrEagerly (..), recv)
 import Network.TypedProtocol (PeerRole (..))
 import Network.TypedProtocol.Peer.Client
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -63,7 +63,10 @@ miniProtocol conf unlift codecs peer =
                         chainSyncClient = client unlift peer
                     in  (nullTracer, codec, chainSyncClient)
                 )
-                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
+                ( MiniProtocolCb $ \_ channel ->
+                    let drain = channel.recv >>= maybe (pure ()) (\_ -> drain)
+                    in  drain >> pure ((), Nothing)
+                )
         }
 
 

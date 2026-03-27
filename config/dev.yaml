@@ -44,7 +44,7 @@ peer_manager:
   peer_failure_cooldown_seconds: 300
   max_collector_lifetime_seconds: 3000 # 50 minutes
   max_concurrent_collectors: 150
-  replenish_interval_seconds: 20
+  replenish_interval_seconds: 5
   peer_mode:
     tag: Automatic
     contents:
@@ -86,7 +86,7 @@ cardano_protocol_handles:
 
 # Monitoring configuration
 monitoring:
-  polling_interval_seconds: 10
+  polling_interval_seconds: 3
   environment: "dev"
   prometheus:
     port: 9090

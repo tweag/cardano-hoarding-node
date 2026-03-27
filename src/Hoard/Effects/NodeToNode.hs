@@ -27,7 +27,7 @@ import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
 import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError)
 import Network.Mux (Mode (..))
-import Network.Socket (SockAddr, Socket)
+import Network.Socket (SockAddr, Socket, StructLinger (..))
 import Ouroboros.Consensus.Config (TopLevelConfig (..))
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
@@ -63,6 +63,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
+import Network.Socket qualified as Socket
 import System.Timeout qualified as Timeout
 
 import Atelier.Effects.Chan (Chan)
@@ -227,10 +228,18 @@ runNodeToNode =
                                     , ctaConnectTracers = tracers
                                     , ctaHandshakeCallbacks = HandshakeCallbacks acceptableVersion queryVersion
                                     }
-                        connectToNode snocket makeSocketBearer connectArgs (\_ -> pure ()) versions Nothing addr
+                        connectToNode snocket makeSocketBearer connectArgs configureOutboundSocket versions Nothing addr
 
                     handleResult peer result
   where
+    configureOutboundSocket :: Socket -> IO ()
+    configureOutboundSocket sock = do
+        Socket.setSocketOption sock Socket.NoDelay 1
+        Socket.setSockOpt
+            sock
+            Socket.Linger
+            StructLinger {sl_onoff = 1, sl_linger = 0}
+
     handleResult :: Peer -> Either SomeException (Either () ()) -> Eff es ConnectToError
     handleResult peer = \case
         Left err ->

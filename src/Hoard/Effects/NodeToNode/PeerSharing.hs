@@ -2,7 +2,7 @@ module Hoard.Effects.NodeToNode.PeerSharing
     ( miniProtocol
     ) where
 
-import Network.Mux (StartOnDemandOrEagerly (..))
+import Network.Mux (StartOnDemandOrEagerly (..), recv)
 import Network.Socket (SockAddr)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
@@ -63,7 +63,10 @@ miniProtocol conf unlift codecs peer =
                         tracer = show >$< asTracer unlift "peer_sharing.protocol_message"
                     in  (tracer, codec, wrappedPeer)
                 )
-                (MiniProtocolCb $ \_ _ -> pure ((), Nothing))
+                ( MiniProtocolCb $ \_ channel ->
+                    let drain = recv channel >>= maybe (pure ()) (\_ -> drain)
+                    in  drain >> pure ((), Nothing)
+                )
         }
 
 
