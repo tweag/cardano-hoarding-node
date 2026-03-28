@@ -25,7 +25,7 @@ import Atelier.Effects.Publishing (Pub, Sub, publish)
 import Atelier.Time (Second)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Hoard.DB.Schema (countRows, countRowsWhere)
-import Hoard.Effects.DB (DBRead)
+import Hoard.Effects.DB (Rel8Read)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricBlocksBeingClassified, metricBlocksInDB, metricConnectedPeers, metricUnclassifiedBlocks)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
@@ -38,12 +38,12 @@ import Hoard.DB.Schemas.Blocks qualified as BlocksSchema
 
 
 component
-    :: ( DBRead :> es
-       , Delay :> es
+    :: ( Delay :> es
        , Log :> es
        , Metrics :> es
        , Pub Poll :> es
        , Reader Config :> es
+       , Rel8Read :> es
        , State HoardState :> es
        , State Peers :> es
        , Sub Poll :> es
@@ -61,9 +61,9 @@ component =
 
 
 listener
-    :: ( DBRead :> es
-       , Log :> es
+    :: ( Log :> es
        , Metrics :> es
+       , Rel8Read :> es
        , State HoardState :> es
        , State Peers :> es
        , Tracing :> es

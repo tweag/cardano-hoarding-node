@@ -19,7 +19,6 @@ import Data.Time (NominalDiffTime, UTCTime, calendarTimeTime)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-import Hasql.Transaction (Transaction)
 import Rel8 (in_, lit, or_, (&&.), (==.), (>.))
 
 import Data.Map.Strict qualified as Map
@@ -29,7 +28,7 @@ import Rel8.Expr.Time qualified as Rel8
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DB (Rel8Read, Rel8Write, select, transact)
+import Hoard.Effects.DB (Rel8Read, Rel8Write, Transaction, select, transact)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.DB.Schemas.SelectedPeers qualified as SelectedPeersSchema

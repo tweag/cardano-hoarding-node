@@ -1,7 +1,9 @@
 module Atelier.Effects.DB.Rel8
     ( Rel8Read
     , Rel8Write
+    , Transaction
     , select
+    , select1
     , transact
     , runRel8Read
     , runRel8Write
@@ -28,6 +30,7 @@ import Atelier.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
 -- | Effect for Rel8 SELECT queries, interpreted via 'DBRead'.
 data Rel8Read :: Effect where
     Select :: (Serializable exprs results) => Text -> Query exprs -> Rel8Read m [results]
+    Select1 :: (Serializable exprs results) => Text -> Query exprs -> Rel8Read m results
 
 
 -- | Effect for Hasql transactions (typically built using Rel8 DML),
@@ -43,6 +46,7 @@ makeEffect ''Rel8Write
 runRel8Read :: (DBRead :> es) => Eff (Rel8Read : es) a -> Eff es a
 runRel8Read = interpret_ \case
     Select name query -> runQuery name (Rel8.run $ Rel8.select query)
+    Select1 name query -> runQuery name (Rel8.run1 $ Rel8.select query)
 
 
 runRel8Write :: (DBWrite :> es) => Eff (Rel8Write : es) a -> Eff es a

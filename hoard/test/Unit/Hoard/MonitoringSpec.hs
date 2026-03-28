@@ -17,7 +17,7 @@ import Atelier.Effects.Log (Message (..), Severity (..), runLogWriter)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.ID (ID (..))
-import Hoard.Effects.DB (runDBRead)
+import Hoard.Effects.DB (runDBRead, runRel8Read)
 import Hoard.PeerManager.Peers (Connection (..), ConnectionState (..), Peers (..))
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (ChainPoint (ChainPoint))
@@ -43,6 +43,7 @@ spec_Monitoring = withCleanTestDatabase $ do
                     . runTracingNoOp
                     . runClock
                     . runDBRead
+                    . runRel8Read
                     . evalState
                         HoardState
                             { immutableTip = ChainPoint C.ChainPointAtGenesis
