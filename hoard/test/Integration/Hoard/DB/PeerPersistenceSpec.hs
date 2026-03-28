@@ -1,6 +1,6 @@
 module Integration.Hoard.DB.PeerPersistenceSpec (spec_PeerPersistence) where
 
-import Data.Time (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
 import Effectful (runEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
@@ -8,6 +8,7 @@ import Hasql.Statement (Statement)
 import Test.Hspec
 import Text.Read (read)
 
+import Data.Set qualified as Set
 import Data.UUID.V4 qualified as UUID
 import Rel8 qualified
 
@@ -16,8 +17,17 @@ import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
-import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
+import Hoard.Effects.PeerRepo
+    ( getEligiblePeers
+    , getEligiblePinnedPeers
+    , getPeerByAddress
+    , pinPeers
+    , runPeerRepo
+    , updateLastConnected
+    , updatePeerFailure
+    , upsertPeers
+    )
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
 
 import Atelier.Effects.Log qualified as Log
@@ -37,6 +47,8 @@ spec_PeerPersistence = do
                 . runDBRead
                 . runClock
                 . runDBWrite
+                . runRel8Read
+                . runRel8Write
                 . runPeerRepo
                 $ action
 
@@ -182,6 +194,83 @@ spec_PeerPersistence = do
                     abs (diffTime peer.lastSeen now) `shouldSatisfy` (< 1)
                 Right Nothing -> expectationFailure "Expected to find the peer, but got Nothing"
                 Left err -> expectationFailure $ "Fetch failed: " <> show err
+
+        it "records peer failure time" $ \pools -> do
+            now <- getCurrentTime
+            sourcePeer <- mkTestSourcePeer now
+            let testAddr = PeerAddress (read "10.1.1.1") 4001
+
+            Right _ <- runWrite pools $ upsertPeers (fromList [testAddr]) sourcePeer.address now
+            Right (Just peer) <- runWrite pools $ getPeerByAddress testAddr
+
+            let failureTime = addUTCTime 10 now
+            Right () <- runWrite pools $ updatePeerFailure peer failureTime
+
+            result <- runWrite pools $ getPeerByAddress testAddr
+            case result of
+                Right (Just updated) ->
+                    case updated.lastFailureTime of
+                        Just ft -> abs (diffTime ft failureTime) `shouldSatisfy` (< 1)
+                        Nothing -> expectationFailure "Expected lastFailureTime to be set"
+                Right Nothing -> expectationFailure "Expected peer to exist"
+                Left err -> expectationFailure $ show err
+
+        it "records last connected time" $ \pools -> do
+            now <- getCurrentTime
+            sourcePeer <- mkTestSourcePeer now
+            let testAddr = PeerAddress (read "10.1.1.2") 4002
+
+            Right _ <- runWrite pools $ upsertPeers (fromList [testAddr]) sourcePeer.address now
+            Right (Just peer) <- runWrite pools $ getPeerByAddress testAddr
+
+            let connectedTime = addUTCTime 30 now
+            Right () <- runWrite pools $ updateLastConnected peer.id connectedTime
+
+            result <- runWrite pools $ getPeerByAddress testAddr
+            case result of
+                Right (Just updated) ->
+                    case updated.lastConnected of
+                        Just ct -> abs (diffTime ct connectedTime) `shouldSatisfy` (< 1)
+                        Nothing -> expectationFailure "Expected lastConnected to be set"
+                Right Nothing -> expectationFailure "Expected peer to exist"
+                Left err -> expectationFailure $ show err
+
+        it "excludes recently failed peers from eligible set" $ \pools -> do
+            now <- getCurrentTime
+            sourcePeer <- mkTestSourcePeer now
+            let goodAddr = PeerAddress (read "10.2.1.1") 5001
+            let failedAddr = PeerAddress (read "10.2.1.2") 5002
+
+            Right _ <-
+                runWrite pools
+                    $ upsertPeers (fromList [goodAddr, failedAddr]) sourcePeer.address now
+            Right (Just failedPeer) <- runWrite pools $ getPeerByAddress failedAddr
+            Right () <- runWrite pools $ updatePeerFailure failedPeer now
+
+            result <- runWrite pools $ getEligiblePeers (3600 :: NominalDiffTime) mempty 100
+            case result of
+                Right eligible -> do
+                    eligible `shouldSatisfy` (not . Set.member failedPeer)
+                    eligible `shouldSatisfy` (not . Set.null)
+                Left err -> expectationFailure $ show err
+
+        it "returns only eligible pinned peers" $ \pools -> do
+            now <- getCurrentTime
+            let pinnedGoodAddr = PeerAddress (read "10.3.1.1") 6001
+            let pinnedFailedAddr = PeerAddress (read "10.3.1.2") 6002
+
+            Right _ <-
+                runWrite pools
+                    $ pinPeers now [(pinnedGoodAddr, Nothing), (pinnedFailedAddr, Nothing)]
+            Right (Just failedPeer) <- runWrite pools $ getPeerByAddress pinnedFailedAddr
+            Right () <- runWrite pools $ updatePeerFailure failedPeer now
+
+            result <- runWrite pools $ getEligiblePinnedPeers (3600 :: NominalDiffTime) mempty 100
+            case result of
+                Right eligible -> do
+                    eligible `shouldSatisfy` (not . Set.member failedPeer)
+                    eligible `shouldSatisfy` (not . Set.null)
+                Left err -> expectationFailure $ show err
 
 
 -- Helper functions

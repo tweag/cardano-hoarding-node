@@ -11,10 +11,9 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
 import Rel8 (lit)
 
-import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
-import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
+import Hoard.Effects.DB (Rel8Read, Rel8Write, insert_, select, transact)
 import Hoard.Types.Cardano (ChainPoint)
 
 import Hoard.DB.Schemas.HoardState qualified as HoardState
@@ -29,35 +28,30 @@ data HoardStateRepo :: Effect where
 makeEffect ''HoardStateRepo
 
 
-runHoardStateRepo :: (DBRead :> es, DBWrite :> es) => Eff (HoardStateRepo : es) a -> Eff es a
+runHoardStateRepo :: (Rel8Read :> es, Rel8Write :> es) => Eff (HoardStateRepo : es) a -> Eff es a
 runHoardStateRepo = interpret_ \case
-    GetImmutableTip ->
-        runQuery "get_immutable_tip"
-            . fmap (fromMaybe $ TS.immutableTip def)
-            . Rel8.runMaybe
-            . Rel8.select
-            $ HoardState.immutableTip <$> Rel8.each HoardState.schema
+    GetImmutableTip -> do
+        rows <- select "get_immutable_tip" $ HoardState.immutableTip <$> Rel8.each HoardState.schema
+        pure $ fromMaybe (TS.immutableTip def) $ listToMaybe rows
     PersistImmutableTip chainPoint ->
-        runTransaction "persist_immutable_tip"
-            . TX.statement ()
-            . Rel8.run_
-            . Rel8.insert
-            $ Rel8.Insert
-                { into = HoardState.schema
-                , rows =
-                    Rel8.values
-                        [ HoardState.Row
-                            { HoardState.unit = lit $ HoardState.Unit
-                            , HoardState.immutableTip = lit chainPoint
-                            }
-                        ]
-                , onConflict =
-                    Rel8.DoUpdate
-                        $ Rel8.Upsert
-                            { index = HoardState.unit
-                            , predicate = Nothing
-                            , set = \new _old -> new
-                            , updateWhere = \_ _ -> Rel8.true
-                            }
-                , returning = Rel8.NoReturning
-                }
+        transact "persist_immutable_tip"
+            $ insert_
+                Rel8.Insert
+                    { into = HoardState.schema
+                    , rows =
+                        Rel8.values
+                            [ HoardState.Row
+                                { HoardState.unit = lit $ HoardState.Unit
+                                , HoardState.immutableTip = lit chainPoint
+                                }
+                            ]
+                    , onConflict =
+                        Rel8.DoUpdate
+                            $ Rel8.Upsert
+                                { index = HoardState.unit
+                                , predicate = Nothing
+                                , set = \new _old -> new
+                                , updateWhere = \_ _ -> Rel8.true
+                                }
+                    , returning = Rel8.NoReturning
+                    }

@@ -465,6 +465,8 @@ test-suite hoard-test
       Integration.Hoard.DB.BlockPersistenceSpec
       Integration.Hoard.DB.EvictionSpec
       Integration.Hoard.DB.HeaderPersistenceSpec
+      Integration.Hoard.DB.HoardStatePersistenceSpec
+      Integration.Hoard.DB.PeerNotePersistenceSpec
       Integration.Hoard.DB.PeerPersistenceSpec
       Integration.Hoard.SchemaSpec
       Unit.Hoard.CollectorSpec
