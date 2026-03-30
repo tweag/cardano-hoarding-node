@@ -36,7 +36,7 @@ The distributed mode and a mainnet deployment are explicitly out of scope for th
 
 The hoarding node's purpose is to observe the Cardano network and surface anomalies. Without a live deployment, that purpose is theoretical — local testing can validate correctness but cannot produce the sustained, real-world data that makes the tool valuable.
 
-This work package is the enabling condition for the rest of the project. The validation work package's success criterion of detecting adversarial behaviour in the wild, the transaction collection work package's dependence on an inbound-accepting deployment, and the distributed mode's multi-region observation goals all require a live environment to be meaningful. This proposal creates that environment.
+This work package is the enabling condition for the rest of the project. The validation work package's success criterion of detecting adversarial behaviour in the wild, the transaction collection work package's inbound connection fallback path, and the distributed mode's multi-region observation goals all require a live environment to be meaningful. This proposal creates that environment.
 
 Six months of operation against pre-production provides enough time to accumulate a dataset worth analysing: orphaned blocks, classification patterns, peer behaviour, and — once the validation work package is delivered — consensus-level invalidity. The observability stack makes this data continuously visible rather than requiring manual inspection.
 
@@ -51,8 +51,8 @@ Making deployment accessible to external operators compounds this value. Each ad
 - Real orphaned/invalid block data being collected and queryable via the HTTP API.
 - At least one publicly exposed report of adversarial behaviour detected and evidenced
   using data collected by the hoarding node.
-- If the transaction collection proposal is accepted: transactions being collected and
-  stored end-to-end in the same environment.
+- If the transaction collection proposal is accepted and connection promotion proves
+  insufficient: transactions being collected via inbound connections in the same environment.
 
 ---
 

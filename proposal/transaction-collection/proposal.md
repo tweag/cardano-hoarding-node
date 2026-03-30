@@ -67,9 +67,41 @@ regularly rotate their active connections. If we are disconnected before
 collecting a useful number of transactions, that is normal churn, not a
 bug — but it does bound the per-connection collection window.
 
+**Transaction coverage is not under our control.** With the duplex promotion
+path, transactions can only arrive from peers whose outbound governor chooses
+to run TxSubmission toward us. We cannot solicit transactions from peers we
+connect to — TxSubmission flows in the other direction on outbound connections.
+Coverage is therefore a function of how many peers happen to promote us, which
+is not deterministic. Running more nodes or accepting inbound connections
+increases coverage.
+
+**ChainSync server and "interesting" nodes.** Peers assess how interesting a
+connection is partly by whether it serves recent headers via `ChainSync`. The
+proposed approach of serving headers from genesis to the immutable tip and then
+issuing `MsgAwaitReply` may be sufficient, but peers could also disconnect if
+they observe that our headers remain stale after `MsgAwaitReply`. This
+warrants testing — it may require serving new immutable tip headers as they
+arrive to remain a viable candidate.
+
 **Loopback.** Once Hoard runs mini-protocol servers, `PeerSharing` responses
 from adversarial peers could advertise Hoard's own address, causing it to
 connect to itself. Incoming connections from our own address should be filtered.
+
+## Alternative: `LocalTxMonitor` via NodeToClient
+
+A node-to-client connection exposes the `LocalTxMonitor` mini-protocol, which
+provides direct read access to a node's mempool. This avoids the connection
+promotion uncertainty entirely: the hoarding node connects to a trusted full
+node over a local or permissioned socket and reads transactions directly.
+
+The tradeoff is access: a NodeToClient connection requires privileged access
+granted by the node operator. This is not a public API. However, operators
+deploying the hoarding node could arrange access to friendly nodes — existing
+infrastructure from organisations such as CF or IOG already runs nodes in
+multiple regions and could grant access to volunteer operators.
+
+This path is worth considering alongside the duplex promotion approach,
+particularly if promotion proves unreliable in practice.
 
 ## Depends on
 

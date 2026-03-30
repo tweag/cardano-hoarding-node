@@ -16,12 +16,14 @@ Since then, a further path has been identified. The Ouroboros network specificat
 
 A prototype implementing this approach has been built. It has been run against preprod but has not yet witnessed any promoted connections, so it remains unvalidated end-to-end. Advertising duplex mode is necessary but not sufficient: for TxSubmission to run, a remote peer's outbound governor must also promote us through its full peer lifecycle — cold → warm → hot — and TxSubmission only runs at the hot stage. With saturated peer pools and many candidates, promotion is not guaranteed and may simply not have occurred during the preprod test window. The current ChainSync stub (which drains the channel silently) may also cause peers to treat us as uninteresting and rotate us out before reaching hot. Resolving these uncertainties is the first milestone of this work package.
 
-If promotion is confirmed not to work reliably in practice, the fallback is inbound connections via a publicly reachable deployed node, which depends on the infrastructure work package.
+If promotion is confirmed not to work reliably in practice, two fallback paths exist: inbound connections via a publicly reachable deployed node (depends on the infrastructure work package), or `LocalTxMonitor` via a node-to-client connection to a trusted full node (requires privileged access from a cooperative operator, but avoids both the promotion uncertainty and the infrastructure dependency).
+
+A note on coverage: with the duplex promotion path, transactions can only arrive from peers whose outbound governor chooses to run TxSubmission toward us. We cannot solicit transactions from peers we connect to — the protocol flows the other way. Coverage is therefore not fully under our control.
 
 **Deliverables:**
 - Mempool transactions received from peers recorded in the hoarding database with attribution to the peer that submitted them.
 - Transactions queryable via the HTTP API, filterable by peer and time window.
-- A confirmed working path to receive transactions — either via connection promotion (no infrastructure dependency) or via inbound connections (infrastructure dependency).
+- A confirmed working path to receive transactions — connection promotion, inbound connections, or `LocalTxMonitor` — with the chosen approach documented.
 
 ---
 
