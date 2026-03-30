@@ -74,11 +74,14 @@ The connection promotion path, if confirmed working, eliminates the infrastructu
 
 ### Milestone 1 — Connection Promotion Investigation
 
-**Deliverables:**
-A clear answer to whether outbound connections are promoted to duplex in practice. If they are: the prototype is productionised and this milestone delivers a working transaction collection pipeline. If they are not: a diagnosis of why (peer-side configuration, peer behaviour, prototype bug) and a documented decision on the fallback path (inbound connections via infrastructure deployment).
+**Objective:** Confirm a working transaction collection path — either duplex promotion or a documented fallback — so development can proceed.
 
-**Acceptance criteria:**
-Either: at least one promoted connection observed and transactions received, confirming the duplex path works. Or: a written diagnosis explaining why promotion does not occur in practice, with a decision to proceed via inbound connections instead.
+**Key Outcomes:**
+
+- *Duplex path confirmed:* ≥1 outbound connection promoted; transactions received from ≥1 peer.
+- *Fallback path confirmed:* Root cause of promotion failure documented; fallback chosen (inbound connections or `LocalTxMonitor`).
+
+**Impact:** A clear, actionable answer on connection behaviour; primary uncertainty blocking the work package resolved.
 
 **Estimated duration:** 2 weeks
 
@@ -86,11 +89,16 @@ Either: at least one promoted connection observed and transactions received, con
 
 ### Milestone 2 — TxSubmission Pipeline
 
-**Deliverables:**
-The `TxReceived` event pipeline is wired into persistence. Received transactions are stored in the hoarding database with peer attribution, timestamp, and transaction content (serialised). Duplicate suppression is applied — the same transaction ID received from multiple peers is stored once with multiple peer attributions. If Milestone 1 identifies that the silent `ChainSync` stub causes peers to rotate us out, a minimal `ChainSync` server (serving headers up to the immutable tip via the embedded `ChainDB`) is implemented to remain a viable hot peer candidate.
+**Objective:** Transactions received via the chosen collection path are durably persisted with full peer attribution and deduplication, regardless of which path (duplex promotion, inbound connections, or `LocalTxMonitor`) was confirmed in Milestone 1.
 
-**Acceptance criteria:**
-Transactions received from peers appear in the database. Per-peer attribution is correct. Duplicate transactions from different peers are deduplicated by transaction ID.
+**Key Outcomes:**
+
+- *Transactions persisted:* Received transactions are stored in the hoarding database with peer attribution, timestamp, and serialised transaction content.
+  - KPI (optional): ≥1 transaction stored end-to-end via the chosen collection path.
+
+- *Deduplication correct:* The same transaction ID received from multiple peers is stored once with multiple peer attributions — no duplicate rows per transaction ID.
+
+**Impact:** Transaction data is durably captured with full attribution, enabling downstream analysis of propagation, duplication patterns, and peer behaviour. The collection pipeline is production-quality end-to-end.
 
 **Estimated duration:** 3 weeks
 
@@ -98,11 +106,14 @@ Transactions received from peers appear in the database. Per-peer attribution is
 
 ### Milestone 3 — API Exposure
 
-**Deliverables:**
-Received transactions are queryable via the HTTP API. Endpoints support filtering by peer, time window, and transaction ID.
+**Objective:** Transaction data is accessible via the HTTP API with filtering by peer, time window, and transaction ID.
 
-**Acceptance criteria:**
-Transactions are queryable via the API. Results are attributable to specific peers. Integration test confirms end-to-end: transaction received → stored → queryable.
+**Key Outcomes:**
+
+- *Transactions queryable:* API returns transactions filterable by peer, time window, and transaction ID.
+- *End-to-end pipeline verified:* Integration test confirms transaction received → stored → queryable.
+
+**Impact:** Researchers and operators can query mempool data programmatically with peer attribution.
 
 **Estimated duration:** 1 week
 
