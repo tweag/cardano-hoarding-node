@@ -6,6 +6,14 @@ module Hoard.Effects.DB
     , runDB
     , runDBRead
     , runDBWrite
+    , Transaction
+    , select
+    , select1
+    , transact
+    , insert_
+    , update_
+    , delete_
+    , selectTx
     )
 where
 
@@ -15,6 +23,7 @@ import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.DB (DBRead, DBReadMetricNames (..), DBWrite, runQuery, runTransaction)
 import Atelier.Effects.DB.Config (DBPools)
+import Atelier.Effects.DB.Rel8 (Transaction, delete_, insert_, select, select1, selectTx, transact, update_)
 import Atelier.Effects.Monitoring.Metrics (Metrics)
 import Atelier.Effects.Monitoring.Tracing (Tracing)
 import Hoard.Effects.Monitoring.Metrics.Definitions (metricDBQueries, metricDBQueryDuration, metricDBQueryErrors)

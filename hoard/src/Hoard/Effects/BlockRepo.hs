@@ -20,8 +20,6 @@ import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith)
 import Effectful.State.Static.Shared (State, get, gets, modify, put)
 import Effectful.TH (makeEffect)
-import Hasql.Statement (Statement)
-import Hasql.Transaction (Transaction)
 import Rel8 (in_, isNull, lit, where_, (&&.), (<.), (<=.), (==.), (>=.))
 
 import Data.Set qualified as Set
@@ -29,12 +27,12 @@ import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
 import Atelier.Effects.Monitoring.Tracing (Tracing)
-import Hoard.API.Data.BlockViolation (BlockViolation, SlotDispute, blockToViolation, groupIntoDisputes)
+import Hoard.API.Data.BlockViolation (SlotDispute, blockToViolation, groupIntoDisputes)
 import Hoard.DB.Schemas.Blocks (rowFromBlock)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (BlockHash (..), mkBlockHash)
 import Hoard.Data.BlockTag (BlockTag (..))
-import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, delete_, insert_, select, selectTx, transact, update_)
 import Hoard.Effects.Verifier (Validity (Valid), Verified, getVerified)
 import Hoard.OrphanDetection.Data (BlockClassification (..))
 import Hoard.Types.Cardano (CardanoHeader)
@@ -66,133 +64,138 @@ runBlockRepo :: (Concurrent :> es, DBRead :> es, DBWrite :> es, Tracing :> es) =
 runBlockRepo action =
     reinterpretWith (Singleflight.runSingleflight @BlockHash @Bool) action $ \_env -> \case
         InsertBlocks blocks -> do
-            runTransaction "insert_blocks"
-                $ insertBlocksTrans
-                $ getVerified <$> blocks
+            transact "insert_blocks"
+                $ insert_
+                    Rel8.Insert
+                        { into = Blocks.schema
+                        , rows = Rel8.values $ rowFromBlock <$> getVerified <$> blocks
+                        , onConflict = Rel8.DoNothing
+                        , returning = Rel8.NoReturning
+                        }
             -- Pre-populate cache: we know these blocks exist after insertion
             Singleflight.updateCache (map ((,True) . (.hash) . getVerified) blocks)
-        GetBlock header ->
-            runQuery "get_block"
-                $ getBlockQuery header
+        GetBlock header -> do
+            rows <- select "get_block" $ do
+                block <- Rel8.each Blocks.schema
+                where_ $ block.hash ==. lit (mkBlockHash header)
+                pure block
+            pure $ extractSingleBlock . rights $ fmap Blocks.blockFromRow rows
+          where
+            extractSingleBlock = \case
+                [x] -> Just x
+                _ -> Nothing
         BlockExists blockHash ->
-            Singleflight.withCache blockHash
-                $ runQuery "block_exists"
-                $ blockExistsQuery blockHash
+            Singleflight.withCache blockHash $ do
+                rows <- select "block_exists" $ Rel8.limit 1 $ do
+                    block <- Rel8.each Blocks.schema
+                    where_ $ block.hash ==. lit blockHash
+                    pure block.hash
+                pure $ not (null rows)
         ClassifyBlock blockHash classification timestamp ->
-            runTransaction "classify_block"
-                $ classifyBlockTrans blockHash classification timestamp
+            transact "classify_block" $ do
+                update_
+                    Rel8.Update
+                        { target = Blocks.schema
+                        , from = pure ()
+                        , updateWhere = \_ row -> row.hash ==. lit blockHash
+                        , set = \_ row ->
+                            row
+                                { Blocks.classification = lit (Just classification)
+                                , Blocks.classifiedAt = lit (Just timestamp)
+                                }
+                        , returning = Rel8.NoReturning
+                        }
+                when (classification == Orphaned) $ do
+                    hashesAtSlot <- selectTx $ do
+                        targetBlock <- Rel8.each Blocks.schema
+                        where_ $ targetBlock.hash ==. lit blockHash
+                        block <- Rel8.each Blocks.schema
+                        where_ $ block.slotNumber ==. targetBlock.slotNumber
+                        pure block.hash
+                    TX.statement () (BlockTags.insertTagsStatement hashesAtSlot [SlotDispute])
         GetSlotDisputesInRange mbMinSlot mbMaxSlot -> do
-            (_parseErrors, disputes) <- runQuery "get_violations" $ getViolationsQuery mbMinSlot mbMaxSlot
-            pure disputes
+            rows <- select "get_violations" $ do
+                block <- Rel8.each Blocks.schema
+                where_
+                    $ Rel8.not_ (isNull block.classification)
+                        &&. optionalFilter mbMinSlot (\minSlot -> block.slotNumber >=. lit minSlot)
+                        &&. optionalFilter mbMaxSlot (\maxSlot -> block.slotNumber <=. lit maxSlot)
+                hasOrphanAtSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
+                where_ hasOrphanAtSlot
+                receipts <- Rel8.many $ do
+                    receipt <- Rel8.each HeaderReceipts.schema
+                    where_ $ receipt.hash ==. block.hash
+                    pure receipt
+                pure (block, receipts)
+            let (_, disputes) = partitionEithers $ fmap parseRow rows
+            pure $ groupIntoDisputes disputes
+          where
+            parseRow (blockRow, receiptRows) = do
+                block <- Blocks.blockFromRow blockRow
+                pure $ blockToViolation block (fmap HeaderReceipts.headerReceiptFromRow receiptRows)
         GetUnclassifiedBlocksBeforeSlot slot limit excludeHashes -> do
-            runQuery "get_unclassified_blocks"
-                $ getUnclassifiedBlocksQuery slot limit excludeHashes
+            rows <- select "get_unclassified_blocks"
+                $ Rel8.limit (fromIntegral limit)
+                $ do
+                    block <- Rel8.each Blocks.schema
+                    where_
+                        $ Rel8.isNull block.classification
+                            &&. block.slotNumber <. lit slot
+                            &&. excludeHashesCondition block.hash
+                    pure block
+            pure $ rights $ fmap Blocks.blockFromRow rows
+          where
+            excludeHashesCondition blockHash =
+                case toList excludeHashes of
+                    [] -> lit True
+                    hashes -> Rel8.not_ (blockHash `Rel8.in_` fmap lit hashes)
         EvictBlocks -> do
-            hashes <- runTransaction "evict_blocks" evictUninterestingBlocksTrans
+            hashes <- transact "evict_blocks" $ do
+                hashes <- selectTx $ do
+                    block <- Rel8.each Blocks.schema
+                    where_ $ block.classification ==. lit (Just Canonical)
+                    hasOrphanAtSameSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
+                    where_ $ Rel8.not_ hasOrphanAtSameSlot
+                    hasBlockTag <- BlockTags.hashHasTag block.hash
+                    where_ $ Rel8.not_ hasBlockTag
+                    hasHeaderTag <- HeaderTags.hashHasTag block.hash
+                    where_ $ Rel8.not_ hasHeaderTag
+                    pure block.hash
+                unless (null hashes)
+                    $ delete_
+                        Rel8.Delete
+                            { from = Blocks.schema
+                            , using = pure ()
+                            , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
+                            , returning = Rel8.NoReturning
+                            }
+                pure hashes
             -- Remove evicted blocks from cache so future lookups hit the DB
             Singleflight.removeFromCache hashes
             pure $ length hashes
-        TagBlock hash tag ->
-            runTransaction "tag_block"
-                $ tagBlockTrans hash tag
-        GetBlocks range tags ->
-            runQuery "get_blocks_in_range"
-                $ getBlocksQuery range tags
-
-
-insertBlocksTrans :: [Block] -> Transaction ()
-insertBlocksTrans blocks =
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = Blocks.schema
-                , rows = Rel8.values $ rowFromBlock <$> blocks
-                , onConflict = Rel8.DoNothing
-                , returning = Rel8.NoReturning
-                }
-
-
-getBlockQuery :: CardanoHeader -> Statement () (Maybe Block)
-getBlockQuery header =
-    fmap (extractSingleBlock . rights . fmap Blocks.blockFromRow)
-        . Rel8.run
-        . Rel8.select
-        $ do
-            block <- Rel8.each Blocks.schema
-            where_
-                $ block.hash ==. (lit $ mkBlockHash header)
-            pure block
-  where
-    -- The unique constraint over the `hash` column ensures we get either 1 or
-    -- 0 rows from the above query.
-    extractSingleBlock = \case
-        [x] -> Just x
-        _ -> Nothing
-
-
-blockExistsQuery :: BlockHash -> Statement () Bool
-blockExistsQuery blockHash =
-    fmap (not . null)
-        . Rel8.run
-        . Rel8.select
-        $ Rel8.limit 1
-        $ do
-            block <- Rel8.each Blocks.schema
-            where_ $ block.hash ==. lit blockHash
-            pure block.hash
-
-
-classifyBlockTrans :: BlockHash -> BlockClassification -> UTCTime -> Transaction ()
-classifyBlockTrans blockHash classification timestamp = do
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.update
-            Rel8.Update
-                { target = Blocks.schema
-                , from = pure ()
-                , updateWhere = \_ row -> row.hash ==. lit blockHash
-                , set = \_ row ->
-                    row
-                        { Blocks.classification = lit (Just classification)
-                        , Blocks.classifiedAt = lit (Just timestamp)
-                        }
-                , returning = Rel8.NoReturning
-                }
-    when (classification == Orphaned) $ do
-        hashesAtSlot <- TX.statement () (getBlockHashesAtSameSlotQuery blockHash)
-        TX.statement () (BlockTags.insertTagsStatement hashesAtSlot [SlotDispute])
-
-
-getBlockHashesAtSameSlotQuery :: BlockHash -> Statement () [BlockHash]
-getBlockHashesAtSameSlotQuery blockHash =
-    Rel8.run . Rel8.select $ do
-        targetBlock <- Rel8.each Blocks.schema
-        where_ $ targetBlock.hash ==. lit blockHash
-        block <- Rel8.each Blocks.schema
-        where_ $ block.slotNumber ==. targetBlock.slotNumber
-        pure block.hash
-
-
-getUnclassifiedBlocksQuery :: Int64 -> Int -> Set BlockHash -> Statement () [Block]
-getUnclassifiedBlocksQuery slot limit excludeHashes =
-    fmap (rights . fmap Blocks.blockFromRow)
-        . Rel8.run
-        . Rel8.select
-        $ Rel8.limit (fromIntegral limit)
-        $ do
-            block <- Rel8.each Blocks.schema
-            where_
-                $ Rel8.isNull block.classification
-                    &&. block.slotNumber <. lit slot
-                    &&. excludeHashesCondition block.hash
-            pure block
-  where
-    -- Build exclusion condition: hash NOT IN (excludeHashes)
-    excludeHashesCondition blockHash =
-        case toList excludeHashes of
-            [] -> lit True -- No exclusions
-            hashes -> Rel8.not_ (blockHash `Rel8.in_` fmap lit hashes)
+        TagBlock hash tags ->
+            transact "tag_block"
+                $ TX.statement () (BlockTags.insertTagsStatement [hash] tags)
+        GetBlocks (SlotRange mFromSlot mToSlot) tags -> do
+            rows <- select "get_blocks_in_range" $ do
+                block <- Rel8.each Blocks.schema
+                tagsMatch <-
+                    if length tags > 0 then
+                        Rel8.exists
+                            $ Rel8.filter (\tag -> block.hash ==. tag.blockHash &&. tag.tag `in_` litTags)
+                                =<< Rel8.each BlockTags.schema
+                    else
+                        pure $ lit True
+                where_
+                    $ block.slotNumber >=. lit fromSlot
+                        &&. block.slotNumber <=. lit toSlot
+                        &&. tagsMatch
+                pure block
+            pure $ mapMaybe (rightToMaybe . Blocks.blockFromRow) rows
+          where
+            fromSlot = fromMaybe minBound mFromSlot
+            toSlot = fromMaybe maxBound mToSlot
+            litTags = lit <$> tags
 
 
 -- | Helper to create an optional filter predicate
@@ -203,111 +206,11 @@ optionalFilter Nothing _ = lit True
 optionalFilter (Just val) f = f val
 
 
--- | Query all classified blocks at disputed slots (slots with at least one orphan),
--- filtered by optional slot range. Returns both the canonical winner and orphan(s)
--- for each disputed slot.
--- Returns Either values so parsing errors can be logged before being discarded.
-getViolationsQuery :: Maybe Int64 -> Maybe Int64 -> Statement () ([Text], [SlotDispute])
-getViolationsQuery mbMinSlot mbMaxSlot =
-    (fmap (second groupIntoDisputes . partitionEithers) . fmap (fmap parseRow)) . Rel8.run . Rel8.select $ do
-        block <- Rel8.each Blocks.schema
-
-        -- Only classified blocks within the optional slot range
-        where_
-            $ Rel8.not_ (isNull block.classification)
-                &&. optionalFilter mbMinSlot (\minSlot -> block.slotNumber >=. lit minSlot)
-                &&. optionalFilter mbMaxSlot (\maxSlot -> block.slotNumber <=. lit maxSlot)
-
-        -- Only include blocks at slots that have at least one orphan
-        hasOrphanAtSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
-        where_ hasOrphanAtSlot
-
-        -- Get all receipts for this block
-        receipts <- Rel8.many $ do
-            receipt <- Rel8.each HeaderReceipts.schema
-            where_ $ receipt.hash ==. block.hash
-            pure receipt
-
-        pure (block, receipts)
-  where
-    parseRow :: (Blocks.Row Rel8.Result, [HeaderReceipts.Row Rel8.Result]) -> Either Text BlockViolation
-    parseRow (blockRow, receiptRows) = do
-        block <- Blocks.blockFromRow blockRow
-        let receipts = fmap HeaderReceipts.headerReceiptFromRow receiptRows
-        pure $ blockToViolation block receipts
-
-
--- | Delete canonical blocks that have no orphaned block at the same slot.
--- These are "uncontested" canonical blocks that are safe to evict.
--- Returns the hashes of deleted blocks.
-evictUninterestingBlocksTrans :: Transaction [BlockHash]
-evictUninterestingBlocksTrans = do
-    hashes <- TX.statement () getEvictableBlockHashesQuery
-    unless (null hashes)
-        $ TX.statement () (deleteBlocksByHashesQuery hashes)
-    pure hashes
-
-
 orphanExistsAtSlot :: Rel8.Query (Blocks.Row Rel8.Expr) -> Rel8.Expr Int64 -> Rel8.Query (Rel8.Expr Bool)
 orphanExistsAtSlot orphans slot = Rel8.exists $ do
     orphan <- orphans
     where_ $ orphan.classification ==. lit (Just Orphaned) &&. orphan.slotNumber ==. slot
     pure orphan
-
-
--- | Select canonical blocks that have no orphaned block at the same slot
--- and have no associated tags.
-getEvictableBlockHashesQuery :: Statement () [BlockHash]
-getEvictableBlockHashesQuery =
-    Rel8.run . Rel8.select $ do
-        block <- Rel8.each Blocks.schema
-        where_ $ block.classification ==. lit (Just Canonical)
-        hasOrphanAtSameSlot <- orphanExistsAtSlot (Rel8.each Blocks.schema) block.slotNumber
-        where_ $ Rel8.not_ hasOrphanAtSameSlot
-        hasBlockTag <- BlockTags.hashHasTag block.hash
-        where_ $ Rel8.not_ hasBlockTag
-        hasHeaderTag <- HeaderTags.hashHasTag block.hash
-        where_ $ Rel8.not_ hasHeaderTag
-        pure block.hash
-
-
-deleteBlocksByHashesQuery :: [BlockHash] -> Statement () ()
-deleteBlocksByHashesQuery hashes =
-    Rel8.run_
-        $ Rel8.delete
-            Rel8.Delete
-                { from = Blocks.schema
-                , using = pure ()
-                , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
-                , returning = Rel8.NoReturning
-                }
-
-
-tagBlockTrans :: BlockHash -> [BlockTag] -> Transaction ()
-tagBlockTrans hash tags =
-    TX.statement () (BlockTags.insertTagsStatement [hash] tags)
-
-
-getBlocksQuery :: SlotRange -> [BlockTag] -> Statement () [Block]
-getBlocksQuery (SlotRange mFromSlot mToSlot) tags =
-    fmap (mapMaybe (rightToMaybe . Blocks.blockFromRow)) . Rel8.run . Rel8.select $ do
-        block <- Rel8.each Blocks.schema
-        tagsMatch <-
-            if (length tags > 0) then
-                Rel8.exists
-                    $ Rel8.filter (\tag -> (block.hash ==. tag.blockHash) &&. (tag.tag `in_` litTags))
-                        =<< Rel8.each BlockTags.schema
-            else
-                pure $ lit True
-        where_
-            $ (block.slotNumber >=. lit fromSlot)
-                &&. (block.slotNumber <=. lit toSlot)
-                &&. tagsMatch
-        pure block
-  where
-    fromSlot = fromMaybe minBound mFromSlot
-    toSlot = fromMaybe maxBound mToSlot
-    litTags = lit <$> tags
 
 
 runBlockRepoState

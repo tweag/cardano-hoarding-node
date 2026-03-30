@@ -5,7 +5,9 @@ module Hoard.Data.PeerNote
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Time (UTCTime)
-import Rel8 (DBEq, DBType, ReadShow (..))
+import Rel8 (DBEq, DBType (typeInformation), ReadShow (..), TypeInformation (typeName), TypeName (name))
+
+import Rel8 qualified
 
 import Atelier.Types.JsonReadShow (JsonReadShow (..))
 import Hoard.Data.ID (ID)
@@ -27,4 +29,17 @@ data NoteType
     = Adversarial
     deriving stock (Eq, Generic, Ord, Read, Show)
     deriving (FromJSON, ToJSON) via JsonReadShow NoteType
-    deriving (DBEq, DBType) via ReadShow NoteType
+
+
+instance DBType NoteType where
+    typeInformation =
+        coerce
+            (typeInformation @(ReadShow NoteType))
+                { typeName = "note_type" & (overName . overSchema) (const $ Just "hoard")
+                }
+      where
+        overName f a = a {name = f a.name}
+        overSchema f a = a {Rel8.schema = f a.schema}
+
+
+instance DBEq NoteType

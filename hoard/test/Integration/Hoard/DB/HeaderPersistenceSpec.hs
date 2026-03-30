@@ -1,7 +1,7 @@
 module Integration.Hoard.DB.HeaderPersistenceSpec (spec_HeaderPersistence) where
 
 import Data.Maybe (fromJust)
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (UTCTime (..), getCurrentTime)
 import Effectful (runEff, runPureEff)
 import Effectful.Error.Static (runErrorNoCallStack)
 import Effectful.Reader.Static (runReader)
@@ -21,14 +21,16 @@ import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.BlockHash (BlockHash (..))
 import Hoard.Data.Header (Header (..))
+import Hoard.Data.HeaderTag (HeaderTag (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
-import Hoard.Effects.HeaderRepo (runHeaderRepo, upsertHeader)
-import Hoard.Effects.PeerRepo (runPeerRepo, upsertPeers)
+import Hoard.Effects.HeaderRepo (getHeaders, runHeaderRepo, tagHeader, upsertHeader)
+import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoHeader)
+import Hoard.Types.SlotRange (SlotRange (..))
 
 import Atelier.Effects.Log qualified as Log
 import Hoard.DB.Schemas.HeaderReceipts qualified as HeaderReceiptsSchema
@@ -171,6 +173,59 @@ spec_HeaderPersistence = do
                 Right count -> count `shouldBe` 2
                 Left err -> expectationFailure $ "Receipt count query failed: " <> show err
 
+    withCleanTestDatabase $ describe "getHeaders (database)" $ do
+        it "returns headers within slot range" $ \pools -> do
+            now <- getCurrentTime
+            peer <- mkTestPeer now
+            result <- runWrite pools $ do
+                persistedPeer <- upsertOnePeer peer now
+                upsertHeader (makeValid $ mkHeader "hash10" 10) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash20" 20) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash30" 30) persistedPeer now
+                getHeaders (SlotRange (Just 15) (Just 25)) []
+            case result of
+                Right headers -> map (.slotNumber) headers `shouldBe` ([20] :: [Word64])
+                Left err -> expectationFailure $ "getHeaders failed: " <> show err
+
+        it "returns all headers when range is fully open" $ \pools -> do
+            now <- getCurrentTime
+            peer <- mkTestPeer now
+            result <- runWrite pools $ do
+                persistedPeer <- upsertOnePeer peer now
+                upsertHeader (makeValid $ mkHeader "hash10" 10) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash20" 20) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash30" 30) persistedPeer now
+                getHeaders (SlotRange Nothing Nothing) []
+            case result of
+                Right headers -> map (.slotNumber) headers `shouldMatchList` ([10, 20, 30] :: [Word64])
+                Left err -> expectationFailure $ "getHeaders failed: " <> show err
+
+        it "returns only headers matching the specified tag" $ \pools -> do
+            now <- getCurrentTime
+            peer <- mkTestPeer now
+            result <- runWrite pools $ do
+                persistedPeer <- upsertOnePeer peer now
+                upsertHeader (makeValid $ mkHeader "hash10" 10) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash20" 20) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash30" 30) persistedPeer now
+                tagHeader (BlockHash "hash20") [CorruptHeaderIntegrity]
+                getHeaders (SlotRange Nothing Nothing) [CorruptHeaderIntegrity]
+            case result of
+                Right headers -> map (.slotNumber) headers `shouldBe` ([20] :: [Word64])
+                Left err -> expectationFailure $ "getHeaders failed: " <> show err
+
+        it "returns empty list when no headers match the range" $ \pools -> do
+            now <- getCurrentTime
+            peer <- mkTestPeer now
+            result <- runWrite pools $ do
+                persistedPeer <- upsertOnePeer peer now
+                upsertHeader (makeValid $ mkHeader "hash10" 10) persistedPeer now
+                upsertHeader (makeValid $ mkHeader "hash20" 20) persistedPeer now
+                getHeaders (SlotRange (Just 50) (Just 100)) []
+            case result of
+                Right headers -> headers `shouldBe` []
+                Left err -> expectationFailure $ "getHeaders failed: " <> show err
+
 
 -- Helper functions
 
@@ -191,6 +246,25 @@ mkTestPeerWithPort now port = do
             , lastFailureTime = Nothing
             , discoveredVia = "test"
             }
+
+
+upsertOnePeer :: (PeerRepo :> es) => Peer -> UTCTime -> Eff es Peer
+upsertOnePeer peer now = do
+    upsertedPeers <- upsertPeers (fromList [peer.address]) peer.address now
+    case toList upsertedPeers of
+        [p] -> pure p
+        _ -> error "Expected exactly one peer from upsert"
+
+
+mkHeader :: Text -> Word64 -> Header
+mkHeader h slot =
+    Header
+        { hash = BlockHash h
+        , headerData = exampleHdr
+        , slotNumber = slot
+        , blockNumber = slot
+        , firstSeenAt = UTCTime (read "1970-01-01") 0
+        }
 
 
 makeValid :: Header -> Verified 'Valid Header

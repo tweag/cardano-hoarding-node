@@ -12,18 +12,15 @@ import Data.Time (UTCTime)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.TH (makeEffect)
-import Hasql.Statement (Statement)
-import Hasql.Transaction (Transaction)
 import Rel8 (in_, lit, where_, (&&.), (<=.), (==.), (>=.))
 
-import Hasql.Transaction qualified as TX
 import Rel8 qualified
 
 import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.DB (DBRead, DBWrite, runQuery, runTransaction)
+import Hoard.Effects.DB (DBRead, DBWrite, delete_, insert_, select, selectTx, transact)
 import Hoard.Effects.Verifier (Validity (..), Verified, getVerified)
 import Hoard.Types.SlotRange (SlotRange (..))
 
@@ -58,136 +55,89 @@ data HeaderRepo :: Effect where
 makeEffect ''HeaderRepo
 
 
--- | Run the HeaderRepo effect using the DBWrite effect
+-- | Run the HeaderRepo effect using the Rel8Read/Rel8Write effects
 runHeaderRepo
     :: (DBRead :> es, DBWrite :> es)
     => Eff (HeaderRepo : es) a
     -> Eff es a
 runHeaderRepo = interpret_ \case
     UpsertHeader header peer receivedAt ->
-        runTransaction "upsert_header"
-            $ upsertHeaderImpl (getVerified header) peer receivedAt
+        transact "upsert_header" $ do
+            insert_
+                Rel8.Insert
+                    { into = HeadersSchema.schema
+                    , rows = Rel8.values [HeadersSchema.rowFromHeader (getVerified header)]
+                    , onConflict = Rel8.DoNothing
+                    , returning = Rel8.NoReturning
+                    }
+            insert_
+                Rel8.Insert
+                    { into = HeaderReceiptsSchema.schema
+                    , rows =
+                        Rel8.values
+                            [ HeaderReceiptsSchema.Row
+                                { HeaderReceiptsSchema.id = Rel8.unsafeDefault
+                                , HeaderReceiptsSchema.hash = lit (getVerified header).hash
+                                , HeaderReceiptsSchema.peerId = lit peer.id
+                                , HeaderReceiptsSchema.receivedAt = lit receivedAt
+                                }
+                            ]
+                    , onConflict = Rel8.DoNothing
+                    , returning = Rel8.NoReturning
+                    }
     TagHeader hash tags ->
-        runTransaction "tag_header"
-            $ tagHeaderImpl hash tags
-    EvictHeaders ->
-        runTransaction
-            "evict_headers"
-            evictHeadersTrans
-    GetHeaders range tags ->
-        runQuery "get_headers"
-            $ getHeadersImpl range tags
-
-
--- | Upsert a header and record receipt from a peer
-upsertHeaderImpl :: Header -> Peer -> UTCTime -> Transaction ()
-upsertHeaderImpl header peer receivedAt = do
-    -- 1. Upsert the header (insert or ignore on conflict)
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = HeadersSchema.schema
-                , rows =
-                    Rel8.values
-                        [ HeadersSchema.rowFromHeader header
-                        ]
-                , onConflict = Rel8.DoNothing -- Header already exists, that's fine
-                , returning = Rel8.NoReturning
+        transact "tag_header"
+            $ insert_
+                Rel8.Insert
+                    { into = HeaderTagsSchema.schema
+                    , rows = Rel8.values $ mkRow <$> tags
+                    , onConflict = Rel8.DoNothing
+                    , returning = Rel8.NoReturning
+                    }
+      where
+        mkRow tag =
+            HeaderTagsSchema.Row
+                { id = Rel8.unsafeDefault
+                , hash = lit hash
+                , tag = lit tag
+                , taggedAt = Rel8.unsafeDefault
                 }
-
-    -- 2. Record the receipt
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = HeaderReceiptsSchema.schema
-                , rows =
-                    Rel8.values
-                        [ HeaderReceiptsSchema.Row
-                            { HeaderReceiptsSchema.id = Rel8.unsafeDefault
-                            , HeaderReceiptsSchema.hash = lit header.hash
-                            , HeaderReceiptsSchema.peerId = lit peer.id
-                            , HeaderReceiptsSchema.receivedAt = lit receivedAt
-                            }
-                        ]
-                , onConflict = Rel8.DoNothing -- Receipt already recorded
-                , returning = Rel8.NoReturning
-                }
-
-
-tagHeaderImpl :: BlockHash -> [HeaderTag] -> Transaction ()
-tagHeaderImpl hash tags =
-    TX.statement ()
-        . Rel8.run_
-        $ Rel8.insert
-            Rel8.Insert
-                { into = HeaderTagsSchema.schema
-                , rows = Rel8.values $ mkRow <$> tags
-                , onConflict = Rel8.DoNothing
-                , returning = Rel8.NoReturning
-                }
-  where
-    mkRow tag =
-        HeaderTagsSchema.Row
-            { id = Rel8.unsafeDefault
-            , hash = lit hash
-            , tag = lit tag
-            , taggedAt = Rel8.unsafeDefault
-            }
-
-
--- | Delete headers that have no associated tags.
--- Returns the number of deleted headers.
--- header_receipts are deleted automatically via ON DELETE CASCADE.
-evictHeadersTrans :: Transaction Int
-evictHeadersTrans = do
-    hashes <- TX.statement () getEvictableHeaderHashesQuery
-    unless (null hashes)
-        $ TX.statement () (deleteHeadersByHashesQuery hashes)
-    pure (length hashes)
-
-
-getEvictableHeaderHashesQuery :: Statement () [BlockHash]
-getEvictableHeaderHashesQuery =
-    Rel8.run . Rel8.select $ do
-        header <- Rel8.each HeadersSchema.schema
-        hasHeaderTag <- HeaderTagsSchema.hashHasTag header.hash
-        where_ $ Rel8.not_ hasHeaderTag
-        hasBlockTag <- BlockTagsSchema.hashHasTag header.hash
-        where_ $ Rel8.not_ hasBlockTag
-        pure header.hash
-
-
-deleteHeadersByHashesQuery :: [BlockHash] -> Statement () ()
-deleteHeadersByHashesQuery hashes =
-    Rel8.run_
-        $ Rel8.delete
-            Rel8.Delete
-                { from = HeadersSchema.schema
-                , using = pure ()
-                , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
-                , returning = Rel8.NoReturning
-                }
-
-
-getHeadersImpl :: SlotRange -> [HeaderTag] -> Statement () [Header]
-getHeadersImpl (SlotRange mFromSlot mToSlot) tags =
-    fmap (mapMaybe (rightToMaybe . HeadersSchema.headerFromRow)) . Rel8.run . Rel8.select $ do
-        block <- Rel8.each HeadersSchema.schema
-        tagsMatch <-
-            if (length tags > 0) then
-                Rel8.exists
-                    $ Rel8.filter (\tag -> (block.hash ==. tag.hash) &&. (tag.tag `in_` litTags))
-                        =<< Rel8.each HeaderTagsSchema.schema
-            else
-                pure $ lit True
-        where_
-            $ (block.slotNumber >=. lit fromSlot)
-                &&. (block.slotNumber <=. lit toSlot)
-                &&. tagsMatch
-        pure block
-  where
-    fromSlot = fromMaybe minBound mFromSlot
-    toSlot = fromMaybe maxBound mToSlot
-    litTags = lit <$> tags
+    EvictHeaders -> do
+        hashes <- transact "evict_headers" $ do
+            hashes <- selectTx $ do
+                header <- Rel8.each HeadersSchema.schema
+                hasHeaderTag <- HeaderTagsSchema.hashHasTag header.hash
+                where_ $ Rel8.not_ hasHeaderTag
+                hasBlockTag <- BlockTagsSchema.hashHasTag header.hash
+                where_ $ Rel8.not_ hasBlockTag
+                pure header.hash
+            unless (null hashes)
+                $ delete_
+                    Rel8.Delete
+                        { from = HeadersSchema.schema
+                        , using = pure ()
+                        , deleteWhere = \_ row -> row.hash `Rel8.in_` fmap lit hashes
+                        , returning = Rel8.NoReturning
+                        }
+            pure hashes
+        pure $ length hashes
+    GetHeaders (SlotRange mFromSlot mToSlot) tags -> do
+        rows <- select "get_headers" $ do
+            header <- Rel8.each HeadersSchema.schema
+            tagsMatch <-
+                if length tags > 0 then
+                    Rel8.exists
+                        $ Rel8.filter (\tag -> header.hash ==. tag.hash &&. tag.tag `in_` litTags)
+                            =<< Rel8.each HeaderTagsSchema.schema
+                else
+                    pure $ lit True
+            where_
+                $ header.slotNumber >=. lit fromSlot
+                    &&. header.slotNumber <=. lit toSlot
+                    &&. tagsMatch
+            pure header
+        pure $ mapMaybe (rightToMaybe . HeadersSchema.headerFromRow) rows
+      where
+        fromSlot = fromMaybe minBound mFromSlot
+        toSlot = fromMaybe maxBound mToSlot
+        litTags = lit <$> tags

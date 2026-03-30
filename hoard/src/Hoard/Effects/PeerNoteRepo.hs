@@ -20,7 +20,7 @@ import Atelier.Effects.Clock (Clock)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer)
 import Hoard.Data.PeerNote (NoteType, PeerNote (..))
-import Hoard.Effects.DB (DBWrite, runTransaction)
+import Hoard.Effects.DB (DBWrite, transact)
 
 import Atelier.Effects.Clock qualified as Clock
 import Hoard.DB.Schemas.PeerNotes qualified as PeerNotes
@@ -35,8 +35,8 @@ makeEffect ''PeerNoteRepo
 
 runPeerNoteRepo :: (DBWrite :> es) => Eff (PeerNoteRepo : es) a -> Eff es a
 runPeerNoteRepo = interpret_ \case
-    SaveNote peerId noteType note -> do
-        runTransaction "save_note"
+    SaveNote peerId noteType note ->
+        transact "save_note"
             . fmap PeerNotes.peerNoteFromRow
             . TX.statement ()
             . Rel8.run1

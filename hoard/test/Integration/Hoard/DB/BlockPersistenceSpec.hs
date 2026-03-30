@@ -32,6 +32,7 @@ import Test.Util.Serialisation.Examples (Examples (..))
 import Text.Read (read)
 
 import Data.List qualified as List
+import Data.Set qualified as Set
 import Rel8 qualified
 
 import Atelier.Effects.Clock (runClock)
@@ -40,7 +41,7 @@ import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.PoolID (PoolID (..))
-import Hoard.Effects.BlockRepo (blockExists, insertBlocks, runBlockRepo)
+import Hoard.Effects.BlockRepo (blockExists, getBlock, getUnclassifiedBlocksBeforeSlot, insertBlocks, runBlockRepo)
 import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
@@ -191,6 +192,70 @@ spec_BlockPersistence = do
             case existsResults of
                 Right results -> all (== True) results `shouldBe` True
                 Left err -> expectationFailure $ "blockExists queries failed: " <> show err
+
+        it "getBlock returns the block when it exists" $ \pools -> do
+            let verifiedBlock = mkTestBlock 13
+                block = Verifier.getVerified verifiedBlock
+                header = getHeader block.blockData
+
+            result <- runWrite pools $ do
+                insertBlocks [verifiedBlock]
+                getBlock header
+
+            case result of
+                Right (Just found) -> found.hash `shouldBe` block.hash
+                Right Nothing -> expectationFailure "Expected block to be found but got Nothing"
+                Left err -> expectationFailure $ "getBlock failed: " <> show err
+
+        it "getBlock returns Nothing for a non-existent block" $ \pools -> do
+            let verifiedBlock = mkTestBlock 14
+                block = Verifier.getVerified verifiedBlock
+                header = getHeader block.blockData
+
+            result <- runWrite pools $ getBlock header
+
+            case result of
+                Right Nothing -> pure ()
+                Right (Just _) -> expectationFailure "Expected Nothing but found a block"
+                Left err -> expectationFailure $ "getBlock failed: " <> show err
+
+        it "getUnclassifiedBlocksBeforeSlot returns only blocks with slotNumber < slot" $ \pools -> do
+            let block5 = mkTestBlock 5
+                block10 = mkTestBlock 10
+                block15 = mkTestBlock 15
+
+            result <- runWrite pools $ do
+                insertBlocks [block5, block10, block15]
+                getUnclassifiedBlocksBeforeSlot 12 100 mempty
+
+            case result of
+                Right blocks -> map (.slotNumber) blocks `shouldMatchList` [5, 10]
+                Left err -> expectationFailure $ "getUnclassifiedBlocksBeforeSlot failed: " <> show err
+
+        it "getUnclassifiedBlocksBeforeSlot respects the limit" $ \pools -> do
+            let blocks = map mkTestBlock [1, 2, 3, 4, 5]
+
+            result <- runWrite pools $ do
+                insertBlocks blocks
+                getUnclassifiedBlocksBeforeSlot 100 2 mempty
+
+            case result of
+                Right found -> length found `shouldBe` 2
+                Left err -> expectationFailure $ "getUnclassifiedBlocksBeforeSlot failed: " <> show err
+
+        it "getUnclassifiedBlocksBeforeSlot excludes specified hashes" $ \pools -> do
+            let block1 = mkTestBlock 1
+                block2 = mkTestBlock 2
+                block3 = mkTestBlock 3
+                hash2 = (.hash) $ Verifier.getVerified block2
+
+            result <- runWrite pools $ do
+                insertBlocks [block1, block2, block3]
+                getUnclassifiedBlocksBeforeSlot 100 100 (Set.fromList [hash2])
+
+            case result of
+                Right found -> map (.hash) found `shouldNotContain` [hash2]
+                Left err -> expectationFailure $ "getUnclassifiedBlocksBeforeSlot failed: " <> show err
 
 
 -- Helper functions
