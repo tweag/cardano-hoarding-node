@@ -12,7 +12,7 @@ import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
 import Hoard.Data.PeerNote (NoteType (..), PeerNote (..))
-import Hoard.Effects.DB (runDBRead, runDBWrite, runRel8Read, runRel8Write)
+import Hoard.Effects.DB (runDBRead, runDBWrite)
 import Hoard.Effects.PeerNoteRepo (runPeerNoteRepo, saveNote)
 import Hoard.Effects.PeerRepo (getPeerByAddress, runPeerRepo, upsertPeers)
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
@@ -33,8 +33,6 @@ spec_PeerNotePersistence = do
                 . runDBRead
                 . runClock
                 . runDBWrite
-                . runRel8Read
-                . runRel8Write
                 . runPeerRepo
                 . runPeerNoteRepo
                 $ action

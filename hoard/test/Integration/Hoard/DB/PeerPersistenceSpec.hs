@@ -17,7 +17,7 @@ import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.PeerRepo
     ( getEligiblePeers
     , getEligiblePinnedPeers
@@ -47,8 +47,6 @@ spec_PeerPersistence = do
                 . runDBRead
                 . runClock
                 . runDBWrite
-                . runRel8Read
-                . runRel8Write
                 . runPeerRepo
                 $ action
 

@@ -20,7 +20,7 @@ import Hoard.Data.BlockHash (BlockHash)
 import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag)
 import Hoard.Data.Peer (Peer (..))
-import Hoard.Effects.DB (Rel8Read, Rel8Write, delete_, insert_, select, selectTx, transact)
+import Hoard.Effects.DB (DBRead, DBWrite, delete_, insert_, select, selectTx, transact)
 import Hoard.Effects.Verifier (Validity (..), Verified, getVerified)
 import Hoard.Types.SlotRange (SlotRange (..))
 
@@ -57,7 +57,7 @@ makeEffect ''HeaderRepo
 
 -- | Run the HeaderRepo effect using the Rel8Read/Rel8Write effects
 runHeaderRepo
-    :: (Rel8Read :> es, Rel8Write :> es)
+    :: (DBRead :> es, DBWrite :> es)
     => Eff (HeaderRepo : es) a
     -> Eff es a
 runHeaderRepo = interpret_ \case

@@ -28,7 +28,7 @@ import Rel8.Expr.Time qualified as Rel8
 
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DB (Rel8Read, Rel8Write, Transaction, select, transact)
+import Hoard.Effects.DB (DBRead, DBWrite, Transaction, select, transact)
 
 import Hoard.DB.Schemas.Peers qualified as PeersSchema
 import Hoard.DB.Schemas.SelectedPeers qualified as SelectedPeersSchema
@@ -124,7 +124,7 @@ makeEffect ''PeerRepo
 
 -- | Run the PeerRepo effect using the Rel8Read and Rel8Write effects
 runPeerRepo
-    :: (Rel8Read :> es, Rel8Write :> es)
+    :: (DBRead :> es, DBWrite :> es)
     => Eff (PeerRepo : es) a
     -> Eff es a
 runPeerRepo = interpret_ \case

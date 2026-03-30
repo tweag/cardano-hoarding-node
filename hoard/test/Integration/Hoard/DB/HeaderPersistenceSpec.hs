@@ -24,7 +24,7 @@ import Hoard.Data.Header (Header (..))
 import Hoard.Data.HeaderTag (HeaderTag (..))
 import Hoard.Data.ID (ID (..))
 import Hoard.Data.Peer (Peer (..), PeerAddress (..))
-import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.HeaderRepo (getHeaders, runHeaderRepo, tagHeader, upsertHeader)
 import Hoard.Effects.PeerRepo (PeerRepo, runPeerRepo, upsertPeers)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
@@ -51,8 +51,6 @@ spec_HeaderPersistence = do
                 . runDBRead
                 . runClock
                 . runDBWrite
-                . runRel8Read
-                . runRel8Write
                 . runPeerRepo
                 . runHeaderRepo
                 $ action

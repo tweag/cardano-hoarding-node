@@ -42,7 +42,7 @@ import Hoard.Data.Block (Block (..))
 import Hoard.Data.BlockHash (mkBlockHash)
 import Hoard.Data.PoolID (PoolID (..))
 import Hoard.Effects.BlockRepo (blockExists, getBlock, getUnclassifiedBlocksBeforeSlot, insertBlocks, runBlockRepo)
-import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery, runRel8Read, runRel8Write)
+import Hoard.Effects.DB (runDBRead, runDBWrite, runQuery)
 import Hoard.Effects.Verifier (Validity (Valid), Verified)
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (CardanoBlock)
@@ -68,8 +68,6 @@ spec_BlockPersistence = do
                 . runClock
                 . runDBWrite
                 . runConcurrent
-                . runRel8Read
-                . runRel8Write
                 . runBlockRepo
                 $ action
 

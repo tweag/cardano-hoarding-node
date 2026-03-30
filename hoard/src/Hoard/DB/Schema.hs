@@ -19,7 +19,7 @@ import Text.Casing (quietSnake)
 import Data.List.NonEmpty qualified as NonEmpty
 import Rel8 qualified
 
-import Hoard.Effects.DB (Rel8Read, select1)
+import Hoard.Effects.DB (DBRead, select1)
 
 
 -- | Default schema name for the application
@@ -48,7 +48,7 @@ mkSchema tableName =
         }
 
 
-countRows :: (Rel8Read :> es, Rel8able row) => TableSchema (row Name) -> Eff es Int
+countRows :: (DBRead :> es, Rel8able row) => TableSchema (row Name) -> Eff es Int
 countRows schema =
     fmap fromIntegral
         $ select1 ("count_rows[" <> toText schema.name.name <> "]")
@@ -58,7 +58,7 @@ countRows schema =
 
 -- | Count rows in a table that satisfy a predicate
 countRowsWhere
-    :: (Rel8Read :> es, Rel8able row)
+    :: (DBRead :> es, Rel8able row)
     => TableSchema (row Name)
     -> (row Expr -> Expr Bool)
     -> Eff es Int

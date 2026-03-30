@@ -13,7 +13,7 @@ import Rel8 (lit)
 
 import Rel8 qualified
 
-import Hoard.Effects.DB (Rel8Read, Rel8Write, insert_, select, transact)
+import Hoard.Effects.DB (DBRead, DBWrite, insert_, select, transact)
 import Hoard.Types.Cardano (ChainPoint)
 
 import Hoard.DB.Schemas.HoardState qualified as HoardState
@@ -28,7 +28,7 @@ data HoardStateRepo :: Effect where
 makeEffect ''HoardStateRepo
 
 
-runHoardStateRepo :: (Rel8Read :> es, Rel8Write :> es) => Eff (HoardStateRepo : es) a -> Eff es a
+runHoardStateRepo :: (DBRead :> es, DBWrite :> es) => Eff (HoardStateRepo : es) a -> Eff es a
 runHoardStateRepo = interpret_ \case
     GetImmutableTip -> do
         rows <- select "get_immutable_tip" $ HoardState.immutableTip <$> Rel8.each HoardState.schema

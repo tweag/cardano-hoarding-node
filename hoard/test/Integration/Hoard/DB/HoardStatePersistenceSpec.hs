@@ -10,7 +10,7 @@ import Cardano.Api qualified as C
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Monitoring.Metrics (runMetricsNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
-import Hoard.Effects.DB (runDBRead, runDBWrite, runRel8Read, runRel8Write)
+import Hoard.Effects.DB (runDBRead, runDBWrite)
 import Hoard.Effects.HoardStateRepo (getImmutableTip, persistImmutableTip, runHoardStateRepo)
 import Hoard.TestHelpers.Database (withCleanTestDatabase)
 import Hoard.Types.Cardano (ChainPoint (..))
@@ -31,8 +31,6 @@ spec_HoardStatePersistence = do
                 . runDBRead
                 . runClock
                 . runDBWrite
-                . runRel8Read
-                . runRel8Write
                 . runHoardStateRepo
                 $ action
 
