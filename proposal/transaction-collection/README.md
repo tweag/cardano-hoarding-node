@@ -14,7 +14,7 @@ Collecting mempool transactions requires running the TxSubmission2 mini-protocol
 
 Since then, a further path has been identified. The Ouroboros network specification (§5) describes *duplex* connections: a single TCP connection can carry mini-protocols in both directions simultaneously. When the hoarding node advertises `InitiatorAndResponderDiffusionMode`, remote peers' outbound governors may promote the hoarding node's outbound connections to duplex, enabling them to run TxSubmission toward us on the same connection we opened. No listening socket or publicly reachable deployment is required.
 
-A prototype implementing this approach has been built. It has been run against preprod but has not yet witnessed any promoted connections, so it remains unvalidated end-to-end. The cause is unknown — it may be a bug in the prototype, peer-side configuration of `targetNumberOfActivePeers`, or preprod peers simply not promoting duplex connections to non-relay nodes in practice. Resolving this uncertainty is the first milestone of this work package.
+A prototype implementing this approach has been built. It has been run against preprod but has not yet witnessed any promoted connections, so it remains unvalidated end-to-end. Advertising duplex mode is necessary but not sufficient: for TxSubmission to run, a remote peer's outbound governor must also promote us through its full peer lifecycle — cold → warm → hot — and TxSubmission only runs at the hot stage. With saturated peer pools and many candidates, promotion is not guaranteed and may simply not have occurred during the preprod test window. The current ChainSync stub (which drains the channel silently) may also cause peers to treat us as uninteresting and rotate us out before reaching hot. Resolving these uncertainties is the first milestone of this work package.
 
 If promotion is confirmed not to work reliably in practice, the fallback is inbound connections via a publicly reachable deployed node, which depends on the infrastructure work package.
 
@@ -85,7 +85,7 @@ Either: at least one promoted connection observed and transactions received, con
 ### Milestone 2 — TxSubmission Pipeline
 
 **Deliverables:**
-The `TxReceived` event pipeline is wired into persistence. Received transactions are stored in the hoarding database with peer attribution, timestamp, and transaction content (serialised). Duplicate suppression is applied — the same transaction ID received from multiple peers is stored once with multiple peer attributions.
+The `TxReceived` event pipeline is wired into persistence. Received transactions are stored in the hoarding database with peer attribution, timestamp, and transaction content (serialised). Duplicate suppression is applied — the same transaction ID received from multiple peers is stored once with multiple peer attributions. If Milestone 1 identifies that the silent `ChainSync` stub causes peers to rotate us out, a minimal `ChainSync` server (serving headers up to the immutable tip via the embedded `ChainDB`) is implemented to remain a viable hot peer candidate.
 
 **Acceptance criteria:**
 Transactions received from peers appear in the database. Per-peer attribution is correct. Duplicate transactions from different peers are deduplicated by transaction ID.
