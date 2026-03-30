@@ -62,13 +62,13 @@ type CardanoCodecs =
 
 type CardanoMiniProtocol =
     MiniProtocol
-        'InitiatorMode
+        'InitiatorResponderMode
         (MinimalInitiatorContext SockAddr)
         (ResponderContext SockAddr)
         LBS.ByteString
         IO
         ()
-        Void
+        ()
 
 
 newtype ChainPoint = ChainPoint C.ChainPoint

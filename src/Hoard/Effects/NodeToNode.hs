@@ -27,13 +27,14 @@ import Effectful.TH (makeEffect)
 import Effectful.Timeout (Timeout)
 import GHC.IO.Exception (IOErrorType (..), IOException (..), ioError)
 import Network.Mux (Mode (..))
-import Network.Socket (SockAddr, Socket)
+import Network.Socket (SockAddr, Socket, StructLinger (..))
 import Ouroboros.Consensus.Config (TopLevelConfig (..))
 import Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import Ouroboros.Consensus.Network.NodeToNode (defaultCodecs)
 import Ouroboros.Consensus.Node (ProtocolInfo (..))
 import Ouroboros.Consensus.Node.NetworkProtocolVersion (supportedNodeToNodeVersions)
 import Ouroboros.Network.Diffusion.Configuration (PeerSharing (..))
+import Ouroboros.Network.Handshake (HandshakeCallbacks (..))
 import Ouroboros.Network.IOManager (IOManager)
 import Ouroboros.Network.Mux
     ( OuroborosApplication (..)
@@ -46,19 +47,23 @@ import Ouroboros.Network.NodeToNode
     , NodeToNodeVersionData (..)
     , ProtocolLimitFailure
     , combineVersions
-    , connectTo
     , networkMagic
+    , nodeToNodeCodecCBORTerm
+    , nodeToNodeHandshakeCodec
     , nullNetworkConnectTracers
     , simpleSingletonVersions
     )
 import Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemoteAddress, encodeRemoteAddress)
-import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..))
-import Ouroboros.Network.Snocket (Snocket (..), socketSnocket)
+import Ouroboros.Network.Protocol.Handshake (HandshakeProtocolError (..), acceptableVersion, queryVersion)
+import Ouroboros.Network.Protocol.Handshake.Codec (cborTermVersionDataCodec, timeLimitsHandshake)
+import Ouroboros.Network.Snocket (Snocket (..), makeSocketBearer, socketSnocket)
+import Ouroboros.Network.Socket (ConnectToArgs (..), connectToNode)
 
 import Data.ByteString.Lazy qualified as LBS
 import Data.IP qualified as IP
 import Data.Map.Strict qualified as Map
 import Network.Mux.Trace qualified as Mux
+import Network.Socket qualified as Socket
 import System.Timeout qualified as Timeout
 
 import Atelier.Effects.Chan (Chan)
@@ -82,10 +87,12 @@ import Hoard.Effects.NodeToNode.BlockFetch qualified as NodeToNode.BlockFetch
 import Hoard.Effects.NodeToNode.ChainSync qualified as NodeToNode.ChainSync
 import Hoard.Effects.NodeToNode.KeepAlive qualified as NodeToNode.KeepAlive
 import Hoard.Effects.NodeToNode.PeerSharing qualified as NodeToNode.PeerSharing
+import Hoard.Effects.NodeToNode.TxSubmission qualified as NodeToNode.TxSubmission
 import Hoard.Events.BlockFetch qualified as BlockFetch
 import Hoard.Events.ChainSync qualified as ChainSync
 import Hoard.Events.KeepAlive qualified as KeepAlive
 import Hoard.Events.PeerSharing qualified as PeerSharing
+import Hoard.Events.TxSubmission qualified as TxSubmission
 
 
 --------------------------------------------------------------------------------
@@ -133,6 +140,7 @@ runNodeToNode
        , Pub ChainSync.RollBackward :> es
        , Pub KeepAlive.Ping :> es
        , Pub PeerSharing.PeersReceived :> es
+       , Pub TxSubmission.TxReceived :> es
        , Reader (ProtocolInfo CardanoBlock) :> es
        , Reader IOManager :> es
        , Reader NodeToNodeConfig :> es
@@ -170,7 +178,7 @@ runNodeToNode =
                 versionData =
                     NodeToNodeVersionData
                         { networkMagic
-                        , diffusionMode = InitiatorOnlyDiffusionMode
+                        , diffusionMode = InitiatorAndResponderDiffusionMode
                         , peerSharing =
                             if nodeToNode.discoverNewPeers then
                                 PeerSharingEnabled
@@ -212,19 +220,32 @@ runNodeToNode =
                                 nullNetworkConnectTracers
                                     { nctHandshakeTracer = show >$< Tracing.asTracer unlift "node_to_node.handshake"
                                     }
-                        connectTo snocket tracers versions Nothing addr
+                            connectArgs =
+                                ConnectToArgs
+                                    { ctaHandshakeCodec = nodeToNodeHandshakeCodec
+                                    , ctaHandshakeTimeLimits = timeLimitsHandshake
+                                    , ctaVersionDataCodec = cborTermVersionDataCodec nodeToNodeCodecCBORTerm
+                                    , ctaConnectTracers = tracers
+                                    , ctaHandshakeCallbacks = HandshakeCallbacks acceptableVersion queryVersion
+                                    }
+                        connectToNode snocket makeSocketBearer connectArgs configureOutboundSocket versions Nothing addr
 
                     handleResult peer result
   where
-    handleResult :: Peer -> Either SomeException (Either () Void) -> Eff es ConnectToError
+    configureOutboundSocket :: Socket -> IO ()
+    configureOutboundSocket sock = do
+        Socket.setSocketOption sock Socket.NoDelay 1
+        Socket.setSockOpt
+            sock
+            Socket.Linger
+            StructLinger {sl_onoff = 1, sl_linger = 0}
+
+    handleResult :: Peer -> Either SomeException (Either () ()) -> Eff es ConnectToError
     handleResult peer = \case
-        Left err -> do
+        Left err ->
             pure $ ConnectToError $ "Failed to connect to peer " <> show peer <> ": " <> show err
-        Right (Left ()) -> do
+        Right _ ->
             pure $ ConnectToError "Connection closed unexpectedly"
-        Right (Right v) -> do
-            -- This can't happen with InitiatorOnly mode
-            absurd v
 
     handleIOException :: Peer -> IOException -> Eff es ConnectToError
     handleIOException peer e = do
@@ -284,6 +305,7 @@ mkApplication
        , Pub ChainSync.RollBackward :> es
        , Pub KeepAlive.Ping :> es
        , Pub PeerSharing.PeersReceived :> es
+       , Pub TxSubmission.TxReceived :> es
        , Reader ProtocolsConfig :> es
        , State HoardState :> es
        , Sub BlockFetch.Request :> es
@@ -294,7 +316,7 @@ mkApplication
     -- ^ Whether to run the peer sharing mini-protocol.
     -> CardanoCodecs
     -> Peer
-    -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorMode SockAddr LBS.ByteString IO () Void)
+    -> Eff es (OuroborosApplicationWithMinimalCtx 'InitiatorResponderMode SockAddr LBS.ByteString IO () ())
 mkApplication discoverNewPeers codecs peer = do
     conf <- ask @ProtocolsConfig
     withEffToIO (ConcUnlift Persistent Unlimited) \unlift ->
@@ -303,6 +325,7 @@ mkApplication discoverNewPeers codecs peer = do
             $ [ NodeToNode.BlockFetch.miniProtocol conf.blockFetch unlift codecs peer
               , NodeToNode.ChainSync.miniProtocol conf.chainSync unlift codecs peer
               , NodeToNode.KeepAlive.miniProtocol conf.keepAlive unlift codecs peer
+              , NodeToNode.TxSubmission.miniProtocol unlift codecs peer
               ]
                 <> [ NodeToNode.PeerSharing.miniProtocol conf.peerSharing unlift codecs peer
                    | discoverNewPeers

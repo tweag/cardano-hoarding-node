@@ -2,10 +2,11 @@ module Hoard.Effects.NodeToNode.KeepAlive
     ( miniProtocol
     ) where
 
-import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..))
+import Network.Mux (MiniProtocolLimits (..), StartOnDemandOrEagerly (..), recv)
 import Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import Ouroboros.Network.Mux
     ( MiniProtocol (..)
+    , MiniProtocolCb (..)
     , RunMiniProtocol (..)
     , mkMiniProtocolCbFromPeer
     )
@@ -46,9 +47,8 @@ miniProtocol conf unlift codecs peer =
         , miniProtocolLimits = MiniProtocolLimits conf.maximumIngressQueue
         , miniProtocolStart = StartEagerly
         , miniProtocolRun =
-            InitiatorProtocolOnly
-                $ mkMiniProtocolCbFromPeer
-                $ \_ ->
+            InitiatorAndResponderProtocol
+                ( mkMiniProtocolCbFromPeer $ \_ ->
                     let codec = cKeepAliveCodec codecs
                         wrappedPeer =
                             Peer.Effect
@@ -59,6 +59,11 @@ miniProtocol conf unlift codecs peer =
                                 $ client unlift conf peer
                         tracer = show >$< asTracer unlift "keep_alive.protocol_message"
                     in  (tracer, codec, wrappedPeer)
+                )
+                ( MiniProtocolCb $ \_ channel ->
+                    let drain = channel.recv >>= maybe (pure ()) (\_ -> drain)
+                    in  drain >> pure ((), Nothing)
+                )
         }
 
 
