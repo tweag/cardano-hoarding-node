@@ -1,10 +1,75 @@
-# Embedded Consensus
+# Block and Header Validation
+
+## Motivation
+
+The hoarding node already detects and tags certain classes of anomalous blocks:
+corrupt integrity, header/block mismatches, slot disputes, and blocks outside
+the requested range. These checks are performed in isolation — they require only
+the block itself, without any knowledge of the chain or ledger state.
+
+What is currently missing is *consensus and ledger validation*: detecting blocks
+that are structurally well-formed but invalid according to Ouroboros rules. A
+block from a peer who was not the legitimate slot leader, or one containing
+transactions that violate UTxO rules, passes all existing checks undetected.
+This class of invalidity is a strong signal of adversarial behaviour, and
+identifying it requires the full ledger state.
+
+The embedded ChainDB provides exactly that. Feeding observed blocks through it
+expands the classification taxonomy to include invalidity at the header envelope,
+consensus, and ledger stages. Header validation goes further: headers arrive via
+ChainSync *before* block bodies are fetched, so consensus-level invalidity can
+be detected and attributed to a specific peer earlier, without ever downloading
+the block body.
+
+## Deliverables
+
+- **Richer block classification** — blocks are classified as canonical,
+  orphaned, or invalid (with stage: header envelope, consensus, ledger).
+  Classifications are recorded in the hoarding DB and exposed via the HTTP API.
+- **Header validation** — per-peer invalidity detection at the ChainSync stage,
+  before block bodies are fetched. Invalid headers are recorded and attributed
+  to the peer that advertised them.
+
+## Success criteria
+
+- Invalid blocks (consensus and ledger stage) observable and queryable via the
+  HTTP API on the live preprod deployment.
+- Invalid headers attributable to specific peers, recorded and queryable.
+- At least one case of adversarial behaviour (e.g. invalid slot leader claim)
+  detected and evidenced using the richer classification.
+
+## Dependencies
+
+- Embedded ChainDB — the implementation mechanism for block and header
+  validation. See [design.md](design.md) for the implementation plan.
+
+## Effort estimate
+
+A prototype of the embedded ChainDB has already been implemented and merged,
+providing the foundation. It is not yet production-ready — the remaining work
+wires it into the rest of the system and builds the header validation layer on
+top of it.
+
+| Work item | Estimate |
+|---|---|
+| OrphanDetection migration (subscribe to ChainDB events instead of querying NodeToClient) | ~2 weeks |
+| DB schema expansion + `BlockRejected` → DB classification | ~1 week |
+| HTTP API exposure of richer classification | ~1 week |
+| Per-peer header validation (ledger view forecast, VRF check) | ~1 week |
+| Per-peer `HeaderStateHistory` (seeding at intersection, rewind on rollback, disconnect cleanup) | ~2 weeks |
+| Integration and testing | ~1 week |
+
+**Total: ~1.5–2 months** focused, or ~2–3 months alongside other work.
+
+**~1 FTE for 2 months.**
 
 ## Related
 
-- [embedded-consensus-hoard-design.md](embedded-consensus-hoard-design.md) —
+- [design.md](design.md) —
   implementation design: how ChainDB maps onto Hoard's Component model, effect
   stack changes, and what happens to ImmutableTip and OrphanDetection
+- [header-validation-proposal.md](header-validation-proposal.md) —
+  detailed proposal for per-peer header validation at the ChainSync stage
 
 ## Overview
 

@@ -2,8 +2,10 @@
 
 ## Related
 
-- [embedded-consensus.md](embedded-consensus.md) — the proposal this document
+- [proposal.md](proposal.md) — the proposal this document
   implements; read that first for context and motivation
+- [header-validation/design.md](header-validation/design.md) —
+  implementation design for header validation (Stage 1b)
 
 ## Overview
 
@@ -24,8 +26,9 @@ data ChainExtended = ChainExtended { point :: CardanoPoint }
 -- immutable boundary — it can no longer be rolled back.
 data BlockSealed = BlockSealed { point :: CardanoPoint }
 
--- A block was on the canonical chain but has been rolled back by a fork.
--- The block is an orphan.
+-- A block was on the selected chain but has been rolled back by a fork.
+-- This does not immediately imply orphaned: the block may be re-selected if
+-- the chain reorgs again before it crosses the immutable boundary.
 data BlockRolledBack = BlockRolledBack { point :: CardanoPoint }
 
 -- A block failed ChainDB validation. Stage and error are carried for storage.
@@ -104,8 +107,10 @@ consistencyCheck = do
 The interpreter owns the ChainDB handle for its lifetime. On startup it:
 
 1. Reads `Config` (database directory) and `ProtocolInfo` from the effect stack
-2. Opens the ChainDB via `openChainDB`, configuring the tracer to publish
-   `BlockSealed` and `BlockRejected` directly into the effect stack
+2. Opens the ChainDB via `withDB` (a bracket over `closeDB`), configuring the
+   tracer to publish `BlockSealed` and `BlockRejected` directly into the effect
+   stack. `closeDB` is idempotent and kills all background threads and flushes
+   all sub-stores; using `withDB` ensures it is called on shutdown.
 3. Forks a follower thread (tracked by `ResourceRegistry`) that subscribes to
    `SelectedChain` and publishes `ChainExtended` on `AddBlock` and
    `BlockRolledBack` on `RollBack`
@@ -113,6 +118,12 @@ The interpreter owns the ChainDB handle for its lifetime. On startup it:
 `feedBlock` calls `addBlock_` with `noPunishment` — no peer is disconnected on
 validation failure because blocks arrive via our own peer connections rather than
 directly from untrusted peers.
+
+ChainDB manages fork selection entirely internally. External callers only call
+`addBlock_`; the ChainDB evaluates all candidate chains on each new block and
+switches to the preferred fork automatically. There is no external rollback API
+— rollbacks are communicated back to subscribers via the follower's `RollBack`
+instruction, which the follower thread translates into `BlockRolledBack` events.
 
 The tracer publishes inline — there is no intermediate queue. Both the tracer
 and follower thread use `withEffToIO (ConcUnlift Persistent Unlimited)` to
@@ -167,8 +178,15 @@ The two existing listeners:
 
 | Current | Replacement |
 |---|---|
-| `blockReceivedClassifier` — defers or immediately queries `isOnChain` | `blockSealedClassifier` — listens to `BlockSealed`, marks as canonical |
-| `immutableTipUpdatedAger` — batches unclassified blocks, queries `isOnChain` | `blockRolledBackClassifier` — listens to `BlockRolledBack`, marks as orphaned |
+| `blockReceivedClassifier` — defers or immediately queries `isOnChain` | `blockSealedClassifier` — listens to `BlockSealed`, marks the sealed block as canonical and any other hoarding DB blocks at slots ≤ the sealed slot as orphaned |
+| `immutableTipUpdatedAger` — batches unclassified blocks, queries `isOnChain` | *(merged into `blockSealedClassifier` above)* |
+
+`BlockRolledBack` is not used for orphan classification: a rolled-back block may
+still be re-selected before it crosses the immutable boundary, and blocks on forks
+that were never the selected chain generate no `BlockRolledBack` event at all.
+The reliable signal is `BlockSealed` — once a block is sealed, any block in the
+hoarding DB at that slot or earlier that was not sealed is permanently
+non-canonical.
 
 A third listener is added:
 
@@ -260,6 +278,29 @@ validated and chain updates observed.
 
 ---
 
+### Stage 1b — Header validation
+
+**Goal:** validate incoming ChainSync headers using the embedded ChainDB's
+ledger forecast, detecting invalid consensus proofs before block bodies are
+downloaded. Independent of Stages 2–4.
+
+See [header-validation/design.md](header-validation/design.md) for
+the full design.
+
+**Adds:**
+- `GetHeaderStateHistory` and `GetLedgerForecast` operations on the `ChainDB`
+  effect
+- `Hoard.Events.InvalidHeaderReceived` event
+- `Hoard.HeaderValidation` component (`validateHeaderListener`,
+  `rollbackListener`, `peerDisconnectedListener`)
+- `evalState @(Map Peer (HeaderStateHistory CardanoBlock))` and
+  `runPubSub @InvalidHeaderReceived` in `Main.hs`
+
+**Depends on:** Stage 1. **Changes nothing** in existing classification or
+downstream components.
+
+---
+
 ### Stage 2 — OrphanDetection via ChainDB events
 
 **Goal:** switch block classification to the push-based model. The DB schema
@@ -316,6 +357,16 @@ and `Monitoring` follow `BlockSealed` instead of `ImmutableTip.Refreshed`.
 ---
 
 ## Open questions
+
+**`BlockRejected` for blocks on non-winning forks**
+
+Confirmed: `addBlock_` always runs full validation for every candidate chain,
+not just the winner. `chainSelection` iterates all candidate forks involving the
+new block and validates each one; the `InvalidBlock` tracer fires for any that
+fail, regardless of whether the block would have been selected. Invalid blocks
+are also recorded in `cdbInvalid`, preventing them from being re-evaluated.
+`BlockRejected` is therefore a complete signal — it fires for invalid blocks on
+any fork, winning or not.
 
 **`blockFeedListener` vs Persistence ordering**
 
