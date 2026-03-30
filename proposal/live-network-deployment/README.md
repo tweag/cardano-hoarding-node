@@ -56,6 +56,16 @@ Making deployment accessible to external operators compounds this value. Each ad
 
 ---
 
+## Strategic Alignment
+
+**Pillar:** Pillar 1 — Infrastructure & Research Excellence (Focus Area I.2: Threat Detection & Recovery)
+
+**Rationale:** A live deployment is the prerequisite for all network observability work. Without a node running continuously against a real network, no adversarial behaviour can be detected or documented. The infrastructure-as-code pipeline also contributes to the operational reliability goals of Focus Area I.2.
+
+**KPI support:** The existing Pillar 1 KPIs are not direct outputs of this proposal, but a live deployment is the foundation for demonstrating all other proposals' impact on network health.
+
+---
+
 ## Classification
 
 - **New initiative or continuation of existing:** Continuation

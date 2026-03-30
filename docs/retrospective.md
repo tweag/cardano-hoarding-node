@@ -81,10 +81,14 @@ ledger state.
 ### Transaction collector
 
 Transaction collection was deferred. To observe mempool transactions via the
-TxSubmission mini-protocol, the hoarding node must accept inbound connections
-from other nodes — other peers submit transactions to it, not the other way
-around. This requires an actual deployed node reachable from the network, which
-is not yet in place. Transaction collection is proposed for the next cycle,
+TxSubmission mini-protocol, peers must be able to run TxSubmission towards the
+hoarding node. The Ouroboros network specification (§1.4.1) describes two paths:
+inbound connections to a publicly reachable node, or promoted outbound
+connections initiated by the hoarding node itself (which would not require public
+reachability). A prototype of the promoted-connection path was attempted but did
+not succeed in getting any connections promoted, possibly due to preprod peer
+behaviour. Until this is resolved, a publicly reachable deployed node remains
+the reliable path. Transaction collection is proposed for the next cycle,
 conditional on the infrastructure proposal being accepted.
 
 ## Beyond scope

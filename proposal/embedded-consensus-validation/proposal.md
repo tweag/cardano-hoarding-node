@@ -55,7 +55,8 @@ top of it.
 | OrphanDetection migration (subscribe to ChainDB events instead of querying NodeToClient) | ~2 weeks |
 | DB schema expansion + `BlockRejected` → DB classification | ~1 week |
 | HTTP API exposure of richer classification | ~1 week |
-| Per-peer header validation (ledger view, VRF, per-peer state machine) | ~3 weeks |
+| Per-peer header validation (ledger view forecast, VRF check) | ~1 week |
+| Per-peer `HeaderStateHistory` (seeding at intersection, rewind on rollback, disconnect cleanup) | ~2 weeks |
 | Integration and testing | ~1 week |
 
 **Total: ~1.5–2 months** focused, or ~2–3 months alongside other work.

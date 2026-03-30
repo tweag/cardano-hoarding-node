@@ -60,6 +60,14 @@ The architectural approach also has value beyond this project. Building the coll
 
 ---
 
+## Strategic Alignment
+
+**Pillar:** Pillar 1 — Infrastructure & Research Excellence (Focus Area I.2: Threat Detection & Recovery)
+
+**Rationale:** Expands network observability to multiple geographical regions, enabling propagation timing measurement a single node cannot provide. Multiple vantage points provide broader and earlier detection of network anomalies.
+
+---
+
 ## Classification
 
 - **New initiative or continuation of existing:** Continuation
