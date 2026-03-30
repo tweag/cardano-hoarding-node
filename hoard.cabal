@@ -103,7 +103,7 @@ library
   autogen-modules:
       Paths_hoard
   hs-source-dirs:
-      src
+      hoard/src
   default-extensions:
       BlockArguments
       DataKinds
@@ -125,6 +125,7 @@ library
   build-depends:
       aeson
     , atelier
+    , atelier-prelude
     , base
     , base16-bytestring
     , bytestring
@@ -145,7 +146,6 @@ library
     , hasql
     , hasql-pool
     , hasql-transaction
-    , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-sdk
     , http-api-data
@@ -239,6 +239,7 @@ library atelier
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
+    , atelier-prelude
     , base
     , base64-bytestring
     , bytestring
@@ -253,7 +254,6 @@ library atelier
     , hasql
     , hasql-pool
     , hasql-transaction
-    , hoard-prelude
     , hs-opentelemetry-api
     , hs-opentelemetry-exporter-otlp
     , hs-opentelemetry-sdk
@@ -271,6 +271,40 @@ library atelier
     , uuid
   mixins:
       base hiding (Prelude)
+  default-language: GHC2021
+
+library atelier-prelude
+  exposed-modules:
+      Prelude
+  other-modules:
+      Paths_hoard
+  autogen-modules:
+      Paths_hoard
+  hs-source-dirs:
+      atelier/prelude
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      base
+    , effectful-core
+    , effectful-plugin
+    , relude
   default-language: GHC2021
 
 library atelier-testing
@@ -302,12 +336,12 @@ library atelier-testing
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       atelier
+    , atelier-prelude
     , base
     , effectful-core
     , effectful-plugin
     , hasql
     , hasql-pool
-    , hoard-prelude
     , hspec
     , postgres-options
     , string-conversions
@@ -319,40 +353,6 @@ library atelier-testing
       base hiding (Prelude)
   default-language: GHC2021
 
-library hoard-prelude
-  exposed-modules:
-      Prelude
-  other-modules:
-      Paths_hoard
-  autogen-modules:
-      Paths_hoard
-  hs-source-dirs:
-      prelude
-  default-extensions:
-      BlockArguments
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DerivingVia
-      DuplicateRecordFields
-      FlexibleContexts
-      GADTs
-      LambdaCase
-      MultiWayIf
-      OverloadedLabels
-      OverloadedRecordDot
-      OverloadedStrings
-      StrictData
-      TemplateHaskell
-      TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
-  build-depends:
-      base
-    , effectful-core
-    , effectful-plugin
-    , relude
-  default-language: GHC2021
-
 executable hoard-exe
   main-is: Main.hs
   other-modules:
@@ -360,7 +360,7 @@ executable hoard-exe
   autogen-modules:
       Paths_hoard
   hs-source-dirs:
-      app/hoard
+      hoard/app
   default-extensions:
       BlockArguments
       DataKinds
@@ -381,13 +381,13 @@ executable hoard-exe
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
       atelier
+    , atelier-prelude
     , base
     , data-default
     , effectful
     , effectful-core
     , effectful-plugin
     , hoard
-    , hoard-prelude
   mixins:
       base hiding (Prelude)
   default-language: GHC2021
@@ -433,13 +433,13 @@ test-suite atelier-test
   build-depends:
       async
     , atelier
+    , atelier-prelude
     , base
     , containers
     , effectful
     , effectful-core
     , effectful-plugin
     , hedgehog
-    , hoard-prelude
     , hs-opentelemetry-api
     , hspec
     , hspec-hedgehog
@@ -477,7 +477,7 @@ test-suite hoard-test
   autogen-modules:
       Paths_hoard
   hs-source-dirs:
-      test
+      hoard/test
   default-extensions:
       BlockArguments
       DataKinds
@@ -502,6 +502,7 @@ test-suite hoard-test
       aeson
     , async
     , atelier
+    , atelier-prelude
     , atelier-testing
     , base
     , cardano-api
@@ -514,7 +515,6 @@ test-suite hoard-test
     , hasql-pool
     , hasql-transaction
     , hoard
-    , hoard-prelude
     , hs-opentelemetry-api
     , hspec
     , http-client

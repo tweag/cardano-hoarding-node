@@ -35,6 +35,7 @@
         depends = [
           (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
           (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+          (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
           (hsPkgs."base" or (errorHandler.buildDepError "base"))
           (hsPkgs."base16-bytestring" or (errorHandler.buildDepError "base16-bytestring"))
           (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
@@ -55,7 +56,6 @@
           (hsPkgs."hasql" or (errorHandler.buildDepError "hasql"))
           (hsPkgs."hasql-pool" or (errorHandler.buildDepError "hasql-pool"))
           (hsPkgs."hasql-transaction" or (errorHandler.buildDepError "hasql-transaction"))
-          (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
           (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
           (hsPkgs."hs-opentelemetry-sdk" or (errorHandler.buildDepError "hs-opentelemetry-sdk"))
           (hsPkgs."http-api-data" or (errorHandler.buildDepError "http-api-data"))
@@ -95,12 +95,13 @@
         ];
         buildable = true;
         modules = [ "Paths_hoard" ];
-        hsSourceDirs = [ "src" ];
+        hsSourceDirs = [ "hoard/src" ];
       };
       sublibs = {
         "atelier" = {
           depends = [
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
+            (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."base64-bytestring" or (errorHandler.buildDepError "base64-bytestring"))
             (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
@@ -115,7 +116,6 @@
             (hsPkgs."hasql" or (errorHandler.buildDepError "hasql"))
             (hsPkgs."hasql-pool" or (errorHandler.buildDepError "hasql-pool"))
             (hsPkgs."hasql-transaction" or (errorHandler.buildDepError "hasql-transaction"))
-            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
             (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
             (hsPkgs."hs-opentelemetry-exporter-otlp" or (errorHandler.buildDepError "hs-opentelemetry-exporter-otlp"))
             (hsPkgs."hs-opentelemetry-sdk" or (errorHandler.buildDepError "hs-opentelemetry-sdk"))
@@ -136,15 +136,26 @@
           modules = [ "Paths_hoard" ];
           hsSourceDirs = [ "atelier/src" ];
         };
+        "atelier-prelude" = {
+          depends = [
+            (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
+            (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
+            (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
+          ];
+          buildable = true;
+          modules = [ "Paths_hoard" ];
+          hsSourceDirs = [ "atelier/prelude" ];
+        };
         "atelier-testing" = {
           depends = [
             (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+            (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
             (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
             (hsPkgs."hasql" or (errorHandler.buildDepError "hasql"))
             (hsPkgs."hasql-pool" or (errorHandler.buildDepError "hasql-pool"))
-            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."postgres-options" or (errorHandler.buildDepError "postgres-options"))
             (hsPkgs."string-conversions" or (errorHandler.buildDepError "string-conversions"))
@@ -157,33 +168,22 @@
           modules = [ "Paths_hoard" ];
           hsSourceDirs = [ "atelier/testing" ];
         };
-        "hoard-prelude" = {
-          depends = [
-            (hsPkgs."base" or (errorHandler.buildDepError "base"))
-            (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
-            (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
-            (hsPkgs."relude" or (errorHandler.buildDepError "relude"))
-          ];
-          buildable = true;
-          modules = [ "Paths_hoard" ];
-          hsSourceDirs = [ "prelude" ];
-        };
       };
       exes = {
         "hoard-exe" = {
           depends = [
             (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+            (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
             (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
             (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
             (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
             (hsPkgs."hoard" or (errorHandler.buildDepError "hoard"))
-            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
           ];
           buildable = true;
           modules = [ "Paths_hoard" ];
-          hsSourceDirs = [ "app/hoard" ];
+          hsSourceDirs = [ "hoard/app" ];
           mainPath = [ "Main.hs" ];
         };
       };
@@ -192,13 +192,13 @@
           depends = [
             (hsPkgs."async" or (errorHandler.buildDepError "async"))
             (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+            (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
             (hsPkgs."effectful" or (errorHandler.buildDepError "effectful"))
             (hsPkgs."effectful-core" or (errorHandler.buildDepError "effectful-core"))
             (hsPkgs."effectful-plugin" or (errorHandler.buildDepError "effectful-plugin"))
             (hsPkgs."hedgehog" or (errorHandler.buildDepError "hedgehog"))
-            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
             (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."hspec-hedgehog" or (errorHandler.buildDepError "hspec-hedgehog"))
@@ -220,6 +220,7 @@
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
             (hsPkgs."async" or (errorHandler.buildDepError "async"))
             (hsPkgs."hoard".components.sublibs.atelier or (errorHandler.buildDepError "hoard:atelier"))
+            (hsPkgs."hoard".components.sublibs.atelier-prelude or (errorHandler.buildDepError "hoard:atelier-prelude"))
             (hsPkgs."hoard".components.sublibs.atelier-testing or (errorHandler.buildDepError "hoard:atelier-testing"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."cardano-api" or (errorHandler.buildDepError "cardano-api"))
@@ -232,7 +233,6 @@
             (hsPkgs."hasql-pool" or (errorHandler.buildDepError "hasql-pool"))
             (hsPkgs."hasql-transaction" or (errorHandler.buildDepError "hasql-transaction"))
             (hsPkgs."hoard" or (errorHandler.buildDepError "hoard"))
-            (hsPkgs."hoard".components.sublibs.hoard-prelude or (errorHandler.buildDepError "hoard:hoard-prelude"))
             (hsPkgs."hs-opentelemetry-api" or (errorHandler.buildDepError "hs-opentelemetry-api"))
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
@@ -265,7 +265,7 @@
           ];
           buildable = true;
           modules = [ "Paths_hoard" ];
-          hsSourceDirs = [ "test" ];
+          hsSourceDirs = [ "hoard/test" ];
           mainPath = [ "Driver.hs" ];
         };
       };
