@@ -10,13 +10,13 @@
   ({
     flags = {};
     package = {
-      specVersion = "1.18";
-      identifier = { name = "filelock"; version = "0.1.1.8"; };
-      license = "LicenseRef-PublicDomain";
+      specVersion = "2.2";
+      identifier = { name = "filelock"; version = "0.1.1.9"; };
+      license = "CC0-1.0";
       copyright = "";
       maintainer = "Andreas Abel";
       author = "Takano Akio";
-      homepage = "http://github.com/haskell-pkg-janitors/filelock";
+      homepage = "https://github.com/haskell-pkg-janitors/filelock";
       url = "";
       synopsis = "Portable interface to file locking (flock / LockFileEx)";
       description = "This package provides an interface to Windows and Unix\nfile locking functionalities.";
@@ -55,9 +55,9 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/filelock-0.1.1.8.tar.gz";
-      sha256 = "72ab22e966feb4f6021425fdf9e6f758e3ca711b0156eeb3f8590b8e1092b62e";
+      url = "http://hackage.haskell.org/package/filelock-0.1.1.9.tar.gz";
+      sha256 = "243248730399e383a10c276c476db8c735591716e0f6f34ca6120cb3a255eae7";
     });
   }) // {
-    package-description-override = "cabal-version:       1.18\nname:                filelock\nversion:             0.1.1.8\nsynopsis:            Portable interface to file locking (flock / LockFileEx)\ndescription:         This package provides an interface to Windows and Unix\n                     file locking functionalities.\nhomepage:            http://github.com/haskell-pkg-janitors/filelock\nlicense:             PublicDomain\nlicense-file:        LICENSE\nauthor:              Takano Akio\nmaintainer:          Andreas Abel\ncategory:            System\nbuild-type:          Simple\n\nextra-doc-files:\n  CHANGELOG.md\nextra-source-files:\n  tests/lock.log.expected\n\ntested-with:\n  GHC == 9.14.1\n  GHC == 9.12.2\n  GHC == 9.10.2\n  GHC == 9.8.4\n  GHC == 9.6.7\n  GHC == 9.4.8\n  GHC == 9.2.8\n  GHC == 9.0.2\n  GHC == 8.10.7\n  GHC == 8.8.4\n  GHC == 8.6.5\n  GHC == 8.4.4\n  GHC == 8.2.2\n  GHC == 8.0.2\n\nlibrary\n  hs-source-dirs:      .\n  exposed-modules:     System.FileLock\n  other-modules:       System.FileLock.Internal.Flock\n                       System.FileLock.Internal.LockFileEx\n  default-language:    Haskell2010\n\n  build-depends:       base >=4.9.0.0 && <5\n  build-tools:         hsc2hs\n\n  ghc-options:        -Wall\n  if os(windows)\n    cpp-options:      -DUSE_LOCKFILEEX\n    build-depends:    Win32\n  else\n    cpp-options:      -DUSE_FLOCK\n    build-depends:    unix\n\ntest-suite test\n  type:               exitcode-stdio-1.0\n  hs-source-dirs:     tests\n  main-is:            test.hs\n  build-depends:      filelock, process >= 1.2.1.0, async >= 2.0.0.0, base\n  ghc-options:        -threaded\n  default-language:   Haskell2010\n\ntest-suite interrupt\n  type:               exitcode-stdio-1.0\n  hs-source-dirs:     tests\n  main-is:            interrupt.hs\n  build-depends:      filelock, base\n  ghc-options:        -threaded\n  default-language:   Haskell2010\n  if os(windows)\n    buildable:        False\n\nsource-repository head\n  type: git\n  location: https://github.com/haskell-pkg-janitors/filelock.git\n";
+    package-description-override = "cabal-version:       2.2\nname:                filelock\nversion:             0.1.1.9\nsynopsis:            Portable interface to file locking (flock / LockFileEx)\ndescription:         This package provides an interface to Windows and Unix\n                     file locking functionalities.\nhomepage:            https://github.com/haskell-pkg-janitors/filelock\nlicense:             CC0-1.0\nlicense-file:        LICENSE\nauthor:              Takano Akio\nmaintainer:          Andreas Abel\ncategory:            System\nbuild-type:          Simple\n\nextra-doc-files:\n  CHANGELOG.md\nextra-source-files:\n  tests/lock.log.expected\n\ntested-with:\n  GHC == 9.14.1\n  GHC == 9.12.2\n  GHC == 9.10.3\n  GHC == 9.8.4\n  GHC == 9.6.7\n  GHC == 9.4.8\n  GHC == 9.2.8\n  GHC == 9.0.2\n  GHC == 8.10.7\n  GHC == 8.8.4\n  GHC == 8.6.5\n  GHC == 8.4.4\n\nlibrary\n  hs-source-dirs:      .\n  exposed-modules:     System.FileLock\n  other-modules:       System.FileLock.Internal.Flock\n                       System.FileLock.Internal.LockFileEx\n  default-language:    Haskell2010\n\n  build-depends:       base >=4.11.0.0 && <5\n  build-tool-depends:  hsc2hs:hsc2hs\n\n  ghc-options:        -Wall\n  if os(windows)\n    cpp-options:      -DUSE_LOCKFILEEX\n    build-depends:    Win32\n  else\n    cpp-options:      -DUSE_FLOCK\n    build-depends:    unix\n\ntest-suite test\n  type:               exitcode-stdio-1.0\n  hs-source-dirs:     tests\n  main-is:            test.hs\n  build-depends:      filelock, process >= 1.2.1.0, async >= 2.0.0.0, base\n  ghc-options:        -threaded\n  default-language:   Haskell2010\n\ntest-suite interrupt\n  type:               exitcode-stdio-1.0\n  hs-source-dirs:     tests\n  main-is:            interrupt.hs\n  build-depends:      filelock, base\n  ghc-options:        -threaded\n  default-language:   Haskell2010\n  if os(windows)\n    buildable:        False\n\nsource-repository head\n  type: git\n  location: https://github.com/haskell-pkg-janitors/filelock.git\n";
   }

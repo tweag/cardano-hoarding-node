@@ -17,6 +17,9 @@ ghc-options:
 - -Wno-monomorphism-restriction
 # Most of the time completely unnecessary
 - -Wno-missing-kind-signatures
+- -Wno-missing-poly-kind-signatures
+# Mechanical noise — roles on simple newtypes are obvious
+- -Wno-missing-role-annotations
 # Very tedious to enforce for _all_ local bindings
 - -Wno-missing-local-signatures
 # Tedious because it also enforces an explicit import list on records
@@ -237,6 +240,8 @@ tests:
     # Complains about `test/Driver.hs` emitted by tasty-discover, and is handled by
     # our fourmolu config.
     - -Wno-prepositive-qualified-module
+    # Partial functions like `List.head` are acceptable in tests.
+    - -Wno-x-partial
     - -threaded
     build-tools:
     - tasty-discover:tasty-discover

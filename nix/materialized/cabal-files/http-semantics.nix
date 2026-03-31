@@ -11,14 +11,14 @@
     flags = {};
     package = {
       specVersion = "3.0";
-      identifier = { name = "http-semantics"; version = "0.3.0"; };
+      identifier = { name = "http-semantics"; version = "0.4.0"; };
       license = "BSD-3-Clause";
       copyright = "";
       maintainer = "Kazu Yamamoto <kazu@iij.ad.jp>";
       author = "Kazu Yamamoto <kazu@iij.ad.jp>";
       homepage = "https://github.com/kazu-yamamoto/http-semantics";
       url = "";
-      synopsis = "HTTP senmatics libarry";
+      synopsis = "HTTP semantics library";
       description = "Version-independent common parts of HTTP";
       buildType = "Simple";
     };
@@ -40,9 +40,9 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/http-semantics-0.3.0.tar.gz";
-      sha256 = "9ccee90bcbbfb29f30f7aed063c62edf0f3eb084ba63dbf9baffbd5db573714f";
+      url = "http://hackage.haskell.org/package/http-semantics-0.4.0.tar.gz";
+      sha256 = "9d40065eb85c19c1bd372b31bd3298aaa03acfe6646ea4edabfa65310808bc73";
     });
   }) // {
-    package-description-override = "cabal-version:   3.0\nname:            http-semantics\nversion:         0.3.0\nlicense:         BSD-3-Clause\nlicense-file:    LICENSE\nmaintainer:      Kazu Yamamoto <kazu@iij.ad.jp>\nauthor:          Kazu Yamamoto <kazu@iij.ad.jp>\nhomepage:        https://github.com/kazu-yamamoto/http-semantics\nsynopsis:        HTTP senmatics libarry\ndescription:     Version-independent common parts of HTTP\ncategory:        Network\nbuild-type:      Simple\nextra-doc-files: ChangeLog.md\n\nsource-repository head\n    type:     git\n    location: https://github.com/kazu-yamamoto/http-semantics\n\nlibrary\n    exposed-modules:\n        Network.HTTP.Semantics\n        Network.HTTP.Semantics.Client\n        Network.HTTP.Semantics.Client.Internal\n        Network.HTTP.Semantics.IO\n        Network.HTTP.Semantics.Server\n        Network.HTTP.Semantics.Server.Internal\n        Network.HTTP.Semantics.Token\n\n    other-modules:\n        Network.HTTP.Semantics.File\n        Network.HTTP.Semantics.FillBuf\n        Network.HTTP.Semantics.Header\n        Network.HTTP.Semantics.ReadN\n        Network.HTTP.Semantics.Status\n        Network.HTTP.Semantics.Trailer\n        Network.HTTP.Semantics.Types\n\n    default-language:   Haskell2010\n    default-extensions: Strict StrictData\n    ghc-options:        -Wall\n    build-depends:\n        base >=4.9 && <5,\n        array,\n        bytestring >=0.10,\n        case-insensitive,\n        http-types >=0.12 && <0.13,\n        network,\n        network-byte-order,\n        time-manager,\n        utf8-string\n";
+    package-description-override = "cabal-version:   3.0\nname:            http-semantics\nversion:         0.4.0\nlicense:         BSD-3-Clause\nlicense-file:    LICENSE\nmaintainer:      Kazu Yamamoto <kazu@iij.ad.jp>\nauthor:          Kazu Yamamoto <kazu@iij.ad.jp>\nhomepage:        https://github.com/kazu-yamamoto/http-semantics\nsynopsis:        HTTP semantics library\ndescription:     Version-independent common parts of HTTP\ncategory:        Network\nbuild-type:      Simple\nextra-doc-files: ChangeLog.md\n\nsource-repository head\n    type:     git\n    location: https://github.com/kazu-yamamoto/http-semantics\n\nlibrary\n    exposed-modules:\n        Network.HTTP.Semantics\n        Network.HTTP.Semantics.Client\n        Network.HTTP.Semantics.Client.Internal\n        Network.HTTP.Semantics.IO\n        Network.HTTP.Semantics.Server\n        Network.HTTP.Semantics.Server.Internal\n        Network.HTTP.Semantics.Token\n\n    other-modules:\n        Network.HTTP.Semantics.File\n        Network.HTTP.Semantics.FillBuf\n        Network.HTTP.Semantics.Header\n        Network.HTTP.Semantics.ReadN\n        Network.HTTP.Semantics.Status\n        Network.HTTP.Semantics.Trailer\n        Network.HTTP.Semantics.Types\n\n    default-language:   Haskell2010\n    default-extensions: Strict StrictData\n    ghc-options:        -Wall\n    build-depends:\n        base >=4.9 && <5,\n        array,\n        bytestring >=0.10,\n        case-insensitive,\n        http-types >=0.12 && <0.13,\n        network,\n        network-byte-order,\n        time-manager >= 0.2.4,\n        utf8-string\n";
   }

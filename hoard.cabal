@@ -1,6 +1,6 @@
 cabal-version: 3.0
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -121,7 +121,7 @@ library
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
     , atelier
@@ -201,6 +201,7 @@ library atelier
       Atelier.Effects.DB.Config
       Atelier.Effects.DB.Rel8
       Atelier.Effects.Delay
+      Atelier.Effects.Env
       Atelier.Effects.Log
       Atelier.Effects.Monitoring.Metrics
       Atelier.Effects.Monitoring.Metrics.Registry
@@ -237,7 +238,7 @@ library atelier
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson
     , atelier-prelude
@@ -301,7 +302,7 @@ library atelier-prelude
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       base
     , effectful-core
@@ -335,7 +336,7 @@ library atelier-testing
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded
   build-depends:
       atelier
     , atelier-prelude
@@ -380,7 +381,7 @@ executable hoard-exe
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
       atelier
     , atelier-prelude
@@ -429,7 +430,7 @@ test-suite atelier-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
@@ -459,7 +460,6 @@ test-suite hoard-test
   other-modules:
       Hoard.TestHelpers
       Hoard.TestHelpers.Database
-      Integration.DBEffects
       Integration.Hoard.API.BlocksSpec
       Integration.Hoard.API.PeersSpec
       Integration.Hoard.DB.BlockPersistenceSpec
@@ -499,7 +499,7 @@ test-suite hoard-test
       StrictData
       TemplateHaskell
       TypeFamilies
-  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -threaded
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -O0 -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module -Wno-x-partial -threaded
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:

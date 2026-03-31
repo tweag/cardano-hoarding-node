@@ -10,8 +10,8 @@
   ({
     flags = {};
     package = {
-      specVersion = "1.10";
-      identifier = { name = "measures"; version = "0.1.0.2"; };
+      specVersion = "3.0";
+      identifier = { name = "measures"; version = "0.1.0.3"; };
       license = "Apache-2.0";
       copyright = "IOHK";
       maintainer = "operations@iohk.io";
@@ -31,12 +31,11 @@
         buildable = true;
       };
       tests = {
-        "test" = {
+        "tests" = {
           depends = [
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."QuickCheck" or (errorHandler.buildDepError "QuickCheck"))
-            (hsPkgs."tasty" or (errorHandler.buildDepError "tasty"))
-            (hsPkgs."tasty-quickcheck" or (errorHandler.buildDepError "tasty-quickcheck"))
+            (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."measures" or (errorHandler.buildDepError "measures"))
           ];
           buildable = true;
@@ -45,9 +44,9 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "https://chap.intersectmbo.org/package/measures-0.1.0.2.tar.gz";
-      sha256 = "329fbe75c3367885ec317bc09b1f4cdecd64d58a33a31c11b60a9f33c2617e87";
+      url = "https://chap.intersectmbo.org/package/measures-0.1.0.3.tar.gz";
+      sha256 = "9dee462ce47bc86b00b1a86f4f1cdce8defb36b6343b2c2c76d95a98fd76b30a";
     });
   }) // {
-    package-description-override = "cabal-version:       >=1.10\n\nname:                measures\nversion:             0.1.0.2\nsynopsis:            An abstraction for (tuples of) measured quantities\nlicense:             Apache-2.0\nlicense-files:\n  LICENSE\n  NOTICE\nauthor:              IOHK\nmaintainer:          operations@iohk.io\ncopyright:           IOHK\nbuild-type:          Simple\nextra-source-files:  CHANGELOG.md\n\nlibrary\n  default-language:     Haskell2010\n  hs-source-dirs:       src\n\n  ghc-options:\n    -Wall\n    -Wcompat\n    -Wincomplete-uni-patterns\n    -Wincomplete-record-updates\n    -Wpartial-fields\n    -Widentities\n    -Wredundant-constraints\n    -Wmissing-export-lists\n\n  exposed-modules:\n                        Data.Measure\n                        Data.Measure.Class\n\n  build-depends:        base\n                      , base-deriving-via\n\ntest-suite test\n  hs-source-dirs:       test\n  main-is:              Main.hs\n  type:                 exitcode-stdio-1.0\n\n  other-modules:\n                        Test.Data.Measure\n\n  build-depends:        base\n                      , QuickCheck\n                      , tasty\n                      , tasty-quickcheck\n\n                      , measures\n";
+    package-description-override = "cabal-version: 3.0\nname: measures\nversion: 0.1.0.3\nsynopsis: An abstraction for (tuples of) measured quantities\nlicense: Apache-2.0\nlicense-files:\n  LICENSE\n  NOTICE\n\nauthor: IOHK\nmaintainer: operations@iohk.io\ncopyright: IOHK\nbuild-type: Simple\nextra-doc-files: CHANGELOG.md\n\ncommon base\n  build-depends: base >=4.18 && <5\n\ncommon project-config\n  default-language: Haskell2010\n  ghc-options:\n    -Wall\n    -Wcompat\n    -Widentities\n    -Wincomplete-record-updates\n    -Wincomplete-uni-patterns\n    -Wmissing-export-lists\n    -Wpartial-fields\n    -Wredundant-constraints\n    -Wunused-packages\n\nlibrary\n  import: base, project-config\n  hs-source-dirs: src\n  exposed-modules:\n    Data.Measure\n    Data.Measure.Class\n\n  build-depends:\n    base-deriving-via\n\ntest-suite tests\n  import: base, project-config\n  hs-source-dirs: test\n  main-is: Main.hs\n  type: exitcode-stdio-1.0\n  other-modules:\n    Test.Data.Measure\n\n  build-depends:\n    QuickCheck,\n    hspec,\n    measures,\n";
   }
