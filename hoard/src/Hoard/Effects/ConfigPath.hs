@@ -10,7 +10,7 @@ module Hoard.Effects.ConfigPath
     ) where
 
 import Data.Aeson (Value (..))
-import Effectful (IOE)
+import Effectful (IOE, runEff)
 import Effectful.Reader.Static (Reader, asks, runReader)
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
@@ -19,6 +19,7 @@ import Data.Aeson.KeyMap qualified as KM
 import Data.Yaml qualified as Yaml
 
 import Atelier.Config (LoadedConfig (..), deepMerge, envOverrides, runConfig)
+import Atelier.Effects.Env (runEnv)
 import Hoard.Effects.Options (Options)
 import Hoard.Types.Deployment (Deployment (..), deploymentName)
 
@@ -34,7 +35,7 @@ loadHoardConfig deployment = do
         secretsYaml = "secrets" </> env <> ".yaml"
     base <- loadOptional configYaml
     secrets <- loadOptional secretsYaml
-    envVars <- envOverrides "HOARD"
+    envVars <- runEff $ runEnv $ envOverrides "HOARD"
     pure $ LoadedConfig $ deepMerge (deepMerge base secrets) envVars
   where
     loadOptional path =

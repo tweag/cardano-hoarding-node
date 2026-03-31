@@ -1,15 +1,14 @@
 module Unit.Hoard.ConfigSpec (spec_Config) where
 
-import Control.Exception (finally)
 import Data.Aeson (FromJSON, Value (..), object)
 import Data.Default (Default (..))
-import Effectful (runEff)
+import Effectful (runEff, runPureEff)
 import Effectful.Reader.Static (Reader, ask, runReader)
-import System.Environment (getEnvironment, setEnv, unsetEnv)
-import Test.Hspec (Spec, around, describe, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
 import Data.Aeson.KeyMap qualified as KM
 
+import Atelier.Effects.Env (runEnvConst)
 import Hoard.Effects.ConfigPath (LoadedConfig (..), deepMerge, envOverrides, runConfig)
 
 
@@ -63,71 +62,47 @@ deepMergeSpec = describe "deepMerge" do
 --------------------------------------------------------------------------------
 
 envOverridesSpec :: Spec
-envOverridesSpec = describe "envOverrides" $ around withCleanEnv do
+envOverridesSpec = describe "envOverrides" do
     it "ignores env vars without the prefix" do
-        setEnv "OTHER__FOO" "bar"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object []
+        run [("OTHER__FOO", "bar")] `shouldBe` object []
 
     it "single-segment key becomes top-level field" do
-        setEnv "HOARD__HOST" "localhost"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("host", String "localhost")]
+        run [("HOARD__HOST", "localhost")] `shouldBe` object [("host", String "localhost")]
 
     it "double-underscore separates path segments" do
-        setEnv "HOARD__DATABASE__HOST" "db.example.com"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("database", object [("host", String "db.example.com")])]
+        run [("HOARD__DATABASE__HOST", "db.example.com")]
+            `shouldBe` object [("database", object [("host", String "db.example.com")])]
 
     it "segment keys are lowercased" do
-        setEnv "HOARD__SERVER__HOST" "0.0.0.0"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("server", object [("host", String "0.0.0.0")])]
+        run [("HOARD__SERVER__HOST", "0.0.0.0")]
+            `shouldBe` object [("server", object [("host", String "0.0.0.0")])]
 
     it "single underscores within a segment are preserved" do
-        setEnv "HOARD__LOGGING__MINIMUM_SEVERITY" "INFO"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("logging", object [("minimum_severity", String "INFO")])]
+        run [("HOARD__LOGGING__MINIMUM_SEVERITY", "INFO")]
+            `shouldBe` object [("logging", object [("minimum_severity", String "INFO")])]
 
     it "deeply nested path" do
-        setEnv "HOARD__DATABASE__USERS__READER__PASSWORD" "secret"
-        result <- envOverrides "HOARD"
-        result
+        run [("HOARD__DATABASE__USERS__READER__PASSWORD", "secret")]
             `shouldBe` object
-                [
-                    ( "database"
-                    , object
-                        [
-                            ( "users"
-                            , object [("reader", object [("password", String "secret")])]
-                            )
-                        ]
-                    )
-                ]
+                [("database", object [("users", object [("reader", object [("password", String "secret")])])])]
 
     it "numeric string is parsed as Number" do
-        setEnv "HOARD__SERVER__PORT" "3000"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("server", object [("port", Number 3000)])]
+        run [("HOARD__SERVER__PORT", "3000")]
+            `shouldBe` object [("server", object [("port", Number 3000)])]
 
     it "boolean string is parsed as Bool" do
-        setEnv "HOARD__TRACING__ENABLED" "true"
-        result <- envOverrides "HOARD"
-        result `shouldBe` object [("tracing", object [("enabled", Bool True)])]
+        run [("HOARD__TRACING__ENABLED", "true")]
+            `shouldBe` object [("tracing", object [("enabled", Bool True)])]
 
     it "non-numeric string stays as String" do
-        setEnv "HOARD__LOGGING__MINIMUM_SEVERITY" "INFO"
-        result <- envOverrides "HOARD"
-        result `shouldSatisfy` \v ->
-            lookupNested ["logging", "minimum_severity"] v == Just (String "INFO")
+        run [("HOARD__LOGGING__MINIMUM_SEVERITY", "INFO")]
+            `shouldSatisfy` \v -> lookupNested ["logging", "minimum_severity"] v == Just (String "INFO")
 
     it "multiple vars are merged into one object" do
-        setEnv "HOARD__SERVER__HOST" "0.0.0.0"
-        setEnv "HOARD__SERVER__PORT" "3001"
-        result <- envOverrides "HOARD"
-        result
-            `shouldBe` object
-                [("server", object [("host", String "0.0.0.0"), ("port", Number 3001)])]
+        run [("HOARD__SERVER__HOST", "0.0.0.0"), ("HOARD__SERVER__PORT", "3001")]
+            `shouldBe` object [("server", object [("host", String "0.0.0.0"), ("port", Number 3001)])]
+  where
+    run env = runPureEff $ runEnvConst env $ envOverrides "HOARD"
 
 
 --------------------------------------------------------------------------------
@@ -170,17 +145,6 @@ lookupNested :: [Text] -> Value -> Maybe Value
 lookupNested [] v = Just v
 lookupNested (k : ks) (Object m) = KM.lookup (fromString (toString k)) m >>= lookupNested ks
 lookupNested _ _ = Nothing
-
-
--- | Unset all HOARD__ vars before and after each test that touches the environment.
-withCleanEnv :: (() -> IO ()) -> IO ()
-withCleanEnv test = do
-    cleanHoardEnv
-    test () `finally` cleanHoardEnv
-  where
-    cleanHoardEnv = do
-        env <- getEnvironment
-        traverse_ (unsetEnv . fst) $ filter (("HOARD__" `isPrefixOf`) . fst) env
 
 
 -- | Minimal config type for testing runConfig.
