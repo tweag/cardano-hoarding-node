@@ -210,7 +210,7 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
             , localTxMonitoringClient = Nothing
             }
   where
-    queryImmutableTip :: IO (Q.ClientStIdle block point QueryInMode IO void)
+    queryImmutableTip :: IO (Q.ClientStIdle block point QueryInMode IO never)
     queryImmutableTip = do
         resultVar <- readChan immutableTipQueries
         pure
@@ -223,7 +223,7 @@ localNodeClient connectionInfo immutableTipQueries isOnChainQueries =
                         $ \result -> MVar.putMVar resultVar (ChainPoint result) $> Q.SendMsgRelease queryImmutableTip
                 , recvMsgFailure = error "`ImmutableTip` should never fail to be acquired."
                 }
-    queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO void)
+    queryIsOnChain :: IO (S.ClientStIdle header C.ChainPoint tip IO never)
     queryIsOnChain = do
         (point, resultVar) <- readChan isOnChainQueries
         pure

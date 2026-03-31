@@ -88,7 +88,7 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/hedgehog-extras-0.10.1.0.tar.gz";
+      url = "https://chap.intersectmbo.org/package/hedgehog-extras-0.10.1.0.tar.gz";
       sha256 = "df9f55c9342bd28fd7f83dcfe890d50e9895ade41efa675156bc2012820ea512";
     });
   }) // {

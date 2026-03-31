@@ -52,7 +52,7 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/streaming-0.2.4.0.tar.gz";
+      url = "https://chap.intersectmbo.org/package/streaming-0.2.4.0.tar.gz";
       sha256 = "caddfba744a057174f94b3c2e6bce2d31f6bb7c436df0c0920269336f132dde0";
     });
   }) // {

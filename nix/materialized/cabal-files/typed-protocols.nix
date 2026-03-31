@@ -111,7 +111,7 @@
     };
   } // {
     src = pkgs.lib.mkDefault (pkgs.fetchurl {
-      url = "http://hackage.haskell.org/package/typed-protocols-1.0.0.0.tar.gz";
+      url = "https://chap.intersectmbo.org/package/typed-protocols-1.0.0.0.tar.gz";
       sha256 = "c210846cf1d293066267993fba4d91f7843a0d4328050d9cbdce6a27f8002581";
     });
   }) // {
