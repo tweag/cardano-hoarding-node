@@ -299,6 +299,7 @@
         strict-checked-vars.flags.checktvarinvariants = false;
         servant-server.revision = import ./cabal-files/servant-server.nix;
         profunctors.revision = import ./cabal-files/profunctors.nix;
+        optics-th.revision = import ./cabal-files/optics-th.nix;
         optics-extra.revision = import ./cabal-files/optics-extra.nix;
         microlens-mtl.revision = import ./cabal-files/microlens-mtl.nix;
         postgresql-simple.revision = import ./cabal-files/postgresql-simple.nix;
@@ -318,6 +319,7 @@
         safe-wild-cards.revision = import ./cabal-files/safe-wild-cards.nix;
         tasty-hunit.revision = import ./cabal-files/tasty-hunit.nix;
         size-based.revision = import ./cabal-files/size-based.nix;
+        cabal-doctest.revision = import ./cabal-files/cabal-doctest.nix;
         hasql.revision = import ./cabal-files/hasql.nix;
         ansi-terminal-types.revision = import ./cabal-files/ansi-terminal-types.nix;
         process.revision = hackage.process."1.6.19.0".revisions.default;
@@ -357,6 +359,7 @@
         composition-prelude.revision = import ./cabal-files/composition-prelude.nix;
         composition-prelude.flags.development = false;
         with-utf8.revision = import ./cabal-files/with-utf8.nix;
+        insert-ordered-containers.revision = import ./cabal-files/insert-ordered-containers.nix;
         vector-map.revision = import ./cabal-files/vector-map.nix;
         graphviz.revision = import ./cabal-files/graphviz.nix;
         graphviz.flags.test-parsing = false;
@@ -424,6 +427,7 @@
         cardano-ledger-byron.flags.test-normal-form = false;
         kes-agent-crypto.revision = import ./cabal-files/kes-agent-crypto.nix;
         text.revision = hackage.text."2.0.2".revisions.default;
+        openapi3.revision = import ./cabal-files/openapi3.nix;
         tasty-hspec.revision = import ./cabal-files/tasty-hspec.nix;
         blaze-markup.revision = import ./cabal-files/blaze-markup.nix;
         network-byte-order.revision = import ./cabal-files/network-byte-order.nix;
@@ -753,6 +757,7 @@
         tasty-discover.revision = import ./cabal-files/tasty-discover.nix;
         tasty-discover.flags.dev = false;
         multiset.revision = import ./cabal-files/multiset.nix;
+        servant-openapi3.revision = import ./cabal-files/servant-openapi3.nix;
         unix-compat.revision = import ./cabal-files/unix-compat.nix;
         http-types.revision = import ./cabal-files/http-types.nix;
         memory-pool.revision = import ./cabal-files/memory-pool.nix;
@@ -943,6 +948,7 @@
           "transformers-base".components.library.planned = lib.mkOverride 900 true;
           "mono-traversable".components.library.planned = lib.mkOverride 900 true;
           "fin".components.library.planned = lib.mkOverride 900 true;
+          "openapi3".components.setup.planned = lib.mkOverride 900 true;
           "conduit".components.library.planned = lib.mkOverride 900 true;
           "strict-checked-vars".components.library.planned = lib.mkOverride 900 true;
           "effectful".components.library.planned = lib.mkOverride 900 true;
@@ -950,6 +956,7 @@
           "hspec-discover".components.library.planned = lib.mkOverride 900 true;
           "hashable".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-consensus-cardano".components.exes."db-immutaliser".planned = lib.mkOverride 900 true;
+          "insert-ordered-containers".components.library.planned = lib.mkOverride 900 true;
           "template-haskell".components.library.planned = lib.mkOverride 900 true;
           "ral".components.library.planned = lib.mkOverride 900 true;
           "easy-file".components.library.planned = lib.mkOverride 900 true;
@@ -1027,6 +1034,7 @@
           "plutus-ledger-api".components.exes."dump-cost-model-parameters".planned = lib.mkOverride 900 true;
           "set-algebra".components.library.planned = lib.mkOverride 900 true;
           "data-clist".components.library.planned = lib.mkOverride 900 true;
+          "openapi3".components.exes."example".planned = lib.mkOverride 900 true;
           "unliftio".components.library.planned = lib.mkOverride 900 true;
           "measures".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-network-protocols".components.library.planned = lib.mkOverride 900 true;
@@ -1112,6 +1120,7 @@
           "semialign".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-consensus-cardano".components.sublibs."unstable-byron-testlib".planned = lib.mkOverride 900 true;
           "random".components.library.planned = lib.mkOverride 900 true;
+          "cabal-doctest".components.library.planned = lib.mkOverride 900 true;
           "invariant".components.library.planned = lib.mkOverride 900 true;
           "non-integral".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-network".components.sublibs."cardano-diffusion".planned = lib.mkOverride 900 true;
@@ -1128,6 +1137,7 @@
           "aeson-pretty".components.exes."aeson-pretty".planned = lib.mkOverride 900 true;
           "tasty-discover".components.library.planned = lib.mkOverride 900 true;
           "base58-bytestring".components.library.planned = lib.mkOverride 900 true;
+          "servant-openapi3".components.setup.planned = lib.mkOverride 900 true;
           "fingertree".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-consensus-cardano".components.exes."db-synthesizer".planned = lib.mkOverride 900 true;
           "hoard".components.exes."hoard-exe".planned = lib.mkOverride 900 true;
@@ -1160,6 +1170,7 @@
           "cardano-ledger-babbage".components.library.planned = lib.mkOverride 900 true;
           "tmp-postgres".components.exes."with-cache-loop".planned = lib.mkOverride 900 true;
           "canonical-json".components.library.planned = lib.mkOverride 900 true;
+          "servant-openapi3".components.library.planned = lib.mkOverride 900 true;
           "attoparsec-aeson".components.library.planned = lib.mkOverride 900 true;
           "cardano-ledger-binary".components.library.planned = lib.mkOverride 900 true;
           "quiet".components.library.planned = lib.mkOverride 900 true;
@@ -1189,6 +1200,7 @@
           "cardano-ledger-babbage".components.exes."huddle-cddl".planned = lib.mkOverride 900 true;
           "transformers-compat".components.library.planned = lib.mkOverride 900 true;
           "base64-bytestring-type".components.library.planned = lib.mkOverride 900 true;
+          "openapi3".components.library.planned = lib.mkOverride 900 true;
           "ansi-wl-pprint".components.library.planned = lib.mkOverride 900 true;
           "bytestring-trie".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-network-framework".components.exes."demo-connection-manager".planned = lib.mkOverride 900 true;
@@ -1550,6 +1562,7 @@
           "hspec-expectations-lifted".components.library.planned = lib.mkOverride 900 true;
           "ouroboros-consensus".components.sublibs."unstable-mempool-test-utils".planned = lib.mkOverride 900 true;
           "quickcheck-state-machine".components.sublibs."no-vendored-treediff".planned = lib.mkOverride 900 true;
+          "optics-th".components.library.planned = lib.mkOverride 900 true;
           "hedgehog".components.library.planned = lib.mkOverride 900 true;
           "tasty-hedgehog".components.library.planned = lib.mkOverride 900 true;
         };

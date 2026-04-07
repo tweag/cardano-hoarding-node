@@ -110,6 +110,10 @@ library:
     - prometheus-client
     - prometheus-metrics-ghc
     - rel8
+    - insert-ordered-containers
+    - lens
+    - openapi3
+    - servant-openapi3
     - servant-server
     - stm-containers
     - string-conversions

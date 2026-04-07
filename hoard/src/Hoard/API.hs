@@ -5,34 +5,20 @@ module Hoard.API
     )
 where
 
-import Servant
 import Servant.Server.Generic (AsServerT)
 
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Monitoring.Metrics (Metrics, exportMetrics)
-import Hoard.API.Peers (PeersAPI, peersHandler)
+import Hoard.API.OpenAPI (spec)
+import Hoard.API.Peers (peersHandler)
+import Hoard.API.Routes (API, Routes (..))
 import Hoard.API.Util ((::>))
 import Hoard.Effects.BlockRepo (BlockRepo)
 import Hoard.Effects.HeaderRepo (HeaderRepo)
 import Hoard.Effects.PeerRepo (PeerRepo)
-import Prelude hiding ((:>))
 
 import Hoard.API.Blocks qualified as Blocks
 import Hoard.API.Headers qualified as Headers
-
-
--- | Named routes for the API
-data Routes mode = Routes
-    { metrics :: mode :- "metrics" :> Get '[PlainText] Text
-    , peers :: PeersAPI mode
-    , blocks :: mode :- "blocks" :> Blocks.API
-    , headers :: mode :- "headers" :> Headers.API
-    }
-    deriving stock (Generic)
-
-
--- | API using named routes
-type API = NamedRoutes Routes
 
 
 -- | Server implementation, handlers run in Eff monad
@@ -50,4 +36,5 @@ server =
         , peers = peersHandler
         , blocks = Blocks.handler
         , headers = Headers.handler
+        , openapi = pure spec
         }

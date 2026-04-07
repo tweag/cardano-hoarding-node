@@ -1,6 +1,6 @@
 module Hoard.API.Peers
     ( PeersRoutes (..)
-    , PeersAPI
+    , API
     , PinPeerRequest (..)
     , peersHandler
     ) where
@@ -55,7 +55,7 @@ data PeersRoutes mode = PeersRoutes
     deriving stock (Generic)
 
 
-type PeersAPI mode = mode :- "peers" :> "pinned" :> NamedRoutes PeersRoutes
+type API = "pinned" :> NamedRoutes PeersRoutes
 
 
 peersHandler
